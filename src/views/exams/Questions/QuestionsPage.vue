@@ -1,0 +1,509 @@
+<!-- src/views/exam/Questions/QuestionsPage.vue -->
+
+<script setup>
+import { ref, onMounted, watch } from 'vue'
+import api from '../../../plugins/api'
+import { useRouter } from 'vue-router'
+import { useUIStore } from '../../../stores/snackBar'
+
+const router = useRouter()
+const ui = useUIStore()
+
+
+const loading = ref(false)
+const questions = ref([])
+const totalItems = ref(0)
+const deleteDialog = ref(false)
+const selectedQuestion = ref(null)
+
+const options = ref({
+  page: 1,
+  itemsPerPage: 10
+})
+
+const filters = ref({
+  search: '',
+  grade_id: null,
+  subject_id: null,
+  lesson_id: null,
+  type: null,
+  difficulty: null
+})
+
+const grades = ref([])
+const subjects = ref([])
+const lessons = ref([])
+
+const questionTypes = [
+    { text: 'Multiple Choice (Single Answer)', value: 'mcq' },
+    { text: 'Multiple Choice (Multiple Answers)', value: 'multiple_mcq' },
+    { text: 'True/False', value: 'true_false' },
+    { text: 'Fill in the Blank', value: 'fill_blank' },
+    { text: 'Short Answer', value: 'short' },
+    { text: 'Long Answer', value: 'long' },
+    { text: 'Match the Column', value: 'match_column' },
+    { text: 'Assertion-Reason', value: 'assertion_reason' },
+    { text: 'Numerical', value: 'numerical' }
+]
+
+const difficultyLevels = [
+    { text: 'Easy', value: 'easy' },
+    { text: 'Medium', value: 'medium' },
+    { text: 'Hard', value: 'hard' }
+]
+
+const headers = [
+  {title: 'Question', key: 'question'},
+  {title: 'Grade', key: 'grade.name'},
+  {title: 'Subject',    key: 'subject.name'  },
+  {title: 'Type',    key: 'type'  },
+  {title: 'Difficulty',    key: 'difficulty'  },
+  {title: 'Marks',    key: 'marks'  },
+  {title: 'Actions',    key: 'actions',    sortable: false  }
+]
+
+const fetchQuestions = async () => {
+
+  loading.value = true
+
+  try {
+
+    const res = await api.get('/questions', {
+
+      params: {
+        page: options.value.page,
+        per_page: options.value.itemsPerPage,
+        search: filters.value.search,
+        grade_id: filters.value.grade_id,
+        subject_id: filters.value.subject_id,
+        lesson_id: filters.value.lesson_id,
+        type: filters.value.type,
+        difficulty: filters.value.difficulty
+      }
+    })
+
+    questions.value = res.data.data
+    totalItems.value = res.data.total
+
+  } catch (err) {
+
+    ui.showSnackbar('Failed to load questions','error')
+
+  } finally {
+
+    loading.value = false
+  }
+}
+
+const fetchGrades = async () => {
+
+  const res = await api.get('/grades')
+
+  grades.value = res.data
+}
+
+const fetchSubjects = async () => {
+
+  if (!filters.value.grade_id) {
+
+    subjects.value = []
+
+    return
+  }
+
+  const res = await api.get('/subjects', {
+
+    params: {
+      grade_id: filters.value.grade_id
+    }
+  })
+
+  subjects.value = res.data
+}
+
+const fetchLessons = async () => {
+
+  if (!filters.value.subject_id) {
+
+    lessons.value = []
+
+    return
+  }
+
+  const res = await api.get('/lessons', {
+
+    params: {
+      subject_id: filters.value.subject_id
+    }
+  })
+
+  lessons.value = res.data
+}
+
+const openDelete = (question) => {
+
+  selectedQuestion.value = question
+
+  deleteDialog.value = true
+}
+
+const deleteQuestion = async () => {
+
+  try {
+
+    await api.delete(`/questions/${selectedQuestion.value.id}`)
+
+    ui.showSnackbar('Question deleted successfully')
+
+    deleteDialog.value = false
+
+    fetchQuestions()
+
+  } catch (err) {
+
+    ui.showSnackbar('Delete failed','error')
+  }
+}
+
+const editQuestion = (id) => {
+
+  router.push(`/questions/${id}/edit`)
+}
+
+
+watch(
+  () => filters.value.grade_id,
+  () => {
+
+    filters.value.subject_id = null
+    filters.value.lesson_id = null
+
+    fetchSubjects()
+  }
+)
+
+watch(
+  () => filters.value.subject_id,
+  () => {
+
+    filters.value.lesson_id = null
+
+    fetchLessons()
+  }
+)
+
+watch(filters,() => {
+    fetchQuestions()
+  },
+  { deep: true }
+)
+
+watch(options, () => {
+    fetchQuestions()
+  },
+  { deep: true }
+)
+
+onMounted(() => {
+
+  fetchGrades()
+
+  fetchQuestions()
+})
+</script>
+
+<template>
+
+  <div>
+
+    <!-- PAGE HEADER -->
+    <div
+      class="d-flex justify-space-between align-center mb-6"
+    >
+
+      <div>
+
+        <h1 class="text-h4 font-weight-bold">
+          Question Bank
+        </h1>
+
+        <p class="text-grey">
+          Manage all questions for exams
+        </p>
+
+      </div>
+
+      <v-btn
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="
+          router.push('/questions/create')
+        "
+      >
+        Add Question
+      </v-btn>
+
+    </div>
+
+    <!-- FILTERS -->
+    <v-card
+      class="pa-4 mb-6 rounded-xl"
+      elevation="0"
+    >
+
+      <v-row>
+
+        <!-- SEARCH -->
+        <v-col cols="12" md="3">
+
+          <v-text-field
+            v-model="filters.search"
+            label="Search Question"
+            prepend-inner-icon="mdi-magnify"
+            clearable
+          />
+
+        </v-col>
+
+        <!-- CLASS -->
+        <v-col cols="12" md="2">
+
+          <v-select
+            v-model="filters.grade_id"
+            :items="grades"
+            item-title="name"
+            item-value="id"
+            label="Grade"
+            clearable
+          />
+
+        </v-col>
+
+        <!-- SUBJECT -->
+        <v-col cols="12" md="2">
+
+          <v-select
+            v-model="filters.subject_id"
+            :items="subjects"
+            item-title="name"
+            item-value="id"
+            label="Subject"
+            clearable
+          />
+
+        </v-col>
+
+        <!-- TYPE -->
+        <v-col cols="12" md="2">
+
+          <v-select
+            v-model="filters.type"
+            :items="questionTypes"
+            item-title="text"
+            item-value="value"
+            label="Type"
+            clearable
+          />
+
+        </v-col>
+
+        <!-- DIFFICULTY -->
+        <v-col cols="12" md="2">
+
+          <v-select
+            v-model="filters.difficulty"
+            :items="difficultyLevels"
+            item-title="text"
+            item-value="value"
+            label="Difficulty"
+            clearable
+          />
+
+        </v-col>
+
+      </v-row>
+
+    </v-card>
+
+    <!-- TABLE -->
+    <v-card
+      class="rounded-xl"
+      elevation="0"
+    >
+
+      <v-data-table-server
+
+        v-model:items-per-page="
+          options.itemsPerPage
+        "
+
+        v-model:page="
+          options.page
+        "
+
+        :headers="headers"
+
+        :items="questions"
+
+        :items-length="totalItems"
+
+        :loading="loading"
+
+        class="elevation-0"
+      >
+
+        <!-- QUESTION -->
+        <template #item.question="{ item }">
+
+          <div class="py-3">
+
+            <!-- IMAGE -->
+            <v-img
+              v-if="item.question_image"
+              :src="item.question_image"
+              width="100"
+              class="mb-2 rounded"
+            />
+
+            <!-- HTML -->
+            <div
+              class="question-html"
+              v-html="item.question"
+            />
+
+          </div>
+
+        </template>
+
+        <!-- TYPE -->
+        <template #item.type="{ item }">
+
+          <v-chip
+            size="small"
+            color="primary"
+            variant="tonal"
+          >
+            {{ item.type }}
+          </v-chip>
+
+        </template>
+
+        <!-- DIFFICULTY -->
+        <template #item.difficulty="{ item }">
+
+          <v-chip
+            size="small"
+
+            :color="
+              item.difficulty === 'easy'
+                ? 'success'
+                : item.difficulty === 'medium'
+                ? 'warning'
+                : 'error'
+            "
+
+            variant="tonal"
+          >
+            {{ item.difficulty }}
+          </v-chip>
+
+        </template>
+
+        <!-- MARKS -->
+        <template #item.marks="{ item }">
+
+          <strong>
+            {{ item.marks }}
+          </strong>
+
+        </template>
+
+        <!-- ACTIONS -->
+        <template #item.actions="{ item }">
+
+          <div class="d-flex">
+
+            <!-- EDIT -->
+            <v-btn
+              icon="mdi-pencil"
+              size="small"
+              variant="text"
+              color="primary"
+              @click="editQuestion(item.id)"
+            />
+
+            <!-- DELETE -->
+            <v-btn
+              icon="mdi-delete"
+              size="small"
+              variant="text"
+              color="error"
+              @click="openDelete(item)"
+            />
+
+          </div>
+
+        </template>
+
+      </v-data-table-server>
+
+    </v-card>
+
+    <!-- DELETE DIALOG -->
+    <v-dialog
+      v-model="deleteDialog"
+      max-width="400"
+    >
+
+      <v-card class="rounded-xl">
+
+        <v-card-title>
+          Delete Question
+        </v-card-title>
+
+        <v-card-text>
+
+          Are you sure you want to delete
+          this question?
+
+        </v-card-text>
+
+        <v-card-actions>
+
+          <v-spacer />
+
+          <v-btn
+            variant="text"
+            @click="deleteDialog = false"
+          >
+            Cancel
+          </v-btn>
+
+          <v-btn
+            color="error"
+            @click="deleteQuestion"
+          >
+            Delete
+          </v-btn>
+
+        </v-card-actions>
+
+      </v-card>
+
+    </v-dialog>
+
+  </div>
+
+</template>
+
+<style scoped>
+
+.question-html {
+  max-width: 500px;
+}
+
+.question-html :deep(p) {
+  margin-bottom: 4px;
+}
+
+</style>
