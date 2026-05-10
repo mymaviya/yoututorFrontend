@@ -60,6 +60,7 @@ const headers = [
   {title: 'Type',    key: 'type'  },
   {title: 'Difficulty',    key: 'difficulty'  },
   {title: 'Marks',    key: 'marks'  },
+  {title: 'Created By',    key: 'creator'  },
   {title: 'Actions',    key: 'actions',    sortable: false  }
 ]
 
@@ -417,6 +418,35 @@ onMounted(() => {
           <strong>
             {{ item.marks }}
           </strong>
+
+        </template>
+
+        <!-- Created BY -->
+        <template #item.creator="{ item }">
+
+          <div class="d-flex align-center ga-2">
+
+            <v-avatar
+              size="32"
+              color="primary"
+              variant="tonal"
+            >
+              {{ item.creator?.name?.charAt(0) || '?' }}
+            </v-avatar>
+
+            <div>
+
+              <div class="font-weight-medium">
+                {{ item.creator?.name || '-' }}
+              </div>
+
+              <div class="text-caption text-grey">
+                {{ item.creator?.role || '' }}
+              </div>
+
+            </div>
+
+          </div>
 
         </template>
 

@@ -15,7 +15,7 @@ const routes = [
     path: '/',
     component: DashboardLayout,
     children: [
-      { path: 'dashboard', component: () => import('../views/Dashboard.vue') },
+      { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue') },
       { path: 'profile', component: () => import('../views/Profile.vue'), name: 'Profile' },
       { path: 'grades', component: () => import('../views/manage/Grades.vue'), name: 'Grades' },
       { path: 'subjects', component: () => import('../views/manage/Subjects.vue'), name: 'Subjects' },
@@ -27,12 +27,21 @@ const routes = [
       { path: 'papers/generate', component: () => import('../views/exams/Papers/PaperGenerator.vue') },
       { path: 'papers/:id', component: () => import('../views/exams/Papers/PaperView.vue') },
 
+      // Teachers
+      { path: 'teachers', component: () => import('../views/admin/Teachers.vue')},
+
+      // Reports
+      { path: 'reports/teacher-progress', component: () => import('../views/reports/TeacherProgressReport.vue')},
+
+      // Assign Task To Teachers
+
+      {path: 'teacher-question-tasks',component: () => import('../views/admin/TeacherQuestionTasks.vue')},
+
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue') },
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue') },
       // { path: '/exams/create', component: () => import('../views/exams/Exams/ExamForm.vue')},
       // { path: '/results', component: () => import('../views/exams/Results/ResultsPage.vue')},
       { path: 'users', component: { template: '<h2>Users</h2>' } },
-      { path: 'teachers', component: { template: '<h2>Teachers</h2>' } },
       { path: 'students', component: { template: '<h2>Students</h2>' } },
       { path: 'sales', component: { template: '<h2>Sales</h2>' } },
       { path: 'performance', component: { template: '<h2>Performance</h2>' } },

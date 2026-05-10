@@ -29,9 +29,9 @@ const menus = {
         { title: "Grades", icon: "mdi-file-document", route: "/grades" },
         { title: "Subjects", icon: "mdi-file-document", route: "/subjects" },
         { title: "Lessons", icon: "mdi-file-document", route: "/lessons" },
-        { title: "Users", icon: "mdi-account", route: "/users" },
         { title: "Teachers", icon: "mdi-account-multiple", route: "/teachers" },
-        { title: "Students", icon: "mdi-account-circle", route: "/students" },
+        { title: "Teachers Task", icon: "mdi-account-plus", route: "/teacher-question-tasks" },
+        
       ],
     },
     {
@@ -43,7 +43,16 @@ const menus = {
         { title: 'Generate Question', icon: 'mdi-plus-circle', route: '/papers/generate' }
       ]
     },
+    {
+      title: 'All Reports',
+      icon: 'mdi-chart-bar',
+      children: [
+        { title: 'Teacher Progress',icon: 'mdi-chart-timeline-variant', to: '/reports/teacher-progress'},
+        
+      ]
+    },
     { title: "All Papers", icon: "mdi-format-list-bulleted", route: "/papers" },
+    { title: 'Teachers', icon: 'mdi-account-tie', to: '/teachers' },
     { title: "Settings", icon: "mdi-cog", route: "/settings" },
   ],
 
