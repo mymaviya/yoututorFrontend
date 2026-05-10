@@ -22,8 +22,12 @@ const routes = [
       { path: 'lessons', component: () => import('../views/manage/Lessons.vue'), name: 'Lessons' },
       { path: 'questions', component: () => import('../views/exams/Questions/QuestionsPage.vue') },
       { path: 'questions/create', component: () => import('../views/exams/Questions/QuestionForm.vue') },
-      { path: 'papers', component: () => import('../views/exams/Papers/PaperPreview.vue') },
+      { path: 'papers', component: () => import('../views/exams/Papers/PapersPage.vue') },
+      { path: '/papers/:id/edit', component: () => import('../views/exams/Papers/PaperGenerator.vue') },
       { path: 'papers/generate', component: () => import('../views/exams/Papers/PaperGenerator.vue') },
+      { path: 'papers/:id', component: () => import('../views/exams/Papers/PaperView.vue') },
+
+      // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue') },
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue') },
       // { path: '/exams/create', component: () => import('../views/exams/Exams/ExamForm.vue')},
       // { path: '/results', component: () => import('../views/exams/Results/ResultsPage.vue')},

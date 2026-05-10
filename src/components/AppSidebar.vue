@@ -39,9 +39,11 @@ const menus = {
       icon: 'mdi-help-box-multiple',
       children: [
         { title: 'All Questions', icon: 'mdi-format-list-bulleted', route: '/questions' },
-        { title: 'Add Question', icon: 'mdi-plus-circle', route: '/questions/create' }
+        { title: 'Add Question', icon: 'mdi-plus-circle', route: '/questions/create' },
+        { title: 'Generate Question', icon: 'mdi-plus-circle', route: '/papers/generate' }
       ]
     },
+    { title: "All Papers", icon: "mdi-format-list-bulleted", route: "/papers" },
     { title: "Settings", icon: "mdi-cog", route: "/settings" },
   ],
 

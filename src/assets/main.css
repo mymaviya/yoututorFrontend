@@ -95,3 +95,14 @@
 .v-progress-linear {
   transition: all 0.3s ease;
 }
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  margin: 1rem 0;
+}
+
+.katex {
+  font-size: 1.08rem;
+}

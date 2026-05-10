@@ -5,6 +5,7 @@ import { ref, onMounted, watch } from 'vue'
 import api from '../../../plugins/api'
 import { useRouter } from 'vue-router'
 import { useUIStore } from '../../../stores/snackBar'
+import { renderMath } from '../../../utils/renderMath'
 
 const router = useRouter()
 const ui = useUIStore()
@@ -84,6 +85,7 @@ const fetchQuestions = async () => {
 
     questions.value = res.data.data
     totalItems.value = res.data.total
+    renderMath()
 
   } catch (err) {
 
