@@ -6,10 +6,20 @@ import Home from '../views/Home.vue'
 import About from '../views/About.vue'
 
 import DashboardLayout from '../layouts/DashboardLayout.vue'
+import AuthLayout from '../layouts/AuthLayout.vue'
 
 const routes = [
-  { path: '/login', component: () => import('../views/Login.vue') },
-  { path: '/register', component: () => import('../views/Register.vue') },
+  { path: '/', redirect: '/login' },
+  {
+    path: '/',
+    component: AuthLayout,
+    children: [
+      { path: 'login', component: () => import('../views/auth/Login.vue') },
+      { path: 'register', component: () => import('../views/auth/Register.vue') },
+      { path: 'forgot-password', component: () => import('../views/auth/ForgotPassword.vue')}
+    ]
+  },
+  
   
   {
     path: '/',
