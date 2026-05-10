@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  
     <!-- Main Content -->
     <v-main>
       <v-container>
@@ -14,7 +14,7 @@
         </v-row>
       </v-container>
     </v-main>
-  </v-app>
+  
 </template>
 
 <script setup>

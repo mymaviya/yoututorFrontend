@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import api from '../plugins/api'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -190,14 +191,36 @@ const go = (item) => {
     router.push(item.to)
   }
 }
+
+const logout = async () => {
+
+  try {
+
+    await api.post('/logout')
+
+  } catch (err) {
+
+    console.log(err)
+
+  } finally {
+
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+
+    delete api.defaults.headers.common.Authorization
+
+    router.push('/login')
+  }
+}
 </script>
 
 <template>
   <v-navigation-drawer
     app
     width="290"
-    class="app-sidebar"
+    class="app-sidebar d-flex flex-column"
   >
+  <div class="d-flex flex-column h-screen" style="height: 90dvh !important;">
     <!-- LOGO -->
     <div class="pa-4">
       <div class="d-flex align-center ga-3">
@@ -302,6 +325,20 @@ const go = (item) => {
         </v-list-group>
       </template>
     </v-list>
+  </div>
+  <div class="mt-auto pa-4">
+  <v-btn
+    block
+    color="error"
+    variant="tonal"
+    size="large"
+    prepend-icon="mdi-logout"
+    class="rounded-xl"
+    @click="logout"
+  >
+    Logout
+  </v-btn>
+</div>
   </v-navigation-drawer>
 </template>
 

@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  
     <v-main class="auth-bg">
       <v-container fluid class="fill-height">
         <v-row class="fill-height">
@@ -35,7 +35,7 @@
         </v-row>
       </v-container>
     </v-main>
-  </v-app>
+ 
 </template>
 
 <style scoped>
