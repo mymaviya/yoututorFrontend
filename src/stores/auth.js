@@ -33,6 +33,8 @@ export const useAuthStore = defineStore('auth', {
 
         localStorage.setItem('token', this.token)
 
+        api.defaults.headers.common.Authorization = `Bearer ${res.data.token}`
+
         return res
       } catch (error) {
         throw error.response?.data || error

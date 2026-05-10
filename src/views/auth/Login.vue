@@ -25,16 +25,21 @@ const login = async () => {
       remember: remember.value
     })
 
-    // Role-based redirect
-    if (auth.role === 'admin') router.push('/dashboard')
-    else if (auth.role === 'teacher') router.push('/teacher/dashboard')
-    else router.push('/dashboard')
+    setTimeout(() => {
+
+      // Role-based redirect
+      if (auth.role === 'admin') router.push('/dashboard')
+      else if (auth.role === 'teacher') router.push('/teacher/dashboard')
+      else router.push('/dashboard')
+
+    }, 100)
+
+    
 
   } catch (err) {
     console.log('Error',err)
     errors.value = err.errors;
   } finally {
-    ui.showSnackbar('Something went wrong','error')
     loading.value = false
   }
 }

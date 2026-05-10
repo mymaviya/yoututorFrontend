@@ -27,27 +27,28 @@ const routes = [
     path: '/',
     component: DashboardLayout,
     children: [
-      { path: 'dashboard', component: () => import('../views/admin/Dashboard.vue'), meta: {title:'Login'} },
-      { path: 'profile', component: () => import('../views/Profile.vue'), meta: {title:'Login'}, name: 'Profile' },
-      { path: 'grades', component: () => import('../views/manage/Grades.vue'), meta: {title:'Login'}, name: 'Grades' },
-      { path: 'subjects', component: () => import('../views/manage/Subjects.vue'), meta: {title:'Login'}, name: 'Subjects' },
-      { path: 'lessons', component: () => import('../views/manage/Lessons.vue'), meta: {title:'Login'}, name: 'Lessons' },
-      { path: 'questions', component: () => import('../views/exams/Questions/QuestionsPage.vue'), meta: {title:'Login'} },
-      { path: 'questions/create', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Login'} },
-      { path: 'papers', component: () => import('../views/exams/Papers/PapersPage.vue'), meta: {title:'Login'} },
-      { path: '/papers/:id/edit', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Login'} },
-      { path: 'papers/generate', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Login'} },
-      { path: 'papers/:id', component: () => import('../views/exams/Papers/PaperView.vue'), meta: {title:'Login'} },
+      { path: 'dashboard', name:'Dashboard', component: () => import('../views/admin/Dashboard.vue'), meta: {title:'Login'} },
+      { path: 'profile', name:'profile', component: () => import('../views/Profile.vue'), meta: {title:'Login'} },
+      { path: 'grades', name:'grades.index', component: () => import('../views/manage/Grades.vue'), meta: {title:'Login'} },
+      { path: 'subjects', name:'subjects.index', component: () => import('../views/manage/Subjects.vue'), meta: {title:'Login'} },
+      { path: 'lessons', name:'lessons.index', component: () => import('../views/manage/Lessons.vue'), meta: {title:'Login'} },
+      { path: 'questions', name:'questions.index', component: () => import('../views/exams/Questions/QuestionsPage.vue'), meta: {title:'Questions'} },
+      { path: 'questions/create', name:'questions.create', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Create Question'} },
+      { path: 'questions/:id/edit', name:'questions.edit', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Edit Question'} },
+      { path: 'papers', name:'papers.index', component: () => import('../views/exams/Papers/PapersPage.vue'), meta: {title:'Login'} },
+      { path: 'papers/:id/edit', name:'paper.edit', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Edit Papers'} },
+      { path: 'papers/generate', name:'papers.generate', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Create Paper'} },
+      { path: 'papers/:id', name:'ViewQuestion', component: () => import('../views/exams/Papers/PaperView.vue'), meta: {title:'View Paper'} },
 
       // Teachers
-      { path: 'teachers', component: () => import('../views/admin/Teachers.vue'), meta: {title:'Login'}},
+      { path: 'teachers', name:'teachers.index', component: () => import('../views/admin/Teachers.vue'), meta: {title:'Login'}},
 
       // Reports
-      { path: 'reports/teacher-progress', component: () => import('../views/reports/TeacherProgressReport.vue'), meta: {title:'Login'}},
+      { path: 'reports/teacher-progress', name:'teacher.progress', component: () => import('../views/reports/TeacherProgressReport.vue'), meta: {title:'Login'}},
 
       // Assign Task To Teachers
 
-      {path: 'teacher-question-tasks',component: () => import('../views/admin/TeacherQuestionTasks.vue'), meta: {title:'Login'}},
+      {path: 'teacher-question-tasks', name:'teacher.tasks', component: () => import('../views/admin/TeacherQuestionTasks.vue'), meta: {title:'Login'}},
 
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue'), meta: {title:'Login'} },
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue'), meta: {title:'Login'} },
