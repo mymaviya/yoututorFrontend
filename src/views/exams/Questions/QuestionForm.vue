@@ -10,14 +10,84 @@ import { useRoute, useRouter } from "vue-router";
 const route = useRoute();
 const router = useRouter();
 const pageLoading = ref(false);
-
-const isEditMode = computed(() => !!route.params.id);
-
+const assignedSubjects = ref([]);
 const ui = useUIStore();
-
+const taskInfo = ref(null);
 const grades = ref([]);
 const subjects = ref([]);
 const lessons = ref([]);
+
+const isEditMode = computed(() => !!route.params.id);
+
+// Task
+const fetchTaskInfo = async () => {
+  if (!route.query.task_id) return;
+
+  const res = await api.get("/teacher/my-question-tasks");
+
+  taskInfo.value = res.data.find(
+    (task) => Number(task.id) === Number(route.query.task_id),
+  );
+};
+
+/* FETCH grades */
+
+const fetchGrades = async () => {
+  const res = await api.get("/my-assignments");
+
+  if (res.data.is_admin) {
+    const gradeRes = await api.get("/grades");
+    grades.value = gradeRes.data.data || gradeRes.data;
+    return;
+  }
+
+  grades.value = res.data.grades || [];
+  assignedSubjects.value = res.data.subjects || [];
+};
+
+/*  FETCH SUBJECTS */
+
+const fetchSubjects = async () => {
+  if (!form.value.grade_id) {
+    subjects.value = [];
+    form.value.subject_id = null;
+    return;
+  }
+
+  if (assignedSubjects.value.length) {
+    subjects.value = assignedSubjects.value.filter(
+      (s) => Number(s.grade_id) === Number(form.value.grade_id),
+    );
+
+    return;
+  }
+
+  const res = await api.get("/subjects", {
+    params: {
+      grade_id: form.value.grade_id,
+    },
+  });
+
+  subjects.value = res.data.data || res.data;
+};
+
+/* FETCH LESSONS */
+
+const fetchLessons = async () => {
+  if (!form.value.subject_id) {
+    lessons.value = [];
+    form.value.lesson_id = null;
+    return;
+  }
+
+  const res = await api.get("/lessons", {
+    params: {
+      subject_id: form.value.subject_id,
+    },
+  });
+
+  lessons.value = res.data.data || res.data;
+};
 
 const form = ref({
   id: null,
@@ -50,6 +120,34 @@ const form = ref({
 });
 
 const errors = ref({});
+
+const applyQueryDefaults = async () => {
+  const q = route.query;
+
+  if (!q.grade_id) return;
+
+  form.value.grade_id = Number(q.grade_id);
+
+  await fetchSubjects();
+
+  if (q.subject_id) {
+    form.value.subject_id = Number(q.subject_id);
+
+    await fetchLessons();
+  }
+
+  if (q.type) {
+    form.value.type = q.type;
+  }
+
+  if (q.difficulty) {
+    form.value.difficulty = q.difficulty;
+  }
+
+  if (q.lesson_id) {
+    form.value.lesson_id = Number(q.lesson_id);
+  }
+};
 
 const questionTypes = [
   { text: "Multiple Choice (Single Answer)", value: "mcq" },
@@ -85,41 +183,6 @@ const isMCQ = computed(() => {
 const isMatchColumn = computed(() => {
   return form.value.type === "match_column";
 });
-
-const fetchGrades = async () => {
-  const res = await api.get("/grades");
-  grades.value = res.data;
-};
-
-const fetchSubjects = async () => {
-  if (!form.value.grade_id) {
-    subjects.value = [];
-    return;
-  }
-
-  const res = await api.get("/subjects", {
-    params: {
-      grade_id: form.value.grade_id,
-    },
-  });
-
-  subjects.value = res.data;
-};
-
-const fetchLessons = async () => {
-  if (!form.value.subject_id) {
-    lessons.value = [];
-    return;
-  }
-
-  const res = await api.get("/lessons", {
-    params: {
-      subject_id: form.value.subject_id,
-    },
-  });
-
-  lessons.value = res.data;
-};
 
 const addOption = () => {
   form.value.options.push({
@@ -219,6 +282,7 @@ const save = async () => {
     formData.append("grade_id", form.value.grade_id);
     formData.append("subject_id", form.value.subject_id);
     formData.append("lesson_id", form.value.lesson_id);
+    formData.append("task_id", route.query.task_id || "");
     formData.append("type", form.value.type);
     formData.append("difficulty", form.value.difficulty);
     formData.append("bloom_level", form.value.bloom_level);
@@ -237,13 +301,13 @@ const save = async () => {
 
         formData.append(
           `options[${index}][is_correct]`,
-          option.is_correct ? 1 : 0
+          option.is_correct ? 1 : 0,
         );
 
         if (option.option_image) {
           formData.append(
             `options[${index}][option_image]`,
-            option.option_image
+            option.option_image,
           );
         }
       });
@@ -271,7 +335,7 @@ const save = async () => {
       });
 
       ui.showSnackbar("Question updated successfully");
-      router.push({name:'AllQuestions'});
+      router.push({ name: "questions.index" });
     } else {
       await api.post("/questions", formData, {
         headers: {
@@ -280,10 +344,16 @@ const save = async () => {
       });
 
       ui.showSnackbar("Question saved successfully");
+
+      if (!isEditMode.value && route.query.task_id) {
+        await fetchTaskInfo();
+      }
     }
   } catch (err) {
     if (err.response?.status === 422) {
       errors.value = err.response.data.errors;
+    } else if (err.response?.status === 403) {
+      ui.showSnackbar(err.response.data.message, "error");
     } else {
       ui.showSnackbar("Something went wrong", "error");
     }
@@ -300,7 +370,7 @@ watch(
     form.value.lesson_id = null;
 
     await fetchSubjects();
-  }
+  },
 );
 
 watch(
@@ -312,7 +382,7 @@ watch(
     form.value.lesson_id = null;
 
     await fetchLessons();
-  }
+  },
 );
 
 onMounted(async () => {
@@ -321,6 +391,9 @@ onMounted(async () => {
     await fetchGrades();
     if (isEditMode.value) {
       await fetchQuestionForEdit();
+    } else {
+      await applyQueryDefaults();
+      await fetchTaskInfo();
     }
   } finally {
     pageLoading.value = false;
@@ -331,6 +404,84 @@ onMounted(async () => {
 <template>
   <v-card v-if="!pageLoading" class="pa-6 rounded-xl">
     <!-- HEADER -->
+    <v-alert
+      v-if="taskInfo?.status === 'completed'"
+      type="success"
+      variant="tonal"
+      class="mb-4"
+    >
+      This task is already completed. You cannot add more questions.
+    </v-alert>
+    <v-card
+      v-if="taskInfo"
+      class="mb-4 rounded-xl"
+      elevation="0"
+      :color="
+        taskInfo.status === 'completed'
+          ? 'success'
+          : taskInfo.status === 'in_progress'
+            ? 'info'
+            : 'warning'
+      "
+      variant="tonal"
+    >
+      <v-card-text class="d-flex align-center justify-space-between">
+        <div class="d-flex align-center ga-3">
+          <v-avatar
+            :color="
+              taskInfo.status === 'completed'
+                ? 'success'
+                : taskInfo.status === 'in_progress'
+                  ? 'info'
+                  : 'warning'
+            "
+          >
+            <v-icon color="white">
+              {{
+                taskInfo.status === "completed"
+                  ? "mdi-check-decagram"
+                  : taskInfo.status === "in_progress"
+                    ? "mdi-progress-clock"
+                    : "mdi-clock-outline"
+              }}
+            </v-icon>
+          </v-avatar>
+
+          <div>
+            <div class="font-weight-bold">
+              {{
+                taskInfo.status === "completed"
+                  ? "Task Completed"
+                  : taskInfo.status === "in_progress"
+                    ? "Task In Progress"
+                    : "Task Pending"
+              }}
+            </div>
+
+            <div class="text-caption">
+              {{ taskInfo.created_count }}
+              /
+              {{ taskInfo.target_count }}
+              questions completed
+            </div>
+          </div>
+        </div>
+
+        <v-chip
+          size="large"
+          :color="
+            taskInfo.status === 'completed'
+              ? 'success'
+              : taskInfo.status === 'in_progress'
+                ? 'info'
+                : 'warning'
+          "
+        >
+          {{ taskInfo.progress }}%
+        </v-chip>
+      </v-card-text>
+    </v-card>
+
     <div class="d-flex justify-space-between align-center mb-6">
       <div>
         <h2 class="text-h5 font-weight-bold">
@@ -342,10 +493,44 @@ onMounted(async () => {
         </p>
       </div>
 
-      <v-btn color="primary" size="large" @click="save">
+      <v-btn
+        color="primary"
+        :disabled="taskInfo?.status === 'completed'"
+        size="large"
+        @click="save"
+      >
         {{ isEditMode ? "Update Question" : "Save Question" }}
       </v-btn>
     </div>
+
+    <v-alert v-if="taskInfo" type="info" variant="tonal" class="mb-4">
+      <div class="font-weight-bold mb-1">
+        You are creating question for assigned task
+      </div>
+
+      <div>
+        {{ taskInfo.grade?.name }} -
+        {{ taskInfo.subject?.name }}
+        <span v-if="taskInfo.lesson"> - {{ taskInfo.lesson?.title }} </span>
+      </div>
+
+      <div class="mt-2">
+        Target:
+        <strong>{{ taskInfo.target_count }}</strong>
+        | Created:
+        <strong>{{ taskInfo.created_count }}</strong>
+        | Remaining:
+        <strong>{{ taskInfo.remaining_count }}</strong>
+      </div>
+
+      <v-progress-linear
+        :model-value="taskInfo.progress"
+        height="8"
+        rounded
+        color="primary"
+        class="mt-3"
+      />
+    </v-alert>
 
     <!-- BASIC INFO -->
     <v-row>
@@ -357,6 +542,7 @@ onMounted(async () => {
           item-value="id"
           label="Grade"
           :error-messages="errors.grade_id"
+          :disabled="taskInfo?.status === 'completed'"
         />
       </v-col>
 
@@ -395,6 +581,7 @@ onMounted(async () => {
           item-value="value"
           label="Question Type"
           :error-messages="errors.type"
+          :disabled="taskInfo?.status === 'completed'"
         />
       </v-col>
 
@@ -406,6 +593,7 @@ onMounted(async () => {
           item-value="value"
           label="Difficulty"
           :error-messages="errors.difficulty"
+          :disabled="taskInfo?.status === 'completed'"
         />
       </v-col>
 
@@ -417,6 +605,7 @@ onMounted(async () => {
           item-value="value"
           label="Bloom Level"
           :error-messages="errors.bloom_level"
+          :disabled="taskInfo?.status === 'completed'"
         />
       </v-col>
 
@@ -426,6 +615,7 @@ onMounted(async () => {
           type="number"
           label="Marks"
           :error-messages="errors.marks"
+          :disabled="taskInfo?.status === 'completed'"
         />
       </v-col>
     </v-row>
@@ -441,12 +631,14 @@ onMounted(async () => {
         class="mt-4"
         label="Question Image"
         accept="image/*"
+        :disabled="taskInfo?.status === 'completed'"
       />
       <v-img
         v-if="form.old_question_image"
         :src="form.old_question_image"
         width="140"
         class="mt-2 rounded"
+        :disabled="taskInfo?.status === 'completed'" 
       />
     </v-card>
 
@@ -455,7 +647,7 @@ onMounted(async () => {
       <div class="d-flex justify-space-between mb-4">
         <div class="text-subtitle-1 font-weight-bold">Options</div>
 
-        <v-btn color="primary" variant="tonal" @click="addOption">
+        <v-btn color="primary" variant="tonal" :disabled="taskInfo?.status === 'completed'" @click="addOption">
           Add Option
         </v-btn>
       </div>
@@ -473,12 +665,14 @@ onMounted(async () => {
             color="red"
             variant="text"
             @click="removeOption(index)"
+            :disabled="taskInfo?.status === 'completed'"
           />
         </div>
 
         <AppEditor
           v-model="option.option_text"
           :error-messages="errors.option_text"
+          :disabled="taskInfo?.status === 'completed'"
         />
 
         <v-file-input
@@ -486,18 +680,21 @@ onMounted(async () => {
           class="mt-4"
           label="Option Image"
           accept="image/*"
+          :disabled="taskInfo?.status === 'completed'"
         />
         <v-img
           v-if="option.old_option_image"
           :src="option.old_option_image"
           width="100"
           class="mt-2 rounded"
+          :disabled="taskInfo?.status === 'completed'"
         />
 
         <v-checkbox
           v-model="option.is_correct"
           label="Correct Answer"
           :error-messages="errors.is_correct"
+          :disabled="taskInfo?.status === 'completed'"
         />
       </div>
     </v-card>
@@ -543,7 +740,7 @@ onMounted(async () => {
     <v-card class="pa-4" variant="outlined">
       <div class="text-subtitle-1 font-weight-bold mb-2">Explanation</div>
 
-      <AppEditor v-model="form.explanation" />
+      <AppEditor v-model="form.explanation" :disabled="taskInfo?.status === 'completed'" />
     </v-card>
   </v-card>
   <div

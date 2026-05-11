@@ -239,8 +239,7 @@ const goSettings = () => {
         class="pa-6"
       >
         <router-view />
-        <AppSnackbar />
-            <AppConfirm />
+        
       </v-container>
     </v-main>
 </template>

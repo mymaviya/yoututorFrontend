@@ -29,7 +29,7 @@ const login = async () => {
 
       // Role-based redirect
       if (auth.role === 'admin') router.push('/dashboard')
-      else if (auth.role === 'teacher') router.push('/teacher/dashboard')
+      else if (auth.role === 'teacher') router.push('teacher-dashboard')
       else router.push('/dashboard')
 
     }, 100)

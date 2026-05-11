@@ -4,6 +4,7 @@ import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
 
 const loading = ref(false);
+const grades = ref([])
 const subjects = ref([]);
 const lessons = ref([]);
 const dialog = ref(false);
@@ -13,25 +14,34 @@ const ui = useUIStore();
 
 const form = ref({
   id: null,
+  grade_id: null,
   subject_id: null,
   title: "",
 });
 
-const fetchLessons = async () => {
-  lessons.value = (await api.get('/lessons')).data
+const fetchGrades = async () => {
+  const res = await api.get('/grades')
+  grades.value = res.data.data || res.data
 }
 
-const fetchSubjects = async () => {
-  loading.value = true;
-  try {
-    const res = await api.get("/subjects");
-    subjects.value = res.data;
-  } catch (err) {
-    ui.showSnackbar("Failed to fetch Subjects", "error");
-  } finally {
-    loading.value = false;
-  }
+const fetchLessons = async () => {
+  lessons.value = (await api.get("/lessons")).data;
 };
+
+const fetchSubjects = async () => {
+  if (!form.value.grade_id) {
+    subjects.value = []
+    return
+  }
+
+  const res = await api.get('/subjects', {
+    params: {
+      grade_id: form.value.grade_id
+    }
+  })
+
+  subjects.value = res.data.data || res.data
+}
 
 const openAdd = () => {
   form.value = { id: null, title: "", subject_id: null };
@@ -94,9 +104,9 @@ function getColor(val) {
 }
 
 onMounted(() => {
-  fetchSubjects()
-  fetchLessons()
-})
+  fetchGrades();
+  fetchLessons();
+});
 </script>
 
 <template>
@@ -164,21 +174,40 @@ onMounted(() => {
           {{ editMode ? "Edit Lesson" : "Add Lesson" }}
         </h4>
 
-        <v-select
-          label="Select Subject"
-          :items="subjects"
-          item-title="name"
-          item-value="id"
-          v-model="form.subject_id"
-          :error-messages="errors.subject_id"
-        ></v-select>
+        <v-col cols="12" md="4">
+          <v-select
+            v-model="form.grade_id"
+            :items="grades"
+            item-title="name"
+            item-value="id"
+            label="Grade"
+            variant="outlined"
+            @update:model-value="fetchSubjects"
+            :error-messages="errors.grade_id"
+          />
+        </v-col>
 
-        <v-text-field
-          label="Title"
-          v-model="form.title"
-          :error-messages="errors.title"
-        />
-        
+        <v-col cols="12" md="4">
+          <v-select
+            v-model="form.subject_id"
+            :items="subjects"
+            item-title="name"
+            item-value="id"
+            label="Subject"
+            variant="outlined"
+            :disabled="!form.grade_id"
+            :error-messages="errors.subject_id"
+          />
+        </v-col>
+
+        <v-col cols="12" md="4">
+          <v-text-field
+            v-model="form.title"
+            label="Lesson Title"
+            variant="outlined"
+            :error-messages="errors.title"
+          />
+        </v-col>
 
         <v-btn color="primary" @click="save"> Save </v-btn>
       </v-card>

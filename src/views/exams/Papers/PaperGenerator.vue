@@ -14,6 +14,8 @@ const ui = useUIStore();
 const loading = ref(false);
 const questions = ref([]);
 
+const assignedSubjects = ref([])
+
 const route = useRoute()
 const router = useRouter()
 
@@ -128,6 +130,7 @@ const fetchQuestions = async () => {
         type: filters.value.type,
         difficulty: filters.value.difficulty,
         search: filters.value.search,
+        for_paper: 1
       },
     });
 
@@ -143,27 +146,41 @@ const fetchQuestions = async () => {
 /* FETCH grades */
 
 const fetchGrades = async () => {
-  const res = await api.get("/grades");
+  const res = await api.get('/my-assignments')
 
-  grades.value = res.data;
-};
+  if (res.data.is_admin) {
+    const gradeRes = await api.get('/grades')
+    grades.value = gradeRes.data.data || gradeRes.data
+    return
+  }
+
+  grades.value = res.data.grades || []
+  assignedSubjects.value = res.data.subjects || []
+}
 
 /*  FETCH SUBJECTS */
 
 const fetchSubjects = async () => {
   if (!filters.value.grade_id) {
-    subjects.value = [];
-    return;
+    subjects.value = []
+    return
   }
 
-  const res = await api.get("/subjects", {
-    params: {
-      grade_id: filters.value.grade_id,
-    },
-  });
+  if (assignedSubjects.value.length) {
+    subjects.value = assignedSubjects.value.filter(
+      s => s.grade_id === filters.value.grade_id
+    )
+    return
+  }
 
-  subjects.value = res.data;
-};
+  const res = await api.get('/subjects', {
+    params: {
+      grade_id: filters.value.grade_id
+    }
+  })
+
+  subjects.value = res.data.data || res.data
+}
 
 /* FETCH LESSONS */
 

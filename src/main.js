@@ -17,6 +17,14 @@ app.use(router)
 
 const auth = useAuthStore()
 
+const token = localStorage.getItem('token')
+
+if (token) {
+  await auth.fetchUser()
+  
+}
+
+
 watch(
   () => auth.theme,
   (val) => {
@@ -25,7 +33,7 @@ watch(
   { immediate: true }
 )
 
-await auth.fetchUser()
+
 
 app.mount('#app')
 

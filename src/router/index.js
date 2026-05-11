@@ -27,28 +27,31 @@ const routes = [
     path: '/',
     component: DashboardLayout,
     children: [
-      { path: 'dashboard', name:'Dashboard', component: () => import('../views/admin/Dashboard.vue'), meta: {title:'Login'} },
-      { path: 'profile', name:'profile', component: () => import('../views/Profile.vue'), meta: {title:'Login'} },
-      { path: 'grades', name:'grades.index', component: () => import('../views/manage/Grades.vue'), meta: {title:'Login'} },
-      { path: 'subjects', name:'subjects.index', component: () => import('../views/manage/Subjects.vue'), meta: {title:'Login'} },
-      { path: 'lessons', name:'lessons.index', component: () => import('../views/manage/Lessons.vue'), meta: {title:'Login'} },
-      { path: 'questions', name:'questions.index', component: () => import('../views/exams/Questions/QuestionsPage.vue'), meta: {title:'Questions'} },
+      { path: 'dashboard', name:'Dashboard', component: () => import('../views/admin/Dashboard.vue'), meta: {title:'Dashboard'} },
+      { path: 'profile', name:'profile', component: () => import('../views/Profile.vue'), meta: {title:'User Profile'} },
+      { path: 'grades', name:'grades.index', component: () => import('../views/manage/Grades.vue'), meta: {title:'All Grades'} },
+      { path: 'subjects', name:'subjects.index', component: () => import('../views/manage/Subjects.vue'), meta: {title:'All Subjects'} },
+      { path: 'lessons', name:'lessons.index', component: () => import('../views/manage/Lessons.vue'), meta: {title:'All Lessons'} },
+      { path: 'questions', name:'questions.index', component: () => import('../views/exams/Questions/QuestionsPage.vue'), meta: {title:'All Questions'} },
       { path: 'questions/create', name:'questions.create', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Create Question'} },
       { path: 'questions/:id/edit', name:'questions.edit', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Edit Question'} },
-      { path: 'papers', name:'papers.index', component: () => import('../views/exams/Papers/PapersPage.vue'), meta: {title:'Login'} },
+      { path: 'papers', name:'papers.index', component: () => import('../views/exams/Papers/PapersPage.vue'), meta: {title:'All Papers'} },
       { path: 'papers/:id/edit', name:'paper.edit', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Edit Papers'} },
       { path: 'papers/generate', name:'papers.generate', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Create Paper'} },
       { path: 'papers/:id', name:'ViewQuestion', component: () => import('../views/exams/Papers/PaperView.vue'), meta: {title:'View Paper'} },
 
       // Teachers
-      { path: 'teachers', name:'teachers.index', component: () => import('../views/admin/Teachers.vue'), meta: {title:'Login'}},
+      { path: 'teacher-dashboard', name: 'teacher.dashboard', component: () => import('../views/teacher/TeacherDashboard.vue'), meta: { title: 'Teacher Dashboard' } },
+      { path: 'teachers', name:'teachers.index', component: () => import('../views/admin/Teachers.vue'), meta: {title:'All Teachers'}},
+      { path: 'question-approvals', name: 'question.approvals', component: () => import('../views/admin/QuestionApprovalPage.vue'), meta: { title: 'Question Approval'} },
+      { path: 'my-question-tasks', name: 'teacher.my.tasks', component: () => import('../views/teacher/MyQuestionTasks.vue'), meta: { title: 'My Tasks' }},
 
       // Reports
-      { path: 'reports/teacher-progress', name:'teacher.progress', component: () => import('../views/reports/TeacherProgressReport.vue'), meta: {title:'Login'}},
+      { path: 'reports/teacher-progress', name:'teacher.progress', component: () => import('../views/reports/TeacherProgressReport.vue'), meta: {title:'Teachers Progress Report'}},
 
       // Assign Task To Teachers
 
-      {path: 'teacher-question-tasks', name:'teacher.tasks', component: () => import('../views/admin/TeacherQuestionTasks.vue'), meta: {title:'Login'}},
+      {path: 'teacher-question-tasks', name:'teacher.tasks', component: () => import('../views/admin/TeacherQuestionTasks.vue'), meta: {title:'Teachers Task'}},
 
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue'), meta: {title:'Login'} },
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue'), meta: {title:'Login'} },
@@ -60,7 +63,8 @@ const routes = [
       { path: 'performance', component: { template: '<h2>Performance</h2>' } },
       { path: 'settings', component: { template: '<h2>Settings</h2>' } }
     ]
-  }
+  },
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/errors/NotFound.vue'), meta: { title: '404 Not Found' } }
 ]
 
 
