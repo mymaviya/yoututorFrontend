@@ -20,11 +20,18 @@ const lessons = ref([]);
 const isEditMode = computed(() => !!route.params.id);
 
 const defaultOptions = () => [
-  { option_text: '', option_image: null, is_correct: false },
-  { option_text: '', option_image: null, is_correct: false },
-  { option_text: '', option_image: null, is_correct: false },
-  { option_text: '', option_image: null, is_correct: false },
-]
+  { option_text: "", option_image: null, is_correct: false },
+  { option_text: "", option_image: null, is_correct: false },
+  { option_text: "", option_image: null, is_correct: false },
+  { option_text: "", option_image: null, is_correct: false },
+];
+
+const defaultMatchRows = () => [
+  { left: "", right: "" },
+  { left: "", right: "" },
+  { left: "", right: "" },
+  { left: "", right: "" },
+];
 
 // Task
 const fetchTaskInfo = async () => {
@@ -112,12 +119,7 @@ const form = ref({
 
   options: defaultOptions(),
 
-  matches: [
-    {
-      left: "",
-      right: "",
-    },
-  ],
+  matches: defaultMatchRows(),
 });
 
 const errors = ref({});
@@ -234,50 +236,41 @@ const fetchQuestionForEdit = async () => {
   | LOAD ALL FORM DATA
   |--------------------------------------------------------------------------
   */
-
   Object.assign(form.value, {
     id: q.id,
-
     type: q.type,
-
     difficulty: q.difficulty,
-
     bloom_level: q.bloom_level,
-
     marks: q.marks,
-
     question: q.question,
-
     answer: q.answer || "",
-
     explanation: q.explanation || "",
-
     question_image: null,
-
     old_question_image: q.question_image,
 
     options: q.options?.length
       ? q.options.map((opt) => ({
           id: opt.id,
-
           option_text: opt.option_text || "",
-
           option_image: null,
-
           old_option_image: opt.option_image,
-
           is_correct: Boolean(opt.is_correct),
         }))
-      : [],
+      : defaultOptions(),
 
-    matches: q.matches || [],
+    matches: q.match_pairs?.length
+      ? q.match_pairs.map((pair) => ({
+          id: pair.id,
+          left: pair.left_text || "",
+          right: pair.right_text || "",
+        }))
+      : defaultMatchRows(),
   });
 };
 
 const save = async () => {
   errors.value = {};
 
-  
   try {
     const formData = new FormData();
 
@@ -297,13 +290,7 @@ const save = async () => {
       formData.append("question_image", form.value.question_image);
     }
 
-    if (form.value.options.length < 3) {
-        ui.showSnackbar('Minimum 3 options required','warning')
-        return
-      }
-
     if (isMCQ.value) {
-      
       form.value.options.forEach((option, index) => {
         formData.append(`options[${index}][option_text]`, option.option_text);
 
@@ -319,21 +306,16 @@ const save = async () => {
           );
         }
       });
+
+      if (form.value.options.length < 3) {
+        ui.showSnackbar("Minimum 3 options required", "warning");
+        return;
+      }
     }
 
-    
-
-    if (isMatchColumn.value) {
+    if (form.value.type === "match_column") {
       formData.append("matches", JSON.stringify(form.value.matches));
     }
-
-    // await api.post('/questions', formData, {
-    //   headers: {
-    //     'Content-Type': 'multipart/form-data'
-    //   }
-    // });
-
-    // ui.showSnackbar('Question saved successfully');
 
     if (isEditMode.value) {
       formData.append("_method", "PUT");
@@ -372,9 +354,9 @@ const save = async () => {
 
 const makeSingleCorrect = (selectedIndex) => {
   form.value.options.forEach((option, index) => {
-    option.is_correct = index === selectedIndex
-  })
-}
+    option.is_correct = index === selectedIndex;
+  });
+};
 
 watch(
   () => form.value.grade_id,
@@ -403,14 +385,25 @@ watch(
 
 watch(
   () => form.value.type,
-  (val) => {
-    if (
-      ['mcq', 'multiple_mcq'].includes(val) &&
-      (!form.value.options || form.value.options.length === 0)
-    ) {
-      form.value.options = defaultOptions()
+  (type, oldType) => {
+    if (pageLoading.value) return;
+
+    if (type === "match_column") {
+      form.value.options = [];
+
+      if (!form.value.matches || form.value.matches.length === 0) {
+        form.value.matches = defaultMatchRows();
+      }
     }
-  }
+
+    if (["mcq", "multiple_mcq"].includes(type) && oldType === "match_column") {
+      form.value.matches = defaultMatchRows();
+
+      if (!form.value.options || form.value.options.length === 0) {
+        form.value.options = defaultOptions();
+      }
+    }
+  },
 );
 
 onMounted(async () => {
@@ -666,125 +659,124 @@ onMounted(async () => {
         :src="form.old_question_image"
         width="140"
         class="mt-2 rounded"
-        :disabled="taskInfo?.status === 'completed'" 
+        :disabled="taskInfo?.status === 'completed'"
       />
     </v-card>
 
     <!-- MCQ OPTIONS -->
-     <div v-if="['mcq', 'multiple_mcq'].includes(form.type)">
-           <v-btn
-            color="primary"
-            variant="tonal"
-            prepend-icon="mdi-plus"
-            class="mt-3"
-            @click="form.options.push({
-              option_text: '',
-              option_image: null,
-              is_correct: false
-            })"
-          >
-            Add Option
-          </v-btn>
-    <v-row  >
-  <v-col
-    v-for="(option, index) in form.options"
-    :key="index"
-    cols="12"
-    md="6"
-  >
-    <v-card
-      class="pa-4 rounded-xl option-card"
-      elevation="0"
-    >
-      <div class="d-flex align-center justify-space-between mb-3">
-        <div class="d-flex align-center ga-2">
-          <v-avatar
-            color="primary"
-            size="32"
-          >
-            {{ String.fromCharCode(65 + index) }}
-          </v-avatar>
+    <div v-if="['mcq', 'multiple_mcq'].includes(form.type)">
+      <v-btn
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-plus"
+        class="mt-3"
+        @click="
+          form.options.push({
+            option_text: '',
+            option_image: null,
+            is_correct: false,
+          })
+        "
+      >
+        Add Option
+      </v-btn>
+      <v-row>
+        <v-col
+          v-for="(option, index) in form.options"
+          :key="index"
+          cols="12"
+          md="6"
+        >
+          <v-card class="pa-4 rounded-xl option-card" elevation="0">
+            <div class="d-flex align-center justify-space-between mb-3">
+              <div class="d-flex align-center ga-2">
+                <v-avatar color="primary" size="32">
+                  {{ String.fromCharCode(65 + index) }}
+                </v-avatar>
 
-          <span class="font-weight-bold">
-            Option {{ index + 1 }}
-          </span>
-        </div>
-        <v-spacer></v-spacer>
-        <v-checkbox
-          v-model="option.is_correct"
-          density="compact"
-          hide-details
-          color="success"
-          :label="
-            form.type === 'mcq'
-              ? 'Correct'
-              : 'Select'
-          "
-          @update:model-value="
-            form.type === 'mcq'
-              ? makeSingleCorrect(index)
-              : null
-          "
-        />
-        <v-btn
-  icon="mdi-delete"
-  color="error"
-  variant="text"
-  size="small"
-  @click="form.options.splice(index, 1)"
-/>
-      </div>
+                <span class="font-weight-bold"> Option {{ index + 1 }} </span>
+              </div>
+              <v-spacer></v-spacer>
+              <v-checkbox
+                v-model="option.is_correct"
+                density="compact"
+                hide-details
+                color="success"
+                :label="form.type === 'mcq' ? 'Correct' : 'Select'"
+                @update:model-value="
+                  form.type === 'mcq' ? makeSingleCorrect(index) : null
+                "
+              />
+              <v-btn
+                icon="mdi-delete"
+                color="error"
+                variant="text"
+                size="small"
+                @click="form.options.splice(index, 1)"
+              />
+            </div>
 
-      <v-textarea
-        v-model="option.option_text"
-        label="Option Text"
-        rows="2"
-        auto-grow
-        variant="outlined"
-      />
+            <v-textarea
+              v-model="option.option_text"
+              label="Option Text"
+              rows="2"
+              auto-grow
+              variant="outlined"
+            />
 
-      <v-file-input
-        v-model="option.option_image"
-        label="Option Image"
-        prepend-icon=""
-        prepend-inner-icon="mdi-image"
-        variant="outlined"
-        density="comfortable"
-        accept="image/*"
-      />
-    </v-card>
-  </v-col>
-</v-row>
+            <v-file-input
+              v-model="option.option_image"
+              label="Option Image"
+              prepend-icon=""
+              prepend-inner-icon="mdi-image"
+              variant="outlined"
+              density="comfortable"
+              accept="image/*"
+            />
+          </v-card>
+        </v-col>
+      </v-row>
     </div>
 
     <!-- MATCH COLUMN -->
     <v-card v-if="isMatchColumn" class="pa-4 mb-6" variant="outlined">
-      <div class="d-flex justify-space-between mb-4">
-        <div class="text-subtitle-1 font-weight-bold">Match Columns</div>
+      <div class="text-h6 font-weight-bold mb-3">Match the Column</div>
 
-        <v-btn color="primary" variant="tonal" @click="addMatchRow">
-          Add Row
-        </v-btn>
-      </div>
-
-      <v-row v-for="(match, index) in form.matches" :key="index">
-        <v-col cols="5">
-          <v-text-field v-model="match.left" label="Column A" />
+      <v-row v-for="(row, index) in form.matches" :key="index" class="mb-2">
+        <v-col cols="12" md="5">
+          <v-text-field
+            v-model="row.left"
+            :label="`Column A Question ${index + 1}`"
+            variant="outlined"
+          />
         </v-col>
 
-        <v-col cols="5">
-          <v-text-field v-model="match.right" label="Column B" />
+        <v-col cols="12" md="5">
+          <v-text-field
+            v-model="row.right"
+            :label="`Correct Answer ${index + 1}`"
+            variant="outlined"
+          />
         </v-col>
 
-        <v-col cols="2" class="d-flex align-center">
+        <v-col cols="12" md="2" class="d-flex align-center">
           <v-btn
             icon="mdi-delete"
-            color="red"
+            color="error"
             variant="text"
-            @click="removeMatchRow(index)"
+            @click="form.matches.splice(index, 1)"
           />
         </v-col>
       </v-row>
+
+      <v-btn
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-plus"
+        @click="form.matches.push({ left: '', right: '' })"
+      >
+        Add Row
+      </v-btn>
     </v-card>
 
     <!-- ANSWER -->
@@ -798,7 +790,10 @@ onMounted(async () => {
     <v-card class="pa-4" variant="outlined">
       <div class="text-subtitle-1 font-weight-bold mb-2">Explanation</div>
 
-      <AppEditor v-model="form.explanation" :disabled="taskInfo?.status === 'completed'" />
+      <AppEditor
+        v-model="form.explanation"
+        :disabled="taskInfo?.status === 'completed'"
+      />
     </v-card>
   </v-card>
   <div

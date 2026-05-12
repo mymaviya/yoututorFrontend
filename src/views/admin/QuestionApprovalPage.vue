@@ -1,193 +1,186 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import api from '../../plugins/api'
-import { useUIStore } from '../../stores/snackBar'
-import { renderMath } from '../../utils/renderMath'
+import { ref, onMounted } from "vue";
+import api from "../../plugins/api";
+import { useUIStore } from "../../stores/snackBar";
+import { renderMath } from "../../utils/renderMath";
 
-const ui = useUIStore()
+const ui = useUIStore();
 
-const loading = ref(false)
-const approving = ref(false)
+const loading = ref(false);
+const approving = ref(false);
 
-const questions = ref([])
-const grades = ref([])
-const subjects = ref([])
+const questions = ref([]);
+const grades = ref([]);
+const subjects = ref([]);
 
-const previewDialog = ref(false)
-const rejectDialog = ref(false)
+const previewDialog = ref(false);
+const rejectDialog = ref(false);
 
-const selectedQuestion = ref(null)
-const rejectionReason = ref('')
+const selectedQuestion = ref(null);
+const rejectionReason = ref("");
 
 const filters = ref({
-  status: 'pending',
+  status: "pending",
   grade_id: null,
   subject_id: null,
   type: null,
   difficulty: null,
-  search: ''
-})
+  search: "",
+});
 
 const questionTypes = [
-  'mcq',
-  'multiple_mcq',
-  'true_false',
-  'fill_blank',
-  'short',
-  'long',
-  'match_column',
-  'assertion_reason',
-  'numerical'
-]
+  "mcq",
+  "multiple_mcq",
+  "true_false",
+  "fill_blank",
+  "short",
+  "long",
+  "match_column",
+  "assertion_reason",
+  "numerical",
+];
 
-const difficulties = ['easy', 'medium', 'hard']
+const difficulties = ["easy", "medium", "hard"];
 
-const statusItems = [
-  'pending',
-  'approved',
-  'rejected'
-]
+const statusItems = ["pending", "approved", "rejected"];
 
 const headers = [
-  { title: 'Question', key: 'question' },
-  { title: 'Grade', key: 'grade.name' },
-  { title: 'Subject', key: 'subject.name' },
-  { title: 'Type', key: 'type' },
-  { title: 'Difficulty', key: 'difficulty' },
-  { title: 'Created By', key: 'creator' },
-  { title: 'Status', key: 'status' },
-  { title: 'Actions', key: 'actions', sortable: false }
-]
+  { title: "Question", key: "question" },
+  { title: "Grade", key: "grade.name" },
+  { title: "Subject", key: "subject.name" },
+  { title: "Type", key: "type" },
+  { title: "Difficulty", key: "difficulty" },
+  { title: "Created By", key: "creator" },
+  { title: "Status", key: "status" },
+  { title: "Actions", key: "actions", sortable: false },
+];
 
 const fetchQuestions = async () => {
-  loading.value = true
+  loading.value = true;
 
   try {
-    const res = await api.get('/question-approvals', {
-      params: filters.value
-    })
+    const res = await api.get("/question-approvals", {
+      params: filters.value,
+    });
 
-    questions.value = res.data.data || res.data
+    questions.value = res.data.data || res.data;
 
     setTimeout(() => {
-      renderMath('.question-html')
-    }, 200)
+      renderMath(".question-html");
+    }, 200);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const fetchGrades = async () => {
-  const res = await api.get('/grades')
-  grades.value = res.data.data || res.data
-}
+  const res = await api.get("/grades");
+  grades.value = res.data.data || res.data;
+};
 
 const fetchSubjects = async () => {
   if (!filters.value.grade_id) {
-    subjects.value = []
-    filters.value.subject_id = null
-    return
+    subjects.value = [];
+    filters.value.subject_id = null;
+    return;
   }
 
-  const res = await api.get('/subjects', {
+  const res = await api.get("/subjects", {
     params: {
-      grade_id: filters.value.grade_id
-    }
-  })
+      grade_id: filters.value.grade_id,
+    },
+  });
 
-  subjects.value = res.data.data || res.data
-}
+  subjects.value = res.data.data || res.data;
+};
 
 const clearFilters = () => {
   filters.value = {
-    status: 'pending',
+    status: "pending",
     grade_id: null,
     subject_id: null,
     type: null,
     difficulty: null,
-    search: ''
-  }
+    search: "",
+  };
 
-  subjects.value = []
-  fetchQuestions()
-}
+  subjects.value = [];
+  fetchQuestions();
+};
 
 const openPreview = (question) => {
-  selectedQuestion.value = question
-  previewDialog.value = true
+  selectedQuestion.value = question;
+  previewDialog.value = true;
 
   setTimeout(() => {
-    renderMath('.preview-question-html')
-  }, 200)
-}
+    renderMath(".preview-question-html");
+  }, 200);
+};
 
 const approveQuestion = async (question) => {
   const ok = await ui.confirmDialog(
-    'Approve Question',
-    'Are you sure you want to approve this question?'
-  )
+    "Approve Question",
+    "Are you sure you want to approve this question?",
+  );
 
-  if (!ok) return
+  if (!ok) return;
 
-  approving.value = true
+  approving.value = true;
 
   try {
-    await api.post(`/question-approvals/${question.id}/approve`)
+    await api.post(`/question-approvals/${question.id}/approve`);
 
-    ui.showSnackbar('Question approved successfully')
-    previewDialog.value = false
-    fetchQuestions()
+    ui.showSnackbar("Question approved successfully");
+    previewDialog.value = false;
+    fetchQuestions();
   } catch (err) {
-    ui.showSnackbar('Failed to approve question', 'error')
+    ui.showSnackbar("Failed to approve question", "error");
   } finally {
-    approving.value = false
+    approving.value = false;
   }
-}
+};
 
 const openReject = (question) => {
-  selectedQuestion.value = question
-  rejectionReason.value = ''
-  rejectDialog.value = true
-}
+  selectedQuestion.value = question;
+  rejectionReason.value = "";
+  rejectDialog.value = true;
+};
 
 const rejectQuestion = async () => {
   if (!rejectionReason.value) {
-    ui.showSnackbar('Please enter rejection reason', 'warning')
-    return
+    ui.showSnackbar("Please enter rejection reason", "warning");
+    return;
   }
 
-  approving.value = true
+  approving.value = true;
 
   try {
-    await api.post(
-      `/question-approvals/${selectedQuestion.value.id}/reject`,
-      {
-        rejection_reason: rejectionReason.value
-      }
-    )
+    await api.post(`/question-approvals/${selectedQuestion.value.id}/reject`, {
+      rejection_reason: rejectionReason.value,
+    });
 
-    ui.showSnackbar('Question rejected successfully')
+    ui.showSnackbar("Question rejected successfully");
 
-    rejectDialog.value = false
+    rejectDialog.value = false;
 
-    fetchQuestions()
+    fetchQuestions();
   } catch (err) {
-    ui.showSnackbar('Failed to reject question', 'error')
+    ui.showSnackbar("Failed to reject question", "error");
   } finally {
-    approving.value = false
+    approving.value = false;
   }
-}
+};
 
 const statusColor = (status) => {
-  if (status === 'approved') return 'success'
-  if (status === 'rejected') return 'error'
-  return 'warning'
-}
+  if (status === "approved") return "success";
+  if (status === "rejected") return "error";
+  return "warning";
+};
 
 onMounted(() => {
-  fetchGrades()
-  fetchQuestions()
-})
+  fetchGrades();
+  fetchQuestions();
+});
 </script>
 
 <template>
@@ -195,20 +188,14 @@ onMounted(() => {
     <!-- HEADER -->
     <div class="d-flex justify-space-between align-center mb-6">
       <div>
-        <h1 class="text-h4 font-weight-bold">
-          Question Approval
-        </h1>
+        <h1 class="text-h4 font-weight-bold">Question Approval</h1>
 
         <p class="text-grey">
           Review, approve, or reject questions submitted by teachers.
         </p>
       </div>
 
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-refresh"
-        @click="fetchQuestions"
-      >
+      <v-btn color="primary" prepend-icon="mdi-refresh" @click="fetchQuestions">
         Refresh
       </v-btn>
     </div>
@@ -299,18 +286,11 @@ onMounted(() => {
 
     <!-- TABLE -->
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table
-        :headers="headers"
-        :items="questions"
-        :loading="loading"
-      >
+      <v-data-table :headers="headers" :items="questions" :loading="loading">
         <!-- QUESTION -->
         <template #item.question="{ item }">
           <div class="py-3 question-preview">
-            <div
-              class="question-html"
-              v-html="item.question"
-            />
+            <div class="question-html" v-html="item.question" />
 
             <v-img
               v-if="item.question_image"
@@ -318,18 +298,23 @@ onMounted(() => {
               max-width="120"
               class="rounded mt-2"
             />
+            
+            <v-chip v-if="item.type === 'match_column' && item.match_pairs?.length" size="small" color="primary" variant="tonal">
+              {{ item.match_pairs.length }} match rows
+            </v-chip>
           </div>
+          
         </template>
 
         <!-- CREATED BY -->
         <template #item.creator="{ item }">
           <div>
             <div class="font-weight-medium">
-              {{ item.creator?.name || '-' }}
+              {{ item.creator?.name || "-" }}
             </div>
 
             <div class="text-caption text-grey">
-              {{ item.creator?.role || '' }}
+              {{ item.creator?.role || "" }}
             </div>
           </div>
         </template>
@@ -349,8 +334,8 @@ onMounted(() => {
               item.difficulty === 'easy'
                 ? 'success'
                 : item.difficulty === 'medium'
-                ? 'warning'
-                : 'error'
+                  ? 'warning'
+                  : 'error'
             "
             variant="tonal"
           >
@@ -405,10 +390,7 @@ onMounted(() => {
     </v-card>
 
     <!-- PREVIEW DIALOG -->
-    <v-dialog
-      v-model="previewDialog"
-      max-width="850"
-    >
+    <v-dialog v-model="previewDialog" max-width="850">
       <v-card class="rounded-xl">
         <v-card-title class="d-flex justify-space-between align-center">
           Question Preview
@@ -457,12 +439,36 @@ onMounted(() => {
           />
 
           <div
-            v-if="selectedQuestion.options?.length"
+            v-if="
+              selectedQuestion.type === 'match_column' &&
+              selectedQuestion.match_pairs?.length
+            "
             class="mt-4"
           >
-            <div class="text-subtitle-1 font-weight-bold mb-2">
-              Options
-            </div>
+            <v-table density="comfortable">
+              <thead>
+                <tr>
+                  <th>Column A</th>
+                  <th>Column B / Correct Answer</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr
+                  v-for="(pair, index) in selectedQuestion.match_pairs"
+                  :key="pair.id || index"
+                >
+                  <td>{{ index + 1 }}. {{ pair.left_text }}</td>
+                  <td>
+                    {{ String.fromCharCode(65 + index) }}. {{ pair.right_text }}
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </div>
+
+          <div v-if="selectedQuestion.options?.length" class="mt-4">
+            <div class="text-subtitle-1 font-weight-bold mb-2">Options</div>
 
             <v-list>
               <v-list-item
@@ -470,11 +476,7 @@ onMounted(() => {
                 :key="option.id || index"
               >
                 <template #prepend>
-                  <v-avatar
-                    size="30"
-                    color="primary"
-                    variant="tonal"
-                  >
+                  <v-avatar size="30" color="primary" variant="tonal">
                     {{ String.fromCharCode(65 + index) }}
                   </v-avatar>
                 </template>
@@ -524,14 +526,9 @@ onMounted(() => {
     </v-dialog>
 
     <!-- REJECT DIALOG -->
-    <v-dialog
-      v-model="rejectDialog"
-      max-width="520"
-    >
+    <v-dialog v-model="rejectDialog" max-width="520">
       <v-card class="rounded-xl">
-        <v-card-title>
-          Reject Question
-        </v-card-title>
+        <v-card-title> Reject Question </v-card-title>
 
         <v-card-text>
           <v-textarea
@@ -545,18 +542,9 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer />
 
-          <v-btn
-            variant="text"
-            @click="rejectDialog = false"
-          >
-            Cancel
-          </v-btn>
+          <v-btn variant="text" @click="rejectDialog = false"> Cancel </v-btn>
 
-          <v-btn
-            color="error"
-            :loading="approving"
-            @click="rejectQuestion"
-          >
+          <v-btn color="error" :loading="approving" @click="rejectQuestion">
             Reject
           </v-btn>
         </v-card-actions>

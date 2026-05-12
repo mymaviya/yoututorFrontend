@@ -5,14 +5,13 @@ import { useUIStore } from "../../stores/snackBar";
 
 const ui = useUIStore();
 
-const selectedTeacher = ref(null)
-const selectedAssignment = ref(null)
+const selectedTeacher = ref(null);
+const selectedAssignment = ref(null);
 const tasks = ref([]);
 const teachers = ref([]);
 const grades = ref([]);
 const subjects = ref([]);
-const lessons = ref([])
-
+const lessons = ref([]);
 
 const dialog = ref(false);
 const editMode = ref(false);
@@ -26,22 +25,22 @@ const form = ref({
   subject_id: null,
   lesson_id: null,
   question_types: [],
-  difficulty: 'medium',
+  difficulty: "medium",
   target_count: 10,
-  due_date: null
-})
+  due_date: null,
+});
 
 const questionTypes = [
-  { title: 'MCQ', value: 'mcq' },
-  { title: 'Multiple MCQ', value: 'multiple_mcq' },
-  { title: 'True / False', value: 'true_false' },
-  { title: 'Fill in the Blanks', value: 'fill_blank' },
-  { title: 'Short Answer', value: 'short' },
-  { title: 'Long Answer', value: 'long' },
-  { title: 'Match Column', value: 'match_column' },
-  { title: 'Assertion Reason', value: 'assertion_reason' },
-  { title: 'Numerical', value: 'numerical' }
-]
+  { title: "MCQ", value: "mcq" },
+  { title: "Multiple MCQ", value: "multiple_mcq" },
+  { title: "True / False", value: "true_false" },
+  { title: "Fill in the Blanks", value: "fill_blank" },
+  { title: "Short Answer", value: "short" },
+  { title: "Long Answer", value: "long" },
+  { title: "Match Column", value: "match_column" },
+  { title: "Assertion Reason", value: "assertion_reason" },
+  { title: "Numerical", value: "numerical" },
+];
 
 const difficulties = ["easy", "medium", "hard"];
 
@@ -72,25 +71,25 @@ const fetchTasks = async () => {
 
 const onTeacherChange = () => {
   selectedTeacher.value = teachers.value.find(
-    t => Number(t.id) === Number(form.value.teacher_id)
-  )
+    (t) => Number(t.id) === Number(form.value.teacher_id),
+  );
 
-  selectedAssignment.value = null
-  form.value.grade_id = null
-  form.value.subject_id = null
-  form.value.lesson_id = null
-  lessons.value = []
-}
+  selectedAssignment.value = null;
+  form.value.grade_id = null;
+  form.value.subject_id = null;
+  form.value.lesson_id = null;
+  lessons.value = [];
+};
 
 const selectAssignment = async (assignment) => {
-  selectedAssignment.value = assignment
+  selectedAssignment.value = assignment;
 
-  form.value.grade_id = assignment.grade_id
-  form.value.subject_id = assignment.subject_id
-  form.value.lesson_id = null
+  form.value.grade_id = assignment.grade_id;
+  form.value.subject_id = assignment.subject_id;
+  form.value.lesson_id = null;
 
-  await fetchLessons()
-}
+  await fetchLessons();
+};
 
 const fetchTeachers = async () => {
   const res = await api.get("/teachers");
@@ -119,22 +118,26 @@ const fetchSubjects = async () => {
 
 const fetchLessons = async () => {
   if (!form.value.subject_id) {
-    lessons.value = []
-    return
+    lessons.value = [];
+    return;
   }
 
-  const res = await api.get('/lessons', {
+  const res = await api.get("/lessons", {
     params: {
-      subject_id: form.value.subject_id
-    }
-  })
+      subject_id: form.value.subject_id,
+    },
+  });
 
-  lessons.value = res.data.data || res.data
-}
+  lessons.value = res.data.data || res.data;
+};
 
 const openAdd = () => {
   editMode.value = false;
   errors.value = {};
+
+  selectedTeacher.value = null;
+  selectedAssignment.value = null;
+  lessons.value = [];
 
   form.value = {
     id: null,
@@ -142,13 +145,12 @@ const openAdd = () => {
     grade_id: null,
     subject_id: null,
     lesson_id: null,
-    question_type: [],
+    question_types: [],
     difficulty: "medium",
     target_count: 10,
     due_date: null,
   };
-  
-  subjects.value = [];
+
   dialog.value = true;
 };
 
@@ -161,20 +163,37 @@ const openEdit = async (task) => {
     teacher_id: task.teacher?.id,
     grade_id: task.grade?.id,
     subject_id: task.subject?.id,
-    lesson_id_id: task.lesson_id?.id,
-    question_type: task.question_type,
+    lesson_id: task.lesson?.id || task.lesson_id || null,
+    question_types: [task.question_type],
     difficulty: task.difficulty,
     target_count: task.target_count,
     due_date: task.due_date,
   };
 
-  await fetchSubjects();
+  selectedTeacher.value = teachers.value.find(
+    (t) => Number(t.id) === Number(form.value.teacher_id),
+  );
+
+  selectedAssignment.value = selectedTeacher.value?.assignments?.find(
+    (a) =>
+      Number(a.grade_id) === Number(form.value.grade_id) &&
+      Number(a.subject_id) === Number(form.value.subject_id),
+  );
+
+  await fetchLessons();
+
   dialog.value = true;
 };
 
 const saveTask = async () => {
-  saving.value = true
-  errors.value = {}
+  saving.value = true;
+  errors.value = {};
+
+  if (!form.value.question_types.length) {
+    ui.showSnackbar("Please select at least one question type", "warning");
+    saving.value = false;
+    return;
+  }
 
   try {
     const payload = {
@@ -185,32 +204,38 @@ const saveTask = async () => {
       question_types: form.value.question_types,
       difficulty: form.value.difficulty,
       target_count: form.value.target_count,
-      due_date: form.value.due_date
-    }
+      due_date: form.value.due_date,
+    };
 
     if (editMode.value) {
       await api.put(`/teacher-question-tasks/${form.value.id}`, {
-        ...payload,
-        question_type: form.value.question_types[0]
-      })
+        teacher_id: form.value.teacher_id,
+        grade_id: form.value.grade_id,
+        subject_id: form.value.subject_id,
+        lesson_id: form.value.lesson_id,
+        question_type: form.value.question_types[0],
+        difficulty: form.value.difficulty,
+        target_count: form.value.target_count,
+        due_date: form.value.due_date,
+      });
 
-      ui.showSnackbar('Task updated successfully')
+      ui.showSnackbar("Task updated successfully");
     } else {
-      await api.post('/teacher-question-tasks', payload)
+      await api.post("/teacher-question-tasks", payload);
 
-      ui.showSnackbar('Tasks assigned successfully')
+      ui.showSnackbar("Tasks assigned successfully");
     }
 
-    dialog.value = false
-    fetchTasks()
+    dialog.value = false;
+    fetchTasks();
   } catch (err) {
     if (err.response?.status === 422) {
-      errors.value = err.response.data.errors
+      errors.value = err.response.data.errors;
     } else {
-      ui.showSnackbar('Failed to save task', 'error')
+      ui.showSnackbar("Failed to save task", "error");
     }
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 };
 
@@ -263,22 +288,43 @@ onMounted(() => {
 
         <template #item.progress="{ item }">
           <div style="min-width: 140px">
-            <v-progress-linear :model-value="item.progress" height="8" rounded color="primary" />
+            <v-progress-linear
+              :model-value="item.progress"
+              height="8"
+              rounded
+              color="primary"
+            />
 
             <div class="text-caption mt-1">{{ item.progress }}%</div>
           </div>
         </template>
 
         <template #item.status="{ item }">
-          <v-chip :color="item.status === 'completed' ? 'success' : 'warning'" variant="tonal" size="small">
+          <v-chip
+            :color="item.status === 'completed' ? 'success' : 'warning'"
+            variant="tonal"
+            size="small"
+          >
             {{ item.status }}
           </v-chip>
         </template>
 
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" variant="text" size="small" color="primary" @click="openEdit(item)" />
+          <v-btn
+            icon="mdi-pencil"
+            variant="text"
+            size="small"
+            color="primary"
+            @click="openEdit(item)"
+          />
 
-          <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteTask(item)" />
+          <v-btn
+            icon="mdi-delete"
+            variant="text"
+            size="small"
+            color="error"
+            @click="deleteTask(item)"
+          />
         </template>
       </v-data-table>
     </v-card>
@@ -296,52 +342,94 @@ onMounted(() => {
         <v-card-text>
           <v-row>
             <v-col cols="12">
-              <v-select v-model="form.teacher_id" :items="teachers" item-title="user.name" item-value="id"
-                label="Teacher" variant="outlined" :error-messages="errors.teacher_id"
-                @update:model-value="onTeacherChange" />
+              <v-select
+                v-model="form.teacher_id"
+                :items="teachers"
+                item-title="user.name"
+                item-value="id"
+                label="Teacher"
+                variant="outlined"
+                :error-messages="errors.teacher_id"
+                @update:model-value="onTeacherChange"
+              />
               <div v-if="selectedTeacher" class="mb-4">
                 <div class="text-subtitle-2 font-weight-bold mb-2">
                   Assigned Grades & Subjects
                 </div>
 
                 <div class="d-flex flex-wrap ga-2">
-                  <v-chip v-for="assignment in selectedTeacher.assignments" :key="assignment.id" size="large"
-                    variant="tonal" :color="selectedAssignment?.id === assignment.id ? 'primary' : 'default'"
-                    @click="selectAssignment(assignment)">
-                    {{ assignment.grade?.name }} - {{ assignment.subject?.name }}
+                  <v-chip
+                    v-for="assignment in selectedTeacher.assignments"
+                    :key="assignment.id"
+                    size="large"
+                    variant="tonal"
+                    :color="
+                      selectedAssignment?.id === assignment.id
+                        ? 'primary'
+                        : 'default'
+                    "
+                    @click="selectAssignment(assignment)"
+                  >
+                    {{ assignment.grade?.name }} -
+                    {{ assignment.subject?.name }}
                   </v-chip>
                 </div>
               </div>
-
-
-
-
             </v-col>
 
             <v-col cols="12" md="12">
-              <v-select v-model="form.lesson_id" :items="lessons" item-title="title" item-value="id" label="Lesson"
-                variant="outlined" :disabled="!form.subject_id" :error-messages="errors.lesson_id" />
-
+              <v-select
+                v-model="form.lesson_id"
+                :items="lessons"
+                item-title="title"
+                item-value="id"
+                label="Lesson"
+                variant="outlined"
+                :disabled="!form.subject_id"
+                :error-messages="errors.lesson_id"
+              />
             </v-col>
 
             <v-col cols="12" md="12">
-              <v-select v-model="form.question_types" :items="questionTypes" item-title="title" item-value="value"
-                label="Question Types" multiple chips closable-chips variant="outlined"
-                :error-messages="errors.question_types" />
+              <v-select
+                v-model="form.question_types"
+                :items="questionTypes"
+                item-title="title"
+                item-value="value"
+                label="Question Types"
+                multiple
+                chips
+                closable-chips
+                variant="outlined"
+                :error-messages="errors.question_types"
+              />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-select v-model="form.difficulty" :items="difficulties" label="Difficulty"
-                :error-messages="errors.difficulty" />
+              <v-select
+                v-model="form.difficulty"
+                :items="difficulties"
+                label="Difficulty"
+                :error-messages="errors.difficulty"
+              />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field v-model="form.target_count" type="number" label="No. of Questions"
-                :error-messages="errors.target_count" />
+              <v-text-field
+                v-model="form.target_count"
+                type="number"
+                label="No. of Questions"
+                :error-messages="errors.target_count"
+              />
             </v-col>
 
             <v-col cols="12">
-              <v-text-field v-model="form.due_date" type="date" label="Due Date" :error-messages="errors.due_date" />
+              <v-text-field
+                v-model="form.due_date"
+                type="date"
+                label="Due Date"
+                :error-messages="errors.due_date"
+              />
             </v-col>
           </v-row>
         </v-card-text>
