@@ -19,6 +19,13 @@ const lessons = ref([]);
 
 const isEditMode = computed(() => !!route.params.id);
 
+const defaultOptions = () => [
+  { option_text: '', option_image: null, is_correct: false },
+  { option_text: '', option_image: null, is_correct: false },
+  { option_text: '', option_image: null, is_correct: false },
+  { option_text: '', option_image: null, is_correct: false },
+]
+
 // Task
 const fetchTaskInfo = async () => {
   if (!route.query.task_id) return;
@@ -103,13 +110,7 @@ const form = ref({
   explanation: "",
   question_image: null,
 
-  options: [
-    {
-      option_text: "",
-      option_image: null,
-      is_correct: false,
-    },
-  ],
+  options: defaultOptions(),
 
   matches: [
     {
@@ -276,6 +277,7 @@ const fetchQuestionForEdit = async () => {
 const save = async () => {
   errors.value = {};
 
+  
   try {
     const formData = new FormData();
 
@@ -295,7 +297,13 @@ const save = async () => {
       formData.append("question_image", form.value.question_image);
     }
 
+    if (form.value.options.length < 3) {
+        ui.showSnackbar('Minimum 3 options required','warning')
+        return
+      }
+
     if (isMCQ.value) {
+      
       form.value.options.forEach((option, index) => {
         formData.append(`options[${index}][option_text]`, option.option_text);
 
@@ -312,6 +320,8 @@ const save = async () => {
         }
       });
     }
+
+    
 
     if (isMatchColumn.value) {
       formData.append("matches", JSON.stringify(form.value.matches));
@@ -360,6 +370,12 @@ const save = async () => {
   }
 };
 
+const makeSingleCorrect = (selectedIndex) => {
+  form.value.options.forEach((option, index) => {
+    option.is_correct = index === selectedIndex
+  })
+}
+
 watch(
   () => form.value.grade_id,
 
@@ -383,6 +399,18 @@ watch(
 
     await fetchLessons();
   },
+);
+
+watch(
+  () => form.value.type,
+  (val) => {
+    if (
+      ['mcq', 'multiple_mcq'].includes(val) &&
+      (!form.value.options || form.value.options.length === 0)
+    ) {
+      form.value.options = defaultOptions()
+    }
+  }
 );
 
 onMounted(async () => {
@@ -643,61 +671,91 @@ onMounted(async () => {
     </v-card>
 
     <!-- MCQ OPTIONS -->
-    <v-card v-if="isMCQ" class="pa-4 mb-6" variant="outlined">
-      <div class="d-flex justify-space-between mb-4">
-        <div class="text-subtitle-1 font-weight-bold">Options</div>
+     <div v-if="['mcq', 'multiple_mcq'].includes(form.type)">
+           <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-plus"
+            class="mt-3"
+            @click="form.options.push({
+              option_text: '',
+              option_image: null,
+              is_correct: false
+            })"
+          >
+            Add Option
+          </v-btn>
+    <v-row  >
+  <v-col
+    v-for="(option, index) in form.options"
+    :key="index"
+    cols="12"
+    md="6"
+  >
+    <v-card
+      class="pa-4 rounded-xl option-card"
+      elevation="0"
+    >
+      <div class="d-flex align-center justify-space-between mb-3">
+        <div class="d-flex align-center ga-2">
+          <v-avatar
+            color="primary"
+            size="32"
+          >
+            {{ String.fromCharCode(65 + index) }}
+          </v-avatar>
 
-        <v-btn color="primary" variant="tonal" :disabled="taskInfo?.status === 'completed'" @click="addOption">
-          Add Option
-        </v-btn>
-      </div>
-
-      <div
-        v-for="(option, index) in form.options"
-        :key="index"
-        class="border rounded-lg pa-4 mb-4"
-      >
-        <div class="d-flex justify-space-between mb-2">
-          <div class="font-weight-bold">Option {{ index + 1 }}</div>
-
-          <v-btn
-            icon="mdi-delete"
-            color="red"
-            variant="text"
-            @click="removeOption(index)"
-            :disabled="taskInfo?.status === 'completed'"
-          />
+          <span class="font-weight-bold">
+            Option {{ index + 1 }}
+          </span>
         </div>
-
-        <AppEditor
-          v-model="option.option_text"
-          :error-messages="errors.option_text"
-          :disabled="taskInfo?.status === 'completed'"
-        />
-
-        <v-file-input
-          v-model="option.option_image"
-          class="mt-4"
-          label="Option Image"
-          accept="image/*"
-          :disabled="taskInfo?.status === 'completed'"
-        />
-        <v-img
-          v-if="option.old_option_image"
-          :src="option.old_option_image"
-          width="100"
-          class="mt-2 rounded"
-          :disabled="taskInfo?.status === 'completed'"
-        />
-
+        <v-spacer></v-spacer>
         <v-checkbox
           v-model="option.is_correct"
-          label="Correct Answer"
-          :error-messages="errors.is_correct"
-          :disabled="taskInfo?.status === 'completed'"
+          density="compact"
+          hide-details
+          color="success"
+          :label="
+            form.type === 'mcq'
+              ? 'Correct'
+              : 'Select'
+          "
+          @update:model-value="
+            form.type === 'mcq'
+              ? makeSingleCorrect(index)
+              : null
+          "
         />
+        <v-btn
+  icon="mdi-delete"
+  color="error"
+  variant="text"
+  size="small"
+  @click="form.options.splice(index, 1)"
+/>
       </div>
+
+      <v-textarea
+        v-model="option.option_text"
+        label="Option Text"
+        rows="2"
+        auto-grow
+        variant="outlined"
+      />
+
+      <v-file-input
+        v-model="option.option_image"
+        label="Option Image"
+        prepend-icon=""
+        prepend-inner-icon="mdi-image"
+        variant="outlined"
+        density="comfortable"
+        accept="image/*"
+      />
     </v-card>
+  </v-col>
+</v-row>
+    </div>
 
     <!-- MATCH COLUMN -->
     <v-card v-if="isMatchColumn" class="pa-4 mb-6" variant="outlined">
