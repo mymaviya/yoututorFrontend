@@ -69,6 +69,12 @@ const menu = computed(() => [
         routeName: "lessons.index",
         roles: ["admin"],
       },
+      {
+        title: "Exam Names",
+        icon: "mdi-format-list-text",
+        routeName: "exam.names",
+        roles: ["admin"],
+      },
     ],
   },
 
@@ -90,6 +96,12 @@ const menu = computed(() => [
         roles: ["admin"],
       },
       {
+        title: "Exam Portions",
+        icon: "mdi-book-check",
+        routeName: "exam.portions",
+        roles: ["admin"],
+      },
+      {
         title: "Teacher Progress",
         icon: "mdi-chart-timeline-variant",
         routeName: "teacher.progress",
@@ -101,6 +113,12 @@ const menu = computed(() => [
     title: "My Tasks",
     icon: "mdi-clipboard-check",
     routeName: "teacher.my.tasks",
+    roles: ["teacher"],
+  },
+  {
+    title: "My Exam Portions",
+    icon: "mdi-book-check-outline",
+    routeName: "teacher.exam.portions",
     roles: ["teacher"],
   },
   {
@@ -402,6 +420,6 @@ const logout = async () => {
 }
 
 .v-list-item:hover {
-  background: rgba(var(--v-theme-primary), 0.10) !important;
+  background: rgba(var(--v-theme-primary), 0.1) !important;
 }
 </style>

@@ -52,6 +52,12 @@ const routes = [
       // Assign Task To Teachers
 
       {path: 'teacher-question-tasks', name:'teacher.tasks', component: () => import('../views/admin/TeacherQuestionTasks.vue'), meta: {title:'Teachers Task'}},
+      
+
+      // Exam Portion
+      { path: 'exam-names', name: 'exam.names', component: () => import('../views/admin/ExamNames.vue'), meta: { title: 'Exam Names' }},
+      { path: 'exam-portions', name: 'exam.portions', component: () => import('../views/admin/ExamPortions.vue'), meta: { title: 'Exam Portions' } },
+      { path: 'my-exam-portions', name: 'teacher.exam.portions', component: () => import('../views/teacher/MyExamPortions.vue'), meta: { title: 'My Exam Portions' } },
 
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue'), meta: {title:'Login'} },
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue'), meta: {title:'Login'} },
