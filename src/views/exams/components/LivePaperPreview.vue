@@ -70,7 +70,7 @@ const getOptionLayout = (question) => {
       <!-- GENERAL INSTRUCTIONS -->
       <div v-if="paper.instructions" class="general-instructions">
         <strong>General Instructions:</strong>
-        <div v-html="paper.instructions"></div>
+        <div v-maths v-html="paper.instructions"></div>
       </div>
 
       <!-- SECTIONS -->
@@ -97,7 +97,7 @@ const getOptionLayout = (question) => {
             <div class="question-number">Q{{ qIndex + 1 }}.</div>
 
             <div class="question-body">
-              <div class="question-html" v-html="q.question" />
+              <div v-math class="question-html" v-html="q.question" />
 
               <v-img
                 v-if="q.question_image"
@@ -122,6 +122,7 @@ const getOptionLayout = (question) => {
 
                   <span
                     v-if="opt.option_text"
+                    v-maths
                     class="option-text"
                     v-html="opt.option_text"
                   />

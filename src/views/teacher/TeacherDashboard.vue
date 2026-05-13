@@ -191,7 +191,7 @@ onMounted(fetchDashboard)
               </template>
 
               <v-list-item-title>
-                <span v-html="q.question"></span>
+                <span v-math v-html="q.question"></span>
               </v-list-item-title>
 
               <v-list-item-subtitle>

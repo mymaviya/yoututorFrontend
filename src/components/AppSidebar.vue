@@ -11,6 +11,20 @@ const auth = useAuthStore();
 const user = computed(() => auth.user || {});
 
 const openGroup = ref(null);
+let closeTimer = null
+
+const openMenuGroup = (title) => {
+  clearTimeout(closeTimer)
+  openGroup.value = title
+}
+
+const closeMenuGroup = () => {
+  clearTimeout(closeTimer)
+
+  closeTimer = setTimeout(() => {
+    openGroup.value = null
+  }, 250)
+}
 
 const isActive = (item) => {
   if (!item.routeName) return false;
@@ -24,11 +38,11 @@ const isGroupActive = (item) => {
 const initials = computed(() => {
   return user.value?.name
     ? user.value.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .substring(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase()
     : "U";
 });
 
@@ -176,13 +190,13 @@ const menu = computed(() => [
         title: "All Exams",
         icon: "mdi-format-list-checks",
         routeName: "Dashboard",
-        roles: ["admin", "teacher"],
+        roles: ["admin", "teacher", "student"],
       },
       {
         title: "Create Exam",
         icon: "mdi-plus-box",
         routeName: "dashboard",
-        roles: ["admin", "teacher"],
+        roles: ["admin", "teacher", "student"],
       },
     ],
   },
@@ -304,28 +318,13 @@ const logout = async () => {
       <v-list nav density="comfortable" class="px-3 py-4">
         <template v-for="item in filteredMenu" :key="item.title">
           <!-- SIMPLE ITEM -->
-          <v-list-item
-            v-if="!item.children"
-            :prepend-icon="item.icon"
-            :title="item.title"
-            rounded="xl"
-            :class="{ 'active-menu': isActive(item) }"
-            @click="go(item)"
-          />
+          <v-list-item v-if="!item.children" :prepend-icon="item.icon" :title="item.title" rounded="xl"
+            :class="{ 'active-menu': isActive(item) }" @click="go(item)" />
 
           <!-- HOVER GROUP -->
-          <div
-            v-else
-            class="menu-group"
-            @mouseenter="openGroup = item.title"
-            @mouseleave="openGroup = null"
-          >
-            <v-list-item
-              :prepend-icon="item.icon"
-              :title="item.title"
-              rounded="xl"
-              :class="{ 'active-menu': isGroupActive(item) }"
-            >
+          <div v-else class="menu-group" @mouseenter="openMenuGroup(item.title)" @mouseleave="closeMenuGroup">
+            <v-list-item :prepend-icon="item.icon" :title="item.title" rounded="xl"
+              :class="{ 'active-menu': isGroupActive(item) }">
               <template #append>
                 <v-icon size="18">
                   {{
@@ -338,20 +337,10 @@ const logout = async () => {
             </v-list-item>
 
             <v-expand-transition>
-              <div
-                v-show="openGroup === item.title || isGroupActive(item)"
-                class="child-menu"
-              >
-                <v-list-item
-                  v-for="child in item.children"
-                  :key="child.title"
-                  :prepend-icon="child.icon"
-                  :title="child.title"
-                  rounded="xl"
-                  class="child-item"
-                  :class="{ 'active-child': isActive(child) }"
-                  @click="go(child)"
-                />
+              <div v-show="openGroup === item.title || isGroupActive(item)" class="child-menu">
+                <v-list-item v-for="child in item.children" :key="child.title" :prepend-icon="child.icon"
+                  :title="child.title" rounded="xl" class="child-item" :class="{ 'active-child': isActive(child) }"
+                  @click="go(child)" />
               </div>
             </v-expand-transition>
           </div>
@@ -359,15 +348,8 @@ const logout = async () => {
       </v-list>
     </div>
     <div class="mt-auto pa-4">
-      <v-btn
-        block
-        color="error"
-        variant="tonal"
-        size="large"
-        prepend-icon="mdi-logout"
-        class="rounded-xl"
-        @click="logout"
-      >
+      <v-btn block color="error" variant="tonal" size="large" prepend-icon="mdi-logout" class="rounded-xl"
+        @click="logout">
         Logout
       </v-btn>
     </div>
@@ -393,6 +375,7 @@ const logout = async () => {
 }
 
 .menu-group {
+  position: relative;
   margin-bottom: 4px;
 }
 
@@ -400,6 +383,11 @@ const logout = async () => {
   margin-left: 12px;
   padding-left: 8px;
   border-left: 2px solid rgba(var(--v-theme-primary), 0.25);
+}
+
+.child-menu,
+.menu-group {
+  pointer-events: auto;
 }
 
 .child-item {

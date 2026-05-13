@@ -7,10 +7,16 @@ import router from './router'
 import vuetify from './plugins/vuetify'
 import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
+import mathDirective from './directives/math'
+
+// Components
+import MathContent from './components/common/MathContent.vue'
 
 const app = createApp(App)
 const pinia = createPinia()
 
+app.directive('math', mathDirective)
+app.component('MathContent', MathContent)
 app.use(pinia)
 app.use(vuetify)
 app.use(router)

@@ -317,7 +317,7 @@ onMounted(() => {
             />
 
             <!-- HTML -->
-            <div class="question-html" v-html="item.question" />
+            <MathContent :html="item.question" />
             <div
               v-if="item.rejection_reason"
               class="text-caption text-error mt-1"

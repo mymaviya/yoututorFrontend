@@ -1,63 +1,28 @@
 import katex from 'katex'
-
 import 'katex/dist/katex.min.css'
 
-export function renderMath(
-  selector = '.question-html'
-) {
+export const renderMath = (root = document) => {
+  const container =
+    typeof root === 'string'
+      ? document.querySelector(root)
+      : root
 
-  setTimeout(() => {
+  if (!container) return
 
-    document.querySelectorAll(
-      `${selector} [data-type="inline-math"]`
-    ).forEach((el) => {
-
-      const latex =
-        el.getAttribute('data-latex')
-
-      if (!latex) return
-
-      if (
-        el.dataset.rendered === 'true'
-      ) return
-
-      katex.render(
-        latex,
-        el,
-        {
-          throwOnError: false
-        }
-      )
-
-      el.dataset.rendered = 'true'
-    })
-
-    document.querySelectorAll(
-      `${selector} [data-type="block-math"]`
-    ).forEach((el) => {
-
-      const latex =
-        el.getAttribute('data-latex')
+  container
+    .querySelectorAll('[data-latex]')
+    .forEach((el) => {
+      const latex = el.getAttribute('data-latex')
 
       if (!latex) return
 
-      
-      if (
-        el.dataset.rendered === 'true'
-      ) return
-
-      katex.render(
-        latex,
-        el,
-        {
+      try {
+        katex.render(latex, el, {
           throwOnError: false,
-
-          displayMode: true
-        }
-      )
-
-      el.dataset.rendered = 'true'
+          displayMode: el.dataset.display === 'true'
+        })
+      } catch (error) {
+        el.textContent = latex
+      }
     })
-
-  }, 100)
 }

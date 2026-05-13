@@ -211,7 +211,7 @@ onMounted(() => {
                 />
 
                 <!-- QUESTION -->
-                <div class="question-html" v-html="question.question" />
+                <div class="question-html" v-maths v-html="question.question" />
 
                 <!-- OPTIONS -->
                 <div
@@ -231,6 +231,7 @@ onMounted(() => {
                     <!-- TEXT -->
                     <div
                       v-if="option.option_text"
+                      v-maths
                       class="flex-grow-1"
                       v-html="option.option_text"
                     />

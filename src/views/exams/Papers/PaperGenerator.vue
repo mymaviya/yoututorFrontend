@@ -661,7 +661,7 @@ onMounted(async () => {
               </v-btn>
             </div>
 
-            <div class="question-html" v-html="question.question" />
+            <div class="question-html" v-maths v-html="question.question" />
           </div>
         </v-card>
       </v-col>

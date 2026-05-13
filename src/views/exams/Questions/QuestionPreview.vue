@@ -1,5 +1,5 @@
 <template>
-   <div v-html="question.question" />
+   <div v-maths v-html="question.question" />
 
     <v-img
     v-if="question.question_image"
