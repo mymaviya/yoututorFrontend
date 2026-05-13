@@ -5,7 +5,7 @@ import { ref, onMounted, watch } from "vue";
 import api from "../../../plugins/api";
 import { useRouter } from "vue-router";
 import { useUIStore } from "../../../stores/snackBar";
-import { renderMath } from "../../../utils/renderMath";
+
 
 const router = useRouter();
 const ui = useUIStore();
@@ -64,6 +64,8 @@ const headers = [
   { title: "Actions", key: "actions", sortable: false },
 ];
 
+const listFromResponse = (data) => data?.data || data || [];
+const tableItem = (item) => item?.raw || item;
 const fetchQuestions = async () => {
   loading.value = true;
 
@@ -82,11 +84,14 @@ const fetchQuestions = async () => {
       },
     });
 
-    questions.value = res.data.data;
-    totalItems.value = res.data.total;
-    renderMath();
+    questions.value = listFromResponse(res.data);
+    totalItems.value = Number(res.data.total ?? questions.value.length);
+    
   } catch (err) {
-    ui.showSnackbar("Failed to load questions", "error");
+    ui.showSnackbar(
+      err.response?.data?.message || "Failed to load questions",
+      "error",
+    );
   } finally {
     loading.value = false;
   }
@@ -95,12 +100,15 @@ const fetchQuestions = async () => {
 const fetchGrades = async () => {
   const res = await api.get("/grades");
 
-  grades.value = res.data;
+  grades.value = listFromResponse(res.data);
 };
 
 const fetchSubjects = async () => {
   if (!filters.value.grade_id) {
     subjects.value = [];
+    filters.value.subject_id = null;
+    filters.value.lesson_id = null;
+    lessons.value = [];
 
     return;
   }
@@ -111,12 +119,13 @@ const fetchSubjects = async () => {
     },
   });
 
-  subjects.value = res.data;
+  subjects.value = listFromResponse(res.data);
 };
 
 const fetchLessons = async () => {
   if (!filters.value.subject_id) {
     lessons.value = [];
+    filters.value.lesson_id = null;
 
     return;
   }
@@ -127,7 +136,7 @@ const fetchLessons = async () => {
     },
   });
 
-  lessons.value = res.data;
+  lessons.value = listFromResponse(res.data);
 };
 
 const openDelete = (question) => {
@@ -297,127 +306,122 @@ onMounted(() => {
     <!-- TABLE -->
     <v-card class="rounded-xl" elevation="0">
       <v-data-table-server
-        v-model:items-per-page="options.itemsPerPage"
-        v-model:page="options.page"
-        :headers="headers"
-        :items="questions"
-        :items-length="totalItems"
-        :loading="loading"
-        class="elevation-0"
-      >
-        <!-- QUESTION -->
+          v-model:items-per-page="options.itemsPerPage"
+          v-model:page="options.page"
+          :headers="headers"
+          :items="questions"
+          :items-length="totalItems"
+          :loading="loading"
+          item-value="id"
+        >
         <template #item.question="{ item }">
-          <div class="py-3">
-            <!-- IMAGE -->
+          <div class="py-3 question-html">
             <v-img
-              v-if="item.question_image"
-              :src="item.question_image"
+              v-if="tableItem(item).question_image"
+              :src="tableItem(item).question_image"
               width="100"
               class="mb-2 rounded"
             />
 
-            <!-- HTML -->
-            <MathContent :html="item.question" />
+            <MathContent :html="tableItem(item).question" />
+
             <div
-              v-if="item.rejection_reason"
+              v-if="tableItem(item).rejection_reason"
               class="text-caption text-error mt-1"
             >
-              {{ item.rejection_reason }}
+              {{ tableItem(item).rejection_reason }}
             </div>
           </div>
         </template>
 
-        <!-- TYPE -->
         <template #item.type="{ item }">
           <v-chip size="small" color="primary" variant="tonal">
-            {{ item.type }}
+            {{ tableItem(item).type }}
           </v-chip>
         </template>
 
-        <!-- DIFFICULTY -->
         <template #item.difficulty="{ item }">
           <v-chip
             size="small"
             :color="
-              item.difficulty === 'easy'
+              tableItem(item).difficulty === 'easy'
                 ? 'success'
-                : item.difficulty === 'medium'
+                : tableItem(item).difficulty === 'medium'
                   ? 'warning'
                   : 'error'
             "
             variant="tonal"
           >
-            {{ item.difficulty }}
+            {{ tableItem(item).difficulty }}
           </v-chip>
         </template>
 
-        <!-- STATUS -->
         <template #item.status="{ item }">
           <v-chip
             size="small"
             variant="tonal"
             :color="
-              item.status === 'approved'
+              tableItem(item).status === 'approved'
                 ? 'success'
-                : item.status === 'rejected'
+                : tableItem(item).status === 'rejected'
                   ? 'error'
                   : 'warning'
             "
           >
             <v-icon start size="16">
               {{
-                item.status === "approved"
+                tableItem(item).status === "approved"
                   ? "mdi-check-circle"
-                  : item.status === "rejected"
+                  : tableItem(item).status === "rejected"
                     ? "mdi-close-circle"
                     : "mdi-clock-outline"
               }}
             </v-icon>
 
-            {{ item.status }}
+            {{ tableItem(item).status }}
           </v-chip>
         </template>
 
-        <!-- Created BY -->
         <template #item.creator="{ item }">
           <div class="d-flex align-center ga-2">
             <v-avatar size="32" color="primary" variant="tonal">
-              {{ item.creator?.name?.charAt(0) || "?" }}
+              {{ tableItem(item).creator?.name?.charAt(0) || "?" }}
             </v-avatar>
 
             <div>
               <div class="font-weight-medium">
-                {{ item.creator?.name || "-" }}
+                {{ tableItem(item).creator?.name || "-" }}
               </div>
 
               <div class="text-caption text-grey">
-                {{ item.creator?.role || "" }}
+                {{ tableItem(item).creator?.role || "" }}
               </div>
             </div>
           </div>
         </template>
 
-        <!-- ACTIONS -->
         <template #item.actions="{ item }">
           <div class="d-flex">
-            <!-- EDIT -->
             <v-btn
               icon="mdi-pencil"
               size="small"
               variant="text"
               color="primary"
-              @click="editQuestion(item.id)"
+              @click="editQuestion(tableItem(item).id)"
             />
 
-            <!-- DELETE -->
             <v-btn
               icon="mdi-delete"
               size="small"
               variant="text"
               color="error"
-              @click="openDelete(item)"
+              @click="openDelete(tableItem(item))"
             />
           </div>
+        </template>
+
+        <template #no-data>
+          <div class="text-center py-8 text-grey">No questions found</div>
         </template>
       </v-data-table-server>
     </v-card>

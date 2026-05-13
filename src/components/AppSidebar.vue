@@ -11,20 +11,10 @@ const auth = useAuthStore();
 const user = computed(() => auth.user || {});
 
 const openGroup = ref(null);
-let closeTimer = null
 
-const openMenuGroup = (title) => {
-  clearTimeout(closeTimer)
-  openGroup.value = title
-}
-
-const closeMenuGroup = () => {
-  clearTimeout(closeTimer)
-
-  closeTimer = setTimeout(() => {
-    openGroup.value = null
-  }, 250)
-}
+const toggleGroup = (title) => {
+  openGroup.value = openGroup.value === title ? null : title;
+};
 
 const isActive = (item) => {
   if (!item.routeName) return false;
@@ -38,83 +28,22 @@ const isGroupActive = (item) => {
 const initials = computed(() => {
   return user.value?.name
     ? user.value.name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2)
-      .toUpperCase()
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .substring(0, 2)
+        .toUpperCase()
     : "U";
 });
 
 const menu = computed(() => [
-  {
-    title: "Dashboard",
-    icon: "mdi-view-dashboard",
-    routeName: "Dashboard",
-    roles: ["admin", "student"],
-  },
-  {
-    title: "Teacher Dashboard",
-    icon: "mdi-view-dashboard",
-    routeName: "teacher.dashboard",
-    roles: ["admin", "teacher"],
-  },
-
-  {
-    title: "Academic",
-    icon: "mdi-school",
-    roles: ["admin"],
+  { title: "Dashboard", icon: "mdi-view-dashboard", routeName: "Dashboard", roles: ["admin", "student"], },
+  { title: "Teacher Dashboard", icon: "mdi-view-dashboard", routeName: "teacher.dashboard", roles: ["admin", "teacher"], },
+  { title: "Teachers", icon: "mdi-account-tie", roles: ["admin"],
     children: [
-      {
-        title: "Grades",
-        icon: "mdi-google-classroom",
-        routeName: "grades.index",
-        roles: ["admin"],
-      },
-      {
-        title: "Subjects",
-        icon: "mdi-book-open-page-variant",
-        routeName: "subjects.index",
-        roles: ["admin"],
-      },
-      {
-        title: "Lessons",
-        icon: "mdi-book-education",
-        routeName: "lessons.index",
-        roles: ["admin"],
-      },
-      {
-        title: "Exam Names",
-        icon: "mdi-format-list-text",
-        routeName: "exam.names",
-        roles: ["admin"],
-      },
-    ],
-  },
-
-  {
-    title: "Teachers",
-    icon: "mdi-account-tie",
-    roles: ["admin"],
-    children: [
-      {
-        title: "All Teachers",
-        icon: "mdi-account-group",
-        routeName: "teachers.index",
-        roles: ["admin"],
-      },
-      {
-        title: "Question Tasks",
-        icon: "mdi-clipboard-text-clock",
-        routeName: "teacher.tasks",
-        roles: ["admin"],
-      },
-      {
-        title: "Exam Portions",
-        icon: "mdi-book-check",
-        routeName: "exam.portions",
-        roles: ["admin"],
-      },
+      { title: "All Teachers", icon: "mdi-account-group", routeName: "teachers.index", roles: ["admin"], },
+      { title: "Question Tasks", icon: "mdi-clipboard-text-clock", routeName: "teacher.tasks", roles: ["admin"], },
+      { title: "Exam Portions", icon: "mdi-book-check", routeName: "exam.portions", roles: ["admin"], },
       {
         title: "Teacher Progress",
         icon: "mdi-chart-timeline-variant",
@@ -156,6 +85,12 @@ const menu = computed(() => [
         title: "Question Approval",
         icon: "mdi-check-decagram",
         routeName: "question.approvals",
+        roles: ["admin"],
+      },
+      {
+        title: "Paper Blueprints",
+        icon: "mdi-table-cog",
+        routeName: "paper.blueprints",
         roles: ["admin"],
       },
     ],
@@ -200,7 +135,15 @@ const menu = computed(() => [
       },
     ],
   },
-
+  {
+    title: "Manage", icon: "mdi-cogs", roles: ["admin"],
+    children: [
+      { title: "Grades", icon: "mdi-google-classroom", routeName: "grades.index", roles: ["admin"], },
+      { title: "Subjects", icon: "mdi-book-open-page-variant", routeName: "subjects.index", roles: ["admin"], },
+      { title: "Lessons", icon: "mdi-book-education", routeName: "lessons.index",  roles: ["admin"], },
+      { title: "Exam Names", icon: "mdi-format-list-text", routeName: "exam.names", roles: ["admin"], },
+    ],
+  },
   {
     title: "Results",
     icon: "mdi-chart-box",
@@ -270,10 +213,14 @@ const logout = async () => {
 </script>
 
 <template>
-  <v-navigation-drawer app width="290" class="app-sidebar d-flex flex-column">
+  <v-navigation-drawer
+    app
+    width="250"
+    class="app-sidebar d-flex flex-column"
+  >
     <div class="d-flex flex-column h-screen" style="height: 90dvh !important">
       <!-- LOGO -->
-      <div class="pa-4">
+      <div class="logo-section">
         <div class="d-flex align-center ga-3">
           <v-avatar size="48" color="primary" variant="tonal">
             <v-icon size="28"> mdi-school </v-icon>
@@ -290,7 +237,7 @@ const logout = async () => {
       <v-divider />
 
       <!-- USER PROFILE -->
-      <div class="pa-4">
+      <div class="pa-2">
         <div class="user-card">
           <v-avatar size="48" color="primary">
             <v-img v-if="user.profile" :src="user.profile" cover />
@@ -315,16 +262,31 @@ const logout = async () => {
       <v-divider />
 
       <!-- MENU -->
-      <v-list nav density="comfortable" class="px-3 py-4">
+      <v-list nav density="compact" class="px-2 py-2">
         <template v-for="item in filteredMenu" :key="item.title">
           <!-- SIMPLE ITEM -->
-          <v-list-item v-if="!item.children" :prepend-icon="item.icon" :title="item.title" rounded="xl"
-            :class="{ 'active-menu': isActive(item) }" @click="go(item)" />
+          <v-list-item
+            v-if="!item.children"
+            :prepend-icon="item.icon"
+            :title="item.title"
+            rounded="lg"
+            min-height="38"
+            class="sidebar-item"
+            :class="{ 'active-menu': isActive(item) }"
+            @click="go(item)"
+          />
 
           <!-- HOVER GROUP -->
-          <div v-else class="menu-group" @mouseenter="openMenuGroup(item.title)" @mouseleave="closeMenuGroup">
-            <v-list-item :prepend-icon="item.icon" :title="item.title" rounded="xl"
-              :class="{ 'active-menu': isGroupActive(item) }">
+          <div v-else class="menu-group">
+            <v-list-item
+              :prepend-icon="item.icon"
+              :title="item.title"
+              rounded="lg"
+              min-height="38"
+              class="sidebar-item"
+              :class="{ 'active-menu': isGroupActive(item) }"
+              @click="toggleGroup(item.title)"
+            >
               <template #append>
                 <v-icon size="18">
                   {{
@@ -337,10 +299,21 @@ const logout = async () => {
             </v-list-item>
 
             <v-expand-transition>
-              <div v-show="openGroup === item.title || isGroupActive(item)" class="child-menu">
-                <v-list-item v-for="child in item.children" :key="child.title" :prepend-icon="child.icon"
-                  :title="child.title" rounded="xl" class="child-item" :class="{ 'active-child': isActive(child) }"
-                  @click="go(child)" />
+              <div
+                v-show="openGroup === item.title || isGroupActive(item)"
+                class="child-menu"
+              >
+                <v-list-item
+                  v-for="child in item.children"
+                  :key="child.title"
+                  :prepend-icon="child.icon"
+                  :title="child.title"
+                  rounded="lg"
+                  min-height="34"
+                  class="child-item"
+                  :class="{ 'active-child': isActive(child) }"
+                  @click="go(child)"
+                />
               </div>
             </v-expand-transition>
           </div>
@@ -348,8 +321,15 @@ const logout = async () => {
       </v-list>
     </div>
     <div class="mt-auto pa-4">
-      <v-btn block color="error" variant="tonal" size="large" prepend-icon="mdi-logout" class="rounded-xl"
-        @click="logout">
+      <v-btn
+        block
+        color="error"
+        variant="tonal"
+        size="large"
+        prepend-icon="mdi-logout"
+        class="rounded-xl"
+        @click="logout"
+      >
         Logout
       </v-btn>
     </div>
@@ -409,5 +389,39 @@ const logout = async () => {
 
 .v-list-item:hover {
   background: rgba(var(--v-theme-primary), 0.1) !important;
+}
+
+.sidebar-item {
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+.child-menu {
+  margin-left: 8px;
+  padding-left: 6px;
+  border-left: 2px solid rgba(var(--v-theme-primary), 0.2);
+}
+
+.child-item {
+  margin-top: 2px;
+  font-size: 12px;
+  min-height: 34px !important;
+}
+
+:deep(.v-list-item-title) {
+  font-size: 13px;
+}
+
+:deep(.v-list-item__prepend > .v-icon) {
+  font-size: 20px;
+}
+
+.user-card {
+  padding: 8px;
+  border-radius: 14px;
+}
+
+.logo-section {
+  padding: 12px !important;
 }
 </style>

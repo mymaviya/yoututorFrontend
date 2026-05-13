@@ -1,22 +1,23 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { watch, ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useTheme } from "vuetify";
 import api from "../plugins/api";
 import { useAuthStore } from "../stores/auth";
 import AppSidebar from "../components/AppSidebar.vue";
+import { useUIStore } from "../stores/snackBar";
 
 const router = useRouter();
 const route = useRoute();
 const theme = useTheme();
 const auth = useAuthStore();
 
-const notifications = ref([]);
-const unreadCount = ref(0);
-const notificationLoading = ref(false);
-const notificationMenu = ref(false);
+const notificationMenu = ref(false)
+const notifications = ref([])
+const unreadCount = ref(0)
 
 const drawer = ref(true);
+const ui = useUIStore();
 
 const user = computed(() => auth.user || {});
 
@@ -45,14 +46,14 @@ const toggleTheme = () => {
 };
 
 const fetchNotifications = async () => {
-  try {
-    const res = await api.get("/notifications");
+  const res = await api.get('/notifications', {
+    params: {
+      unread_only: 1
+    }
+  })
 
-    notifications.value = res.data.data || res.data;
-  } catch (err) {
-    console.log(err);
-  }
-};
+  notifications.value = res.data.data || res.data
+}
 
 const fetchUnreadCount = async () => {
   try {
@@ -84,16 +85,20 @@ const openNotification = async (notification) => {
 
 const markAllAsRead = async () => {
   try {
-    await api.post("/notifications/read-all");
+    await api.post('/notifications/read-all')
 
-    notifications.value = notifications.value.map((n) => ({
+    notifications.value = notifications.value.map(n => ({
       ...n,
-      is_read: true,
-    }));
+      is_read: true
+    }))
 
-    unreadCount.value = 0;
+    unreadCount.value = 0
+
+    notificationMenu.value = false
+
+    ui.showSnackbar('All notifications marked as read')
   } catch (err) {
-    console.log(err);
+    ui.showSnackbar('Failed to mark notifications', 'error')
   }
 };
 
@@ -120,14 +125,27 @@ const goSettings = () => {
   router.push("/settings");
 };
 
-onMounted(() => {
-  fetchNotifications();
-  fetchUnreadCount();
+watch(notificationMenu, async (val) => {
+  if (val) {
+    await fetchNotifications()
+    await fetchUnreadCount()
+  }
+})
 
-  setInterval(() => {
-    fetchNotifications();
-    fetchUnreadCount();
-  }, 30000);
+let notificationTimer = null
+
+onMounted(() => {
+  fetchUnreadCount()
+
+  notificationTimer = setInterval(() => {
+    fetchUnreadCount()
+  }, 30000)
+});
+
+onBeforeUnmount(() => {
+  if (notificationTimer) {
+    clearInterval(notificationTimer)
+  }
 });
 </script>
 
@@ -165,25 +183,30 @@ onMounted(() => {
       v-model="notificationMenu"
       location="bottom end"
       offset="10"
-      width="420"
+      :close-on-content-click="false"
     >
       <template #activator="{ props }">
-        <v-btn v-bind="props" icon variant="tonal" color="primary" class="mr-2">
+        <v-btn
+          v-bind="props"
+          icon
+          variant="tonal"
+          color="primary"
+          class="mr-2"
+          @click="fetchNotifications"
+        >
           <v-badge
             :content="unreadCount"
             :model-value="unreadCount > 0"
             color="error"
           >
-            <v-icon> mdi-bell-outline </v-icon>
+            <v-icon>mdi-bell-outline</v-icon>
           </v-badge>
         </v-btn>
       </template>
 
-      <v-card class="rounded-xl" elevation="8">
-        <!-- HEADER -->
-
+      <v-card width="420" class="rounded-xl">
         <v-card-title class="d-flex justify-space-between align-center">
-          <div>Notifications</div>
+          Notifications
 
           <v-btn
             size="small"
@@ -197,76 +220,27 @@ onMounted(() => {
 
         <v-divider />
 
-        <!-- LIST -->
+        <v-list v-if="notifications.length">
+          <v-list-item
+            v-for="notification in notifications"
+            :key="notification.id"
+            @click="openNotification(notification)"
+          >
+            <v-list-item-title>
+              {{ notification.title }}
+            </v-list-item-title>
 
-        <div style="max-height: 500px; overflow-y: auto">
-          <v-list v-if="notifications.length" density="comfortable">
-            <v-list-item
-              v-for="notification in notifications"
-              :key="notification.id"
-              class="notification-item"
-              :class="{
-                'notification-unread': !notification.is_read,
-              }"
-              @click="openNotification(notification)"
-            >
-              <template #prepend>
-                <v-avatar
-                  size="42"
-                  :color="
-                    notification.type === 'question_approved'
-                      ? 'success'
-                      : notification.type === 'question_rejected'
-                        ? 'error'
-                        : notification.type === 'task'
-                          ? 'primary'
-                          : 'info'
-                  "
-                  variant="tonal"
-                >
-                  <v-icon>
-                    {{
-                      notification.type === "question_approved"
-                        ? "mdi-check-decagram"
-                        : notification.type === "question_rejected"
-                          ? "mdi-close-octagon"
-                          : notification.type === "task"
-                            ? "mdi-clipboard-text"
-                            : "mdi-bell"
-                    }}
-                  </v-icon>
-                </v-avatar>
-              </template>
+            <v-list-item-subtitle>
+              {{ notification.message }}
+            </v-list-item-subtitle>
+          </v-list-item>
+        </v-list>
 
-              <v-list-item-title class="font-weight-bold">
-                {{ notification.title }}
-              </v-list-item-title>
-
-              <v-list-item-subtitle>
-                {{ notification.message }}
-              </v-list-item-subtitle>
-
-              <template #append>
-                <div class="text-caption text-grey">
-                  {{ new Date(notification.created_at).toLocaleDateString() }}
-                </div>
-              </template>
-            </v-list-item>
-          </v-list>
-
-          <!-- EMPTY -->
-
-          <div v-else class="pa-8 text-center">
-            <v-icon size="56" color="grey-lighten-1">
-              mdi-bell-off-outline
-            </v-icon>
-
-            <div class="mt-3 text-grey">No notifications found</div>
-          </div>
+        <div v-else class="pa-6 text-center text-grey">
+          No notifications found
         </div>
       </v-card>
     </v-menu>
-
     <!-- PROFILE MENU -->
     <v-menu location="bottom end" offset="10">
       <template #activator="{ props }">
@@ -391,17 +365,15 @@ onMounted(() => {
 }
 
 .notification-item {
-  transition: .2s;
+  transition: 0.2s;
   cursor: pointer;
 }
 
 .notification-item:hover {
-  background:
-    rgba(var(--v-theme-primary), .08);
+  background: rgba(var(--v-theme-primary), 0.08);
 }
 
 .notification-unread {
-  background:
-    rgba(var(--v-theme-primary), .06);
+  background: rgba(var(--v-theme-primary), 0.06);
 }
 </style>

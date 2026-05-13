@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../plugins/api'
+import { formatDate } from '../../utils/date'
 
 const router = useRouter()
 
@@ -161,6 +162,10 @@ onMounted(fetchTasks)
           >
             {{ item.status }}
           </v-chip>
+        </template>
+
+        <template #item.due_date="{ item }">
+          {{ formatDate(item.due_date) }}
         </template>
 
         <template #item.actions="{ item }">

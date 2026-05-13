@@ -59,6 +59,10 @@ const routes = [
       { path: 'exam-portions', name: 'exam.portions', component: () => import('../views/admin/ExamPortions.vue'), meta: { title: 'Exam Portions' } },
       { path: 'my-exam-portions', name: 'teacher.exam.portions', component: () => import('../views/teacher/MyExamPortions.vue'), meta: { title: 'My Exam Portions' } },
 
+      // BluePrint
+      { path: 'paper-blueprints', name: 'paper.blueprints', component: () => import('../views/admin/PaperBlueprints.vue'), meta: { title: 'Paper Blueprints' } },
+      
+
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue'), meta: {title:'Login'} },
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue'), meta: {title:'Login'} },
       // { path: '/exams/create', component: () => import('../views/exams/Exams/ExamForm.vue'), meta: {title:'Login'}},

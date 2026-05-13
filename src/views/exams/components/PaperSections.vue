@@ -1,6 +1,5 @@
 <script setup>
-import { computed } from "vue";
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 
 const openSections = ref({});
 
@@ -39,20 +38,36 @@ const toggleSection = (index) => {
   openSections.value[index] = !openSections.value[index];
 };
 
-const addQuestion = (sectionIndex, question) => {
-  const exists = sections.value[sectionIndex].questions.find(
-    (q) => q.id === question.id,
-  );
-
-  if (exists) return;
-
-  sections.value[sectionIndex].questions.push(question);
-};
-
 const removeQuestion = (sectionIndex, questionId) => {
   sections.value[sectionIndex].questions = sections.value[
     sectionIndex
   ].questions.filter((q) => q.id !== questionId);
+};
+
+const stripHtml = (html = "") => {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || div.innerText || "";
+};
+
+const getOptionLayout = (question) => {
+  if (!question.options?.length) return "two-column";
+
+  const hasImage = question.options.some((option) => option.option_image);
+
+  if (hasImage) return "one-column";
+
+  const longestOption = Math.max(
+    ...question.options.map(
+      (option) => stripHtml(option.option_text || "").length,
+    ),
+  );
+
+  if (longestOption <= 20) return "four-column";
+
+  if (longestOption <= 60) return "two-column";
+
+  return "one-column";
 };
 
 const getSectionMarks = (section) => {
@@ -211,12 +226,12 @@ onMounted(() => {
                 />
 
                 <!-- QUESTION -->
-                <div class="question-html" v-maths v-html="question.question" />
+                <MathContent class="question-html" :html="question.question" />
 
                 <!-- OPTIONS -->
                 <div
                   v-if="question.options && question.options.length"
-                  class="mt-4"
+                  :class="['mt-4', 'mcq-options', getOptionLayout(question)]"
                 >
                   <div
                     v-for="(option, optIndex) in question.options"
@@ -229,20 +244,55 @@ onMounted(() => {
                     </div>
 
                     <!-- TEXT -->
-                    <div
-                      v-if="option.option_text"
-                      v-maths
-                      class="flex-grow-1"
-                      v-html="option.option_text"
-                    />
+                    <div class="option-content">
+                      <MathContent
+                        v-if="option.option_text"
+                        :html="option.option_text"
+                      />
 
-                    <!-- IMAGE -->
-                    <v-img
-                      v-if="option.option_image"
-                      :src="option.option_image"
-                      width="100"
-                      class="rounded"
-                    />
+                      <v-img
+                        v-if="option.option_image"
+                        :src="option.option_image"
+                        width="100"
+                        class="rounded mt-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <!-- Match the Column -->
+                <div
+                  v-if="
+                    question.type === 'match_column' &&
+                    question.match_pairs?.length
+                  "
+                  class="match-column mt-4"
+                >
+                  <div class="match-title">Match the Column</div>
+
+                  <div class="match-grid">
+                    <div>
+                      <strong>Column A</strong>
+
+                      <div
+                        v-for="(pair, i) in question.match_pairs"
+                        :key="pair.id"
+                        class="match-row"
+                      >
+                        {{ i + 1 }}. {{ pair.left_text }}
+                      </div>
+                    </div>
+
+                    <div>
+                      <strong>Column B</strong>
+
+                      <div
+                        v-for="(pair, i) in question.match_pairs"
+                        :key="pair.id"
+                        class="match-row"
+                      >
+                        {{ String.fromCharCode(65 + i) }}. {{ pair.right_text }}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -263,41 +313,64 @@ onMounted(() => {
   color: grey;
 }
 
-.question-card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 16px;
+.match-title {
+  font-weight: bold;
+  margin-bottom: 8px;
 }
 
+.match-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.match-row {
+  margin-top: 6px;
+}
+
+/* New */
 .option-card {
   display: flex;
-  gap: 12px;
-  align-items: center;
+  align-items: flex-start;
+  gap: 6px;
 
   border: 1px solid rgba(255, 255, 255, 0.06);
-
   border-radius: 10px;
-
   padding: 10px;
-
-  margin-bottom: 10px;
+  min-height: 36px;
 }
 
 .option-label {
-  width: 28px;
-  height: 28px;
-
-  border-radius: 50%;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  background: rgba(255, 255, 255, 0.08);
-
+  flex: 0 0 24px;
   font-weight: bold;
+  line-height: 1.45;
+  padding-top: 0;
 }
+
+.option-label::after {
+  content: ".";
+}
+
+.option-content {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.option-content :deep(p) {
+  margin: 0;
+  display: inline;
+}
+
+.option-content :deep(.math-content) {
+  display: inline;
+}
+
+.option-content :deep(.katex) {
+  font-size: 1.05em;
+}
+
+/* new end */
 
 .question-html :deep(p) {
   margin-bottom: 6px;
@@ -309,7 +382,49 @@ onMounted(() => {
 }
 
 .section-header:hover {
-  background: rgba(255,255,255,.03);
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 10px;
+}
+
+.mcq-options {
+  display: grid;
+  gap: 8px 14px;
+}
+
+/*
+|--------------------------------------------------------------------------
+| FOUR COLUMN
+|--------------------------------------------------------------------------
+*/
+
+.four-column {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/*
+|--------------------------------------------------------------------------
+| TWO COLUMN
+|--------------------------------------------------------------------------
+*/
+
+.two-column {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/*
+|--------------------------------------------------------------------------
+| ONE COLUMN
+|--------------------------------------------------------------------------
+*/
+
+.one-column {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 768px) {
+  .four-column,
+  .two-column {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import '../../../assets/print.css'
+import "../../../assets/print.css";
 const props = defineProps({
   paper: {
     type: Object,
@@ -13,32 +13,31 @@ const isMCQ = (type) => {
   return ["mcq", "multiple_mcq", "true_false"].includes(type);
 };
 
-const stripHtml = (html = '') => {
-  const div = document.createElement('div')
-  div.innerHTML = html
-  return div.textContent || div.innerText || ''
-}
-
+const stripHtml = (html = "") => {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || div.innerText || "";
+};
 
 const getOptionLayout = (question) => {
-  if (!question.options?.length) return 'two-column'
+  if (!question.options?.length) return "two-column";
 
-  const hasImage = question.options.some(option => option.option_image)
+  const hasImage = question.options.some((option) => option.option_image);
 
-  if (hasImage) return 'one-column'
+  if (hasImage) return "one-column";
 
   const longestOption = Math.max(
-    ...question.options.map(option =>
-      stripHtml(option.option_text || '').length
-    )
-  )
+    ...question.options.map(
+      (option) => stripHtml(option.option_text || "").length,
+    ),
+  );
 
-  if (longestOption <= 20) return 'four-column'
+  if (longestOption <= 20) return "four-column";
 
-  if (longestOption <= 60) return 'two-column'
+  if (longestOption <= 60) return "two-column";
 
-  return 'one-column'
-}
+  return "one-column";
+};
 </script>
 
 <template>
@@ -70,7 +69,7 @@ const getOptionLayout = (question) => {
       <!-- GENERAL INSTRUCTIONS -->
       <div v-if="paper.instructions" class="general-instructions">
         <strong>General Instructions:</strong>
-        <div v-maths v-html="paper.instructions"></div>
+        <div v-html="paper.instructions"></div>
       </div>
 
       <!-- SECTIONS -->
@@ -97,7 +96,7 @@ const getOptionLayout = (question) => {
             <div class="question-number">Q{{ qIndex + 1 }}.</div>
 
             <div class="question-body">
-              <div v-math class="question-html" v-html="q.question" />
+              <MathContent :html="q.question" />
 
               <v-img
                 v-if="q.question_image"
@@ -120,11 +119,11 @@ const getOptionLayout = (question) => {
                     {{ String.fromCharCode(65 + i) }}.
                   </span>
 
-                  <span
+                  <MathContent
                     v-if="opt.option_text"
-                    v-maths
                     class="option-text"
-                    v-html="opt.option_text"
+                    tag="span"
+                    :html="opt.option_text"
                   />
 
                   <v-img
@@ -133,6 +132,43 @@ const getOptionLayout = (question) => {
                     max-width="120"
                     class="option-image"
                   />
+                </div>
+              </div>
+
+              <!-- Coulmn -->
+              <div
+                v-if="
+                  q.type === 'match_column' &&
+                  (q.left_column?.length || q.match_pairs?.length)
+                "
+                class="match-column"
+              >
+                <div class="match-grid">
+                  <div>
+                    <strong>Column A</strong>
+
+                    <div
+                      v-for="(item, i) in q.left_column || q.match_pairs"
+                      :key="item.id || i"
+                      class="match-row"
+                    >
+                      {{ item.label || i + 1 }}.
+                      {{ item.text || item.left_text }}
+                    </div>
+                  </div>
+
+                  <div>
+                    <strong>Column B</strong>
+
+                    <div
+                      v-for="(item, i) in q.right_column || q.match_pairs"
+                      :key="item.id || i"
+                      class="match-row"
+                    >
+                      {{ item.label || String.fromCharCode(65 + i) }}.
+                      {{ item.text || item.right_text }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -145,12 +181,9 @@ const getOptionLayout = (question) => {
   </div>
 </template>
 
-<style scoped>
-
+<style>
 @media print {
-
   body {
-
     background: white !important;
 
     margin: 0;
@@ -228,18 +261,42 @@ const getOptionLayout = (question) => {
 }
 
 .question-row {
-  display: grid;
-  grid-template-columns: 38px 1fr 70px;
-  gap: 8px;
-  align-items: start;
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  margin-bottom: 10px;
+}
+
+.question-number,
+.question-body,
+.marks-box {
+  display: table-cell;
+  vertical-align: top;
 }
 
 .question-number {
+  width: 42px;
   font-weight: bold;
+  padding-top: 1px;
+  white-space: nowrap;
 }
 
 .question-body {
-  width: 100%;
+  padding-right: 10px;
+  line-height: 1.5;
+}
+
+.question-body p {
+  margin: 0;
+}
+
+.marks-box {
+  width: 75px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: bold;
+  white-space: nowrap;
+  padding-top: 1px;
 }
 
 .question-html :deep(p) {
@@ -258,6 +315,20 @@ const getOptionLayout = (question) => {
   white-space: nowrap;
 }
 
+.match-column {
+  margin-top: 10px;
+}
+
+.match-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 36px;
+}
+
+.match-row {
+  margin-top: 5px;
+}
+
 /* MCQ FORMAT */
 .mcq-options {
   margin-top: 10px;
@@ -273,9 +344,7 @@ const getOptionLayout = (question) => {
 */
 
 .four-column {
-
-  grid-template-columns:
-    repeat(4, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 
 /*
@@ -285,9 +354,7 @@ const getOptionLayout = (question) => {
 */
 
 .two-column {
-
-  grid-template-columns:
-    repeat(2, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 /*
@@ -297,10 +364,8 @@ const getOptionLayout = (question) => {
 */
 
 .one-column {
-
   grid-template-columns: 1fr;
 }
-
 
 .mcq-option {
   display: grid;
@@ -355,10 +420,8 @@ const getOptionLayout = (question) => {
 }
 
 @media (max-width: 768px) {
-
   .four-column,
   .two-column {
-
     grid-template-columns: 1fr;
   }
 }

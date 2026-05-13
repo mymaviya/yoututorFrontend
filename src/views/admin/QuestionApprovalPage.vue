@@ -2,7 +2,6 @@
 import { ref, onMounted } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
-import { renderMath } from "../../utils/renderMath";
 
 const ui = useUIStore();
 
@@ -64,10 +63,6 @@ const fetchQuestions = async () => {
     });
 
     questions.value = res.data.data || res.data;
-
-    setTimeout(() => {
-      renderMath(".question-html");
-    }, 200);
   } finally {
     loading.value = false;
   }
@@ -111,10 +106,6 @@ const clearFilters = () => {
 const openPreview = (question) => {
   selectedQuestion.value = question;
   previewDialog.value = true;
-
-  setTimeout(() => {
-    renderMath(".preview-question-html");
-  }, 200);
 };
 
 const approveQuestion = async (question) => {
@@ -289,14 +280,9 @@ onMounted(() => {
       <v-data-table :headers="headers" :items="questions" :loading="loading">
         <!-- QUESTION -->
         <template #item.question="{ item }">
-<<<<<<< Updated upstream
           <div class="py-3 question-preview">
-            <div class="question-html" v-html="item.question" />
+            <MathContent class="question-html" :html="item.question" />
 
-=======
-          <div v-maths class="py-3 question-preview">
-            <MathContent :html="item.question" />
->>>>>>> Stashed changes
             <v-img
               v-if="item.question_image"
               :src="item.question_image"
@@ -431,9 +417,9 @@ onMounted(() => {
             </v-chip>
           </div>
 
-          <div v-maths
+          <MathContent
             class="preview-question-html mb-4"
-            v-html="selectedQuestion.question"
+            :html="selectedQuestion.question"
           />
 
           <v-img

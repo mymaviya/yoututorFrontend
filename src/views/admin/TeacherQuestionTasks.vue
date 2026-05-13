@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
+import { formatDate } from "../../utils/date";
 
 const ui = useUIStore();
 
@@ -189,7 +190,7 @@ const saveTask = async () => {
   saving.value = true;
   errors.value = {};
 
-  if (!form.value.question_types.length) {
+  if (!form.value.question_types || form.value.question_types.length === 0) {
     ui.showSnackbar("Please select at least one question type", "warning");
     saving.value = false;
     return;
@@ -299,6 +300,10 @@ onMounted(() => {
           </div>
         </template>
 
+        <template #item.due_date="{ item }">
+          {{ formatDate(item.due_date) }}
+        </template>
+
         <template #item.status="{ item }">
           <v-chip
             :color="item.status === 'completed' ? 'success' : 'warning'"
@@ -391,18 +396,53 @@ onMounted(() => {
             </v-col>
 
             <v-col cols="12" md="12">
-              <v-select
+              <div class="text-subtitle-2 font-weight-bold mb-2">
+                Select Question Types
+              </div>
+
+              <v-chip-group
                 v-model="form.question_types"
-                :items="questionTypes"
-                item-title="title"
-                item-value="value"
-                label="Question Types"
                 multiple
-                chips
-                closable-chips
-                variant="outlined"
-                :error-messages="errors.question_types"
-              />
+                column
+                selected-class="bg-primary text-white"
+              >
+                <v-chip
+                  v-for="type in questionTypes"
+                  :key="type.value"
+                  :value="type.value"
+                  filter
+                  variant="tonal"
+                >
+                  {{ type.title }}
+                </v-chip>
+              </v-chip-group>
+
+              <div
+                v-if="errors.question_types"
+                class="text-error text-caption mt-1"
+              >
+                {{ errors.question_types[0] }}
+              </div>
+
+              <div class="mt-2 d-flex ga-2">
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  @click="
+                    form.question_types = questionTypes.map((t) => t.value)
+                  "
+                >
+                  Select All
+                </v-btn>
+
+                <v-btn
+                  size="small"
+                  variant="text"
+                  @click="form.question_types = []"
+                >
+                  Clear
+                </v-btn>
+              </div>
             </v-col>
 
             <v-col cols="12" md="6">

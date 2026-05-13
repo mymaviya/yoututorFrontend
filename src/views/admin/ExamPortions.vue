@@ -343,6 +343,11 @@ onMounted(() => {
           </div>
         </template>
 
+        
+        <template #item.due_date="{ item }">
+          {{ formatDate(item.due_date) }}
+        </template>
+
         <template #item.status="{ item }">
           <v-chip
             size="small"

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../plugins/api'
+import { formatDate } from '../../utils/date'
 
 const loading = ref(false)
 
@@ -123,7 +124,7 @@ onMounted(fetchDashboard)
                     completed
                   </div>
                 </td>
-                <td>{{ task.due_date || '-' }}</td>
+                <td>{{ formatDate(task.due_date) || '-' }}</td>
               </tr>
             </tbody>
           </v-table>
