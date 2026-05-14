@@ -136,9 +136,11 @@ let notificationTimer = null
 
 onMounted(() => {
   fetchUnreadCount()
+  fetchNotifications()
 
   notificationTimer = setInterval(() => {
     fetchUnreadCount()
+    fetchNotifications()
   }, 30000)
 });
 
