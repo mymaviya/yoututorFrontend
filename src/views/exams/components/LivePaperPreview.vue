@@ -181,16 +181,8 @@ const getOptionLayout = (question) => {
   </div>
 </template>
 
-<style>
-@media print {
-  body {
-    background: white !important;
+<style scoped>
 
-    margin: 0;
-
-    padding: 0;
-  }
-}
 
 .preview-container {
   height: calc(100vh - 120px);

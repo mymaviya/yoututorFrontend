@@ -528,6 +528,27 @@ const printPaper = () => {
   margin: 0;
 }
 
+.general-instructions {
+  margin: 8px 0 12px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.general-instructions ol,
+.general-instructions ul {
+  margin: 4px 0 0 16px;
+  padding-left: 12px;
+}
+
+.general-instructions li {
+  margin-bottom: 2px;
+  padding-left: 1px;
+}
+
+.general-instructions p {
+  margin: 0;
+}
+
 .marks-box {
   width: 75px;
   text-align: right;

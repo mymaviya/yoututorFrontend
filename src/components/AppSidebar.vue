@@ -149,6 +149,7 @@ const menu = computed(() => [
       { title: "Subjects", icon: "mdi-book-open-page-variant", routeName: "subjects.index", roles: ["admin"], },
       { title: "Lessons", icon: "mdi-book-education", routeName: "lessons.index",  roles: ["admin"], },
       { title: "Exam Names", icon: "mdi-format-list-text", routeName: "exam.names", roles: ["admin"], },
+      { title: 'Question Types', icon: 'mdi-format-list-bulleted-type', routeName: 'question.types', roles: ['admin'] },
     ],
   },
   {

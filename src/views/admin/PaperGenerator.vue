@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import api from "../../plugins/api";
 import PaperSections from "../exams/components/PaperSections.vue";
 import GeneratedPaperPreview from "../exams/components/GeneratedPaperPreview.vue";
+import AppEditor from "../exams/components/AppEditor.vue";
 import { useUIStore } from "../../stores/snackBar";
 
 const ui = useUIStore();
@@ -58,65 +59,6 @@ const questionTypes = [
 ];
 
 const difficulties = ["easy", "medium", "hard"];
-
-const totalQuestions = computed(() => {
-  return paper.value.sections.reduce((total, section) => {
-    return total + (section.questions?.length || 0);
-  }, 0);
-});
-
-const totalMarks = computed(() => {
-  return paper.value.sections.reduce((total, section) => {
-    return (
-      total +
-      section.questions.reduce((sum, q) => {
-        return sum + Number(q.marks || 0);
-      }, 0)
-    );
-  }, 0);
-});
-
-const blueprintTotalQuestions = computed(() => {
-  if (!selectedBlueprint.value?.sections) return 0;
-
-  return selectedBlueprint.value.sections.reduce((total, section) => {
-    if (section.items?.length) {
-      return (
-        total +
-        section.items.reduce((sum, item) => {
-          return sum + Number(item.question_count || 0);
-        }, 0)
-      );
-    }
-
-    return total + Number(section.question_count || 0);
-  }, 0);
-});
-
-const blueprintTotalMarks = computed(() => {
-  if (!selectedBlueprint.value?.sections) return 0;
-
-  return selectedBlueprint.value.sections.reduce((total, section) => {
-    if (section.items?.length) {
-      return (
-        total +
-        section.items.reduce((sum, item) => {
-          return (
-            sum +
-            Number(item.question_count || 0) *
-              Number(item.marks_per_question || 0)
-          );
-        }, 0)
-      );
-    }
-
-    return (
-      total +
-      Number(section.question_count || 0) *
-        Number(section.marks_per_question || 0)
-    );
-  }, 0);
-});
 
 const fetchGrades = async () => {
   const res = await api.get("/grades");
@@ -195,6 +137,7 @@ const fetchBlueprintDetails = async () => {
   paper.value.exam_name_id = res.data.exam_name_id;
   paper.value.exam_type =
     res.data.exam_name?.name || res.data.examName?.name || "";
+  paper.value.instructions = defaultInstructions.value;
 };
 
 const fetchQuestions = async () => {
@@ -275,38 +218,57 @@ const addQuestionToSection = (question, sectionIndex = 0) => {
 };
 
 const savePaper = async () => {
-  if (!paper.value.title) {
-    ui.showSnackbar("Please enter paper title", "warning");
-    return;
+  try {
+    if (!paper.value.title) {
+      ui.showSnackbar("Please enter paper title", "warning");
+      return;
+    }
+
+    if (!paper.value.sections.some((section) => section.questions.length)) {
+      ui.showSnackbar("Please add questions before saving", "warning");
+      return;
+    }
+
+    const payload = {
+      title: paper.value.title,
+      exam_type: paper.value.exam_type,
+      duration: paper.value.duration,
+      instructions: paper.value.instructions,
+      grade_id: filters.value.grade_id,
+      subject_id: filters.value.subject_id,
+      total_marks: totalMarks.value,
+
+      questions: paper.value.sections.flatMap((section) =>
+        section.questions.map((q, index) => ({
+          question_id: q.id,
+          marks: q.marks,
+          section: section.name,
+          instructions: section.instructions,
+          sort_order: index + 1,
+        })),
+      ),
+    };
+
+    await api.post("/question-papers", payload);
+    ui.showSnackbar("Question paper saved successfully", "success");
+  } catch (err) {
+    if (err.response?.status === 422) {
+      const errors = err.response.data.errors || {};
+
+      const firstError = Object.values(errors).flat()[0];
+
+      ui.showSnackbar(
+        firstError || err.response.data.message || "Validation failed",
+        "error",
+      );
+      return;
+    }
+
+    ui.showSnackbar(
+      err.response?.data?.message || "Failed to save paper",
+      "error",
+    );
   }
-
-  if (!paper.value.sections.some((section) => section.questions.length)) {
-    ui.showSnackbar("Please add questions before saving", "warning");
-    return;
-  }
-
-  const payload = {
-    title: paper.value.title,
-    exam_type: paper.value.exam_type,
-    duration: paper.value.duration,
-    instructions: paper.value.instructions,
-    grade_id: filters.value.grade_id,
-    subject_id: filters.value.subject_id,
-    total_marks: totalMarks.value,
-    questions: paper.value.sections.flatMap((section) =>
-      section.questions.map((q, index) => ({
-        question_id: q.id,
-        marks: q.marks,
-        section: section.name,
-        instructions: section.instructions,
-        sort_order: index + 1,
-      })),
-    ),
-  };
-
-  await api.post("/question-papers", payload);
-
-  ui.showSnackbar("Question paper saved successfully");
 };
 
 const clearFilters = () => {
@@ -315,6 +277,25 @@ const clearFilters = () => {
   filters.value.search = "";
 
   fetchQuestions();
+};
+
+const availabilityInfo = (row) => {
+  const typeOnly = questions.value.filter((q) => q.type === row.question_type);
+
+  const typeDifficulty = typeOnly.filter(
+    (q) => !row.difficulty || q.difficulty === row.difficulty,
+  );
+
+  const exact = typeDifficulty.filter(
+    (q) => !row.bloom_level || q.bloom_level === row.bloom_level,
+  );
+
+  return {
+    exact: exact.length,
+    relaxed: typeDifficulty.length,
+    typeOnly: typeOnly.length,
+    required: Number(row.question_count || 0),
+  };
 };
 
 const printPaper = () => {
@@ -481,6 +462,99 @@ const printPaper = () => {
   };
 };
 
+const totalQuestions = computed(() => {
+  return paper.value.sections.reduce((total, section) => {
+    return total + (section.questions?.length || 0);
+  }, 0);
+});
+
+const totalMarks = computed(() => {
+  return paper.value.sections.reduce((total, section) => {
+    return (
+      total +
+      section.questions.reduce((sum, q) => {
+        return sum + Number(q.marks || 0);
+      }, 0)
+    );
+  }, 0);
+});
+
+const blueprintTotalQuestions = computed(() => {
+  if (!selectedBlueprint.value?.sections) return 0;
+
+  return selectedBlueprint.value.sections.reduce((total, section) => {
+    return (
+      total +
+      (section.items || []).reduce((sum, item) => {
+        return sum + Number(item.question_count || 0);
+      }, 0)
+    );
+  }, 0);
+});
+
+const blueprintTotalMarks = computed(() => {
+  if (!selectedBlueprint.value?.sections) return 0;
+
+  return selectedBlueprint.value.sections.reduce((total, section) => {
+    return (
+      total +
+      (section.items || []).reduce((sum, item) => {
+        return (
+          sum +
+          Number(item.question_count || 0) *
+            Number(item.marks_per_question || 0)
+        );
+      }, 0)
+    );
+  }, 0);
+});
+
+const hasInsufficientExactQuestions = computed(() => {
+  if (!selectedBlueprint.value?.sections?.length) return false;
+
+  return selectedBlueprint.value.sections.some((section) => {
+    return (section.items || []).some((item) => {
+      return (
+        Number(item.available_questions || 0) < Number(item.question_count || 0)
+      );
+    });
+  });
+});
+
+const defaultInstructions = computed(() => {
+  if (!selectedBlueprint.value?.sections?.length) {
+    return "";
+  }
+  const sectionNames = selectedBlueprint.value.sections
+    .map((section) => section.section_name)
+    .filter(Boolean);
+
+  const uniqueSections = [...new Set(sectionNames)];
+
+  const totalSections = uniqueSections.length;
+  const totalQuestions = blueprintTotalQuestions.value;
+  const formattedSections = uniqueSections.map((section) =>
+    section.replace(/section\s*/i, "").trim(),
+  );
+
+  const sectionLabel =
+    formattedSections.length <= 1
+      ? formattedSections[0] || ""
+      : formattedSections.slice(0, -1).join(", ") +
+        " and " +
+        formattedSections.at(-1);
+
+  return `
+    <ol>
+      <li>All questions are compulsory.</li>
+      <li>The question paper consists of <strong>${totalQuestions} questions</strong> divided into <strong>${totalSections} sections ${sectionLabel}</strong>.</li>
+      <li>Read all questions carefully before answering.</li>
+      <li>Attempt the questions in the given order.</li>
+      <li>Draw neat diagrams wherever required.</li>
+    </ol>
+  `;
+});
+
 watch(
   () => filters.value.subject_id,
   async () => {
@@ -603,12 +677,12 @@ onMounted(async () => {
             </v-col>
 
             <v-col cols="12">
-              <v-textarea
+              <div class="text-subtitle-1 font-weight-bold mb-2">
+                Instructions
+              </div>
+              <AppEditor
                 v-model="paper.instructions"
                 label="General Instructions"
-                rows="3"
-                auto-grow
-                variant="outlined"
               />
             </v-col>
           </v-row>
@@ -651,7 +725,9 @@ onMounted(async () => {
                 size="large"
                 prepend-icon="mdi-auto-fix"
                 :loading="blueprintLoading"
-                :disabled="!selectedBlueprintId"
+                :disabled="
+                  !selectedBlueprintId || hasInsufficientExactQuestions
+                "
                 @click="generateFromBlueprint"
               >
                 Generate
@@ -684,7 +760,18 @@ onMounted(async () => {
                 </v-chip>
               </div>
 
-              <v-alert type="info" variant="tonal" class="mb-4">
+              <v-alert
+                v-if="hasInsufficientExactQuestions"
+                type="warning"
+                variant="tonal"
+                class="mb-4"
+              >
+                Some blueprint rows do not have enough exact matching questions.
+                You may need to adjust Difficulty/Bloom Level or approve more
+                questions.
+              </v-alert>
+
+              <v-alert v-else type="info" variant="tonal" class="mb-4">
                 Blueprint:
                 <strong>{{ blueprintTotalQuestions }}</strong>
                 Questions |
@@ -713,44 +800,47 @@ onMounted(async () => {
                 </thead>
 
                 <tbody>
-                  <tr
+                  <template
                     v-for="section in selectedBlueprint.sections"
                     :key="section.id"
                   >
-                    <td>{{ section.section_name }}</td>
+                    <tr v-for="item in section.items || []" :key="item.id">
+                      <td>{{ section.section_name }}</td>
 
-                    <td>{{ section.question_type }}</td>
+                      <td>{{ item.question_type }}</td>
 
-                    <td>{{ section.difficulty || "-" }}</td>
+                      <td>{{ item.difficulty || "-" }}</td>
 
-                    <td>{{ section.bloom_level || "-" }}</td>
+                      <td>{{ item.bloom_level || "-" }}</td>
 
-                    <td>{{ section.question_count }}</td>
+                      <td>{{ item.question_count }}</td>
 
-                    <td>{{ section.marks_per_question }}</td>
+                      <td>{{ item.marks_per_question }}</td>
 
-                    <td>
-                      {{
-                        Number(section.question_count || 0) *
-                        Number(section.marks_per_question || 0)
-                      }}
-                    </td>
+                      <td>
+                        {{
+                          Number(item.question_count || 0) *
+                          Number(item.marks_per_question || 0)
+                        }}
+                      </td>
 
-                    <td>
-                      <v-chip
-                        size="small"
-                        :color="
-                          Number(section.available_questions || 0) >=
-                          Number(section.question_count || 0)
-                            ? 'success'
-                            : 'error'
-                        "
-                        variant="tonal"
-                      >
-                        {{ section.available_questions ?? 0 }}
-                      </v-chip>
-                    </td>
-                  </tr>
+                      <td>
+                        <v-chip
+                          size="small"
+                          :color="
+                            Number(item.available_questions || 0) >=
+                            Number(item.question_count || 0)
+                              ? 'success'
+                              : 'error'
+                          "
+                          variant="tonal"
+                        >
+                          {{ item.available_questions || 0 }} /
+                          {{ item.question_count }}
+                        </v-chip>
+                      </td>
+                    </tr>
+                  </template>
                 </tbody>
               </v-table>
             </v-card-text>

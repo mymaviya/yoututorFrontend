@@ -255,7 +255,8 @@ const availableForBlueprintRow = (row) => {
   </div>
 </template>
 
-<style>
+<style scoped>
+
 .preview-container {
   height: calc(100vh - 120px);
   position: sticky;
@@ -444,6 +445,27 @@ const availableForBlueprintRow = (row) => {
 .match-row {
   margin-top: 5px;
   line-height: 1.5;
+}
+
+.general-instructions {
+  margin: 8px 0 12px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.general-instructions ol,
+.general-instructions ul {
+  margin: 4px 0 0 16px;
+  padding-left: 12px;
+}
+
+.general-instructions li {
+  margin-bottom: 2px;
+  padding-left: 1px;
+}
+
+.general-instructions p {
+  margin: 0;
 }
 
 /* KATEX */
