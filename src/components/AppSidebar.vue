@@ -108,11 +108,18 @@ const menu = computed(() => [
         roles: ["admin", "teacher"],
       },
       {
+        title: "Paper Creator",
+        icon: "mdi-file-document-edit",
+        routeName: "papers.creator",
+        roles: ["admin", "teacher"],
+      },
+      {
         title: "Generate Paper",
         icon: "mdi-file-document-edit",
         routeName: "papers.generate",
         roles: ["admin", "teacher"],
       },
+      
     ],
   },
 

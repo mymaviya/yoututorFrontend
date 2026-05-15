@@ -214,7 +214,7 @@ const getOptionLayout = (question) => {
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
   font-family: "Times New Roman", serif;
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.15;
 }
 
 .paper-header {
@@ -283,7 +283,7 @@ const getOptionLayout = (question) => {
 
 .question-body {
   padding-right: 10px;
-  line-height: 1.5;
+  line-height: 1.15;
 }
 
 .question-body p {

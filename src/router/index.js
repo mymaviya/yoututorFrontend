@@ -36,9 +36,10 @@ const routes = [
       { path: 'questions/create', name:'questions.create', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Create Question'} },
       { path: 'questions/:id/edit', name:'questions.edit', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Edit Question'} },
       { path: 'papers', name:'papers.index', component: () => import('../views/exams/Papers/PapersPage.vue'), meta: {title:'All Papers'} },
-      { path: 'papers/:id/edit', name:'paper.edit', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Edit Papers'} },
-      { path: 'papers/generate', name:'papers.generate', component: () => import('../views/exams/Papers/PaperGenerator.vue'), meta: {title:'Create Paper'} },
+      { path: 'papers/:id/edit', name:'paper.edit', component: () => import('../views/exams/Papers/PaperCreator.vue'), meta: {title:'Edit Papers'} },
+      { path: 'papers/creator', name:'papers.creator', component: () => import('../views/exams/Papers/PaperCreator.vue'), meta: {title:'Create Paper'} },
       { path: 'papers/:id', name:'ViewQuestion', component: () => import('../views/exams/Papers/PaperView.vue'), meta: {title:'View Paper'} },
+
 
       // Teachers
       { path: 'teacher-dashboard', name: 'teacher.dashboard', component: () => import('../views/teacher/TeacherDashboard.vue'), meta: { title: 'Teacher Dashboard' } },
@@ -58,6 +59,7 @@ const routes = [
       { path: 'exam-names', name: 'exam.names', component: () => import('../views/admin/ExamNames.vue'), meta: { title: 'Exam Names' }},
       { path: 'exam-portions', name: 'exam.portions', component: () => import('../views/admin/ExamPortions.vue'), meta: { title: 'Exam Portions' } },
       { path: 'my-exam-portions', name: 'teacher.exam.portions', component: () => import('../views/teacher/MyExamPortions.vue'), meta: { title: 'My Exam Portions' } },
+      { path: 'paper-generate', name: 'papers.generate', component: () => import('../views/admin/PaperGenerator.vue'), meta: { title: 'Generate Paper' } },
 
       // BluePrint
       { path: 'paper-blueprints', name: 'paper.blueprints', component: () => import('../views/admin/PaperBlueprints.vue'), meta: { title: 'Paper Blueprints' } },
