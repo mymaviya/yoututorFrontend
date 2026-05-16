@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
 
+
 const ui = useUIStore();
 
 const loading = ref(false);
@@ -57,53 +58,40 @@ const fetchSubjects = async () => {
   subjects.value = res.data.data || res.data;
 };
 
-const fetchQuestionTypes = async () => {
-  if (!form.value.grade_id || !form.value.subject_id) {
-    questionTypes.value = []
-    return
-  }
-
-  const res = await api.get('/question-types', {
-    params: {
-      grade_id: form.value.grade_id,
-      subject_id: form.value.subject_id,
-      active_only: 1
-    }
-  })
-
-  questionTypes.value = res.data
-}
-
 const importFile = ref(null);
 const importing = ref(false);
 
 const importQuestionTypes = async () => {
   if (!importFile.value) {
-    ui.showSnackbar("Please select an Excel file", "warning");
-    return;
+    ui.showSnackbar('Please select an Excel file', 'warning')
+    return
   }
 
-  importing.value = true;
+  const file = Array.isArray(importFile.value)
+    ? importFile.value[0]
+    : importFile.value
 
-  const formData = new FormData();
-  formData.append("file", importFile.value);
+  const formData = new FormData()
+  formData.append('file', file)
+
+  importing.value = true
 
   try {
-    await api.post("/question-types/import", formData, {
+    await api.post('/question-types/import', formData, {
       headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+        'Content-Type': 'multipart/form-data'
+      }
+    })
 
-    ui.showSnackbar("Question types imported successfully");
-    importFile.value = null;
-    fetchQuestionTypes();
+    ui.showSnackbar('Question types imported successfully')
+    importFile.value = null
+    fetchQuestionTypes()
   } catch (err) {
-    ui.showSnackbar(err.response?.data?.message || "Import failed", "error");
+    ui.showSnackbar(err.response?.data?.message || 'Import failed', 'error')
   } finally {
-    importing.value = false;
+    importing.value = false
   }
-};
+}
 
 const downloadTemplate = async () => {
   const res = await api.get('/question-types/template', {
@@ -223,13 +211,6 @@ const clearFilters = () => {
   fetchQuestionTypes();
 };
 
-watch(
-  () => form.value.subject_id,
-  async () => {
-    await fetchLessons()
-    await fetchQuestionTypes()
-  }
-)
 
 onMounted(() => {
   fetchGrades();
@@ -247,7 +228,7 @@ onMounted(() => {
           Manage class-wise and subject-wise question types.
         </p>
       </div>
-      <v-space></v-space>
+      <v-spacer />
       <v-file-input
         v-model="importFile"
         label="Upload Excel"

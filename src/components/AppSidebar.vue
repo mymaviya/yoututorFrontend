@@ -131,13 +131,13 @@ const menu = computed(() => [
       {
         title: "All Exams",
         icon: "mdi-format-list-checks",
-        routeName: "Dashboard",
+        routeName: "create.index",
         roles: ["admin", "teacher", "student"],
       },
       {
         title: "Create Exam",
         icon: "mdi-plus-box",
-        routeName: "dashboard",
+        routeName: "create.exam",
         roles: ["admin", "teacher", "student"],
       },
     ],

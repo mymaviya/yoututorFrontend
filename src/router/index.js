@@ -70,6 +70,8 @@ const routes = [
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue'), meta: {title:'Login'} },
       // { path: '/exams/create', component: () => import('../views/exams/Exams/ExamForm.vue'), meta: {title:'Login'}},
       // { path: '/results', component: () => import('../views/exams/Results/ResultsPage.vue'), meta: {title:'Login'}},
+      { path: 'users', name: 'create.exam', component: { template: '<h2>Users</h2>' } },
+      { path: 'users', name: 'create.index', component: { template: '<h2>Users</h2>' } },
       { path: 'users', component: { template: '<h2>Users</h2>' } },
       { path: 'students', component: { template: '<h2>Students</h2>' } },
       { path: 'sales', component: { template: '<h2>Sales</h2>' } },
