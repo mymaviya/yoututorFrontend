@@ -1,96 +1,145 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
 
+const ui = useUIStore();
 
-const ui = useUIStore()
+const loading = ref(false);
+const saving = ref(false);
+const dialog = ref(false);
+const editMode = ref(false);
 
-const loading = ref(false)
-const saving = ref(false)
-const dialog = ref(false)
-const editMode = ref(false)
-
-const questionTypes = ref([])
-const grades = ref([])
-const subjects = ref([])
-const errors = ref({})
+const questionTypes = ref([]);
+const grades = ref([]);
+const subjects = ref([]);
+const errors = ref({});
 
 const form = ref({
   id: null,
   grade_id: null,
   subject_id: null,
-  name: '',
+  name: "",
   is_active: true,
-})
+});
 
 const filters = ref({
   grade_id: null,
   subject_id: null,
-})
+});
 
 const headers = [
-  { title: 'Grade', key: 'grade.name' },
-  { title: 'Subject', key: 'subject.name' },
-  { title: 'Question Type', key: 'name' },
-  { title: 'Slug', key: 'slug' },
-  { title: 'Status', key: 'is_active' },
-  { title: 'Actions', key: 'actions', sortable: false },
-]
+  { title: "Grade", key: "grade.name" },
+  { title: "Subject", key: "subject.name" },
+  { title: "Question Type", key: "name" },
+  { title: "Slug", key: "slug" },
+  { title: "Status", key: "is_active" },
+  { title: "Actions", key: "actions", sortable: false },
+];
 
 const fetchGrades = async () => {
-  const res = await api.get('/grades')
-  grades.value = res.data.data || res.data
-}
+  const res = await api.get("/grades");
+  grades.value = res.data.data || res.data;
+};
 
 const fetchSubjects = async () => {
-  const gradeId = form.value.grade_id || filters.value.grade_id
+  const gradeId = form.value.grade_id || filters.value.grade_id;
 
   if (!gradeId) {
-    subjects.value = []
+    subjects.value = [];
+    return;
+  }
+
+  const res = await api.get("/subjects", {
+    params: { grade_id: gradeId },
+  });
+
+  subjects.value = res.data.data || res.data;
+};
+
+const fetchQuestionTypes = async () => {
+  if (!form.value.grade_id || !form.value.subject_id) {
+    questionTypes.value = []
     return
   }
 
-  const res = await api.get('/subjects', {
-    params: { grade_id: gradeId },
+  const res = await api.get('/question-types', {
+    params: {
+      grade_id: form.value.grade_id,
+      subject_id: form.value.subject_id,
+      active_only: 1
+    }
   })
 
-  subjects.value = res.data.data || res.data
+  questionTypes.value = res.data
 }
 
-const fetchQuestionTypes = async () => {
-  loading.value = true
+const importFile = ref(null);
+const importing = ref(false);
+
+const importQuestionTypes = async () => {
+  if (!importFile.value) {
+    ui.showSnackbar("Please select an Excel file", "warning");
+    return;
+  }
+
+  importing.value = true;
+
+  const formData = new FormData();
+  formData.append("file", importFile.value);
 
   try {
-    const res = await api.get('/question-types', {
-      params: filters.value,
-    })
+    await api.post("/question-types/import", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
 
-    questionTypes.value = res.data.data || res.data
+    ui.showSnackbar("Question types imported successfully");
+    importFile.value = null;
+    fetchQuestionTypes();
+  } catch (err) {
+    ui.showSnackbar(err.response?.data?.message || "Import failed", "error");
   } finally {
-    loading.value = false
+    importing.value = false;
   }
+};
+
+const downloadTemplate = async () => {
+  const res = await api.get('/question-types/template', {
+    responseType: 'blob'
+  })
+
+  const url = window.URL.createObjectURL(new Blob([res.data]))
+  const link = document.createElement('a')
+
+  link.href = url
+  link.setAttribute('download', 'question-types-template.xlsx')
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 const openAdd = () => {
-  editMode.value = false
-  errors.value = {}
+  editMode.value = false;
+  errors.value = {};
 
   form.value = {
     id: null,
     grade_id: null,
     subject_id: null,
-    name: '',
+    name: "",
     is_active: true,
-  }
+  };
 
-  subjects.value = []
-  dialog.value = true
-}
+  subjects.value = [];
+  dialog.value = true;
+};
 
 const openEdit = async (item) => {
-  editMode.value = true
-  errors.value = {}
+  editMode.value = true;
+  errors.value = {};
 
   form.value = {
     id: item.id,
@@ -98,103 +147,134 @@ const openEdit = async (item) => {
     subject_id: item.subject_id,
     name: item.name,
     is_active: Boolean(item.is_active),
-  }
+  };
 
-  await fetchSubjects()
-  dialog.value = true
-}
+  await fetchSubjects();
+  dialog.value = true;
+};
 
 const saveQuestionType = async () => {
-  saving.value = true
-  errors.value = {}
+  saving.value = true;
+  errors.value = {};
 
   try {
     if (editMode.value) {
-      await api.put(`/question-types/${form.value.id}`, form.value)
-      ui.showSnackbar('Question type updated successfully')
+      await api.put(`/question-types/${form.value.id}`, form.value);
+      ui.showSnackbar("Question type updated successfully");
     } else {
-      await api.post('/question-types', form.value)
-      ui.showSnackbar('Question type created successfully')
+      await api.post("/question-types", form.value);
+      ui.showSnackbar("Question type created successfully");
     }
 
-    dialog.value = false
-    fetchQuestionTypes()
+    dialog.value = false;
+    fetchQuestionTypes();
   } catch (err) {
     if (err.response?.status === 422) {
-      errors.value = err.response.data.errors || {}
-      ui.showSnackbar(err.response.data.message || 'Validation failed', 'error')
+      errors.value = err.response.data.errors || {};
+      ui.showSnackbar(
+        err.response.data.message || "Validation failed",
+        "error",
+      );
     } else {
-      ui.showSnackbar('Failed to save question type', 'error')
+      ui.showSnackbar("Failed to save question type", "error");
     }
   } finally {
-    saving.value = false
+    saving.value = false;
   }
-}
+};
 
 const toggleStatus = async (item) => {
-  await api.post(`/question-types/${item.id}/status`)
-  ui.showSnackbar('Status updated successfully')
-  fetchQuestionTypes()
-}
+  await api.post(`/question-types/${item.id}/status`);
+  ui.showSnackbar("Status updated successfully");
+  fetchQuestionTypes();
+};
 
 const deleteQuestionType = async (item) => {
   const ok = await ui.confirmDialog(
-    'Delete Question Type',
-    `Are you sure you want to delete ${item.name}?`
-  )
+    "Delete Question Type",
+    `Are you sure you want to delete ${item.name}?`,
+  );
 
-  if (!ok) return
+  if (!ok) return;
 
-  await api.delete(`/question-types/${item.id}`)
-  ui.showSnackbar('Question type deleted successfully')
-  fetchQuestionTypes()
-}
+  await api.delete(`/question-types/${item.id}`);
+  ui.showSnackbar("Question type deleted successfully");
+  fetchQuestionTypes();
+};
 
 const onFormGradeChange = async () => {
-  form.value.subject_id = null
-  await fetchSubjects()
-}
+  form.value.subject_id = null;
+  await fetchSubjects();
+};
 
 const onFilterGradeChange = async () => {
-  filters.value.subject_id = null
-  await fetchSubjects()
-  fetchQuestionTypes()
-}
+  filters.value.subject_id = null;
+  await fetchSubjects();
+  fetchQuestionTypes();
+};
 
 const clearFilters = () => {
   filters.value = {
     grade_id: null,
     subject_id: null,
-  }
+  };
 
-  subjects.value = []
-  fetchQuestionTypes()
-}
+  subjects.value = [];
+  fetchQuestionTypes();
+};
+
+watch(
+  () => form.value.subject_id,
+  async () => {
+    await fetchLessons()
+    await fetchQuestionTypes()
+  }
+)
 
 onMounted(() => {
-  fetchGrades()
-  fetchQuestionTypes()
-})
+  fetchGrades();
+  fetchQuestionTypes();
+});
 </script>
 
 <template>
   <div>
     <div class="d-flex justify-space-between align-center mb-6">
       <div>
-        <h1 class="text-h4 font-weight-bold">
-          Question Types
-        </h1>
+        <h1 class="text-h4 font-weight-bold">Question Types</h1>
 
         <p class="text-grey">
           Manage class-wise and subject-wise question types.
         </p>
       </div>
+      <v-space></v-space>
+      <v-file-input
+        v-model="importFile"
+        label="Upload Excel"
+        accept=".xlsx,.xls,.csv"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 260px"
+      />
 
       <v-btn
-        color="primary"
-        prepend-icon="mdi-plus"
-        @click="openAdd"
+        color="success"
+        prepend-icon="mdi-file-excel"
+        :loading="importing"
+        @click="importQuestionTypes"
       >
+        Import
+      </v-btn>
+      <v-btn
+        color="success"
+        prepend-icon="mdi-download"
+        @click="downloadTemplate"
+      >
+        Download Template
+      </v-btn>
+
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="openAdd">
         Add Question Type
       </v-btn>
     </div>
@@ -229,13 +309,9 @@ onMounted(() => {
         </v-col>
 
         <v-col cols="12" md="4" class="d-flex align-center ga-2">
-          <v-btn color="primary" @click="fetchQuestionTypes">
-            Apply
-          </v-btn>
+          <v-btn color="primary" @click="fetchQuestionTypes"> Apply </v-btn>
 
-          <v-btn variant="outlined" @click="clearFilters">
-            Clear
-          </v-btn>
+          <v-btn variant="outlined" @click="clearFilters"> Clear </v-btn>
         </v-col>
       </v-row>
     </v-card>
@@ -252,7 +328,7 @@ onMounted(() => {
             variant="tonal"
             :color="item.is_active ? 'success' : 'error'"
           >
-            {{ item.is_active ? 'Active' : 'Inactive' }}
+            {{ item.is_active ? "Active" : "Inactive" }}
           </v-chip>
         </template>
 
@@ -286,20 +362,12 @@ onMounted(() => {
       </v-data-table>
     </v-card>
 
-    <v-dialog
-      v-model="dialog"
-      max-width="650"
-      persistent
-    >
+    <v-dialog v-model="dialog" max-width="650" persistent>
       <v-card class="rounded-xl">
         <v-card-title class="d-flex justify-space-between align-center">
-          {{ editMode ? 'Edit Question Type' : 'Add Question Type' }}
+          {{ editMode ? "Edit Question Type" : "Add Question Type" }}
 
-          <v-btn
-            icon="mdi-close"
-            variant="text"
-            @click="dialog = false"
-          />
+          <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
         </v-card-title>
 
         <v-divider />
@@ -356,19 +424,10 @@ onMounted(() => {
         <v-card-actions class="pa-4">
           <v-spacer />
 
-          <v-btn
-            variant="text"
-            @click="dialog = false"
-          >
-            Cancel
-          </v-btn>
+          <v-btn variant="text" @click="dialog = false"> Cancel </v-btn>
 
-          <v-btn
-            color="primary"
-            :loading="saving"
-            @click="saveQuestionType"
-          >
-            {{ editMode ? 'Update' : 'Save' }}
+          <v-btn color="primary" :loading="saving" @click="saveQuestionType">
+            {{ editMode ? "Update" : "Save" }}
           </v-btn>
         </v-card-actions>
       </v-card>
