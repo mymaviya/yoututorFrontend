@@ -76,6 +76,7 @@ const login = async () => {
       type="password"
       variant="outlined"
       :error-messages="errors.password"
+      @keyup.enter="login" 
     />
 
     <div class="d-flex justify-space-between align-center mb-4">
