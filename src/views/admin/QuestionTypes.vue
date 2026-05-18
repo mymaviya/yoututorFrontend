@@ -1,8 +1,7 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
-
 
 const ui = useUIStore();
 
@@ -63,51 +62,53 @@ const importing = ref(false);
 
 const importQuestionTypes = async () => {
   if (!importFile.value) {
-    ui.showSnackbar('Please select an Excel file', 'warning')
-    return
+    ui.showSnackbar("Please select an Excel file", "warning");
+    return;
   }
 
   const file = Array.isArray(importFile.value)
     ? importFile.value[0]
-    : importFile.value
+    : importFile.value;
 
-  const formData = new FormData()
-  formData.append('file', file)
+  const formData = new FormData();
+  formData.append("file", file);
 
-  importing.value = true
+  importing.value = true;
 
   try {
-    await api.post('/question-types/import', formData, {
+    await api.post("/question-types/import", formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+        "Content-Type": "multipart/form-data",
+      },
+    });
 
-    ui.showSnackbar('Question types imported successfully')
-    importFile.value = null
-    fetchQuestionTypes()
+    ui.showSnackbar("Question types imported successfully");
+    importFile.value = null;
+    fetchQuestionTypes();
   } catch (err) {
-    ui.showSnackbar(err.response?.data?.message || 'Import failed', 'error')
+    ui.showSnackbar(err.response?.data?.message || "Import failed", "error");
   } finally {
-    importing.value = false
+    importing.value = false;
   }
-}
+};
 
 const downloadTemplate = async () => {
-  const res = await api.get('/question-types/template', {
-    responseType: 'blob'
-  })
+  const res = await api.get("/question-types/template", {
+    responseType: "blob",
+  });
 
-  const url = window.URL.createObjectURL(new Blob([res.data]))
-  const link = document.createElement('a')
+  const url = window.URL.createObjectURL(new Blob([res.data]));
 
-  link.href = url
-  link.setAttribute('download', 'question-types-template.xlsx')
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", "question-types-template.xlsx");
 
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-}
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(url);
+};
 
 const openAdd = () => {
   editMode.value = false;
@@ -210,7 +211,6 @@ const clearFilters = () => {
   subjects.value = [];
   fetchQuestionTypes();
 };
-
 
 onMounted(() => {
   fetchGrades();
