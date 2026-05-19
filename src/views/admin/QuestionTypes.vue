@@ -57,6 +57,23 @@ const fetchSubjects = async () => {
   subjects.value = res.data.data || res.data;
 };
 
+const fetchQuestionTypes = async () => {
+  loading.value = true
+
+  try {
+    const res = await api.get('/question-types', {
+      params: {
+        grade_id: filters.value.grade_id,
+        subject_id: filters.value.subject_id
+      }
+    })
+
+    questionTypes.value = res.data.data || res.data
+  } finally {
+    loading.value = false
+  }
+}
+
 const importFile = ref(null);
 const importing = ref(false);
 
@@ -76,13 +93,18 @@ const importQuestionTypes = async () => {
   importing.value = true;
 
   try {
-    await api.post("/question-types/import", formData, {
+    const res = await api.post("/question-types/import", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
     });
 
-    ui.showSnackbar("Question types imported successfully");
+    ui.showSnackbar(`Imported: ${res.data.imported}, Skipped: ${res.data.skipped}`,
+      res.data.imported > 0 ? "success" : "warning",
+    );
+
+    console.log("Import errors:", res.data.errors);
+    
     importFile.value = null;
     fetchQuestionTypes();
   } catch (err) {
@@ -229,33 +251,53 @@ onMounted(() => {
         </p>
       </div>
       <v-spacer />
-      <v-file-input
-        v-model="importFile"
-        label="Upload Excel"
-        accept=".xlsx,.xls,.csv"
-        variant="outlined"
-        density="compact"
-        hide-details
-        style="max-width: 260px"
-      />
+      <div class="d-flex align-center ga-2">
+        <!-- Upload -->
+        <v-file-input
+          v-model="importFile"
+          accept=".xlsx,.xls,.csv"
+          density="compact"
+          hide-details
+          variant="outlined"
+          prepend-icon=""
+          prepend-inner-icon="mdi-paperclip"
+          style="max-width: 220px"
+        />
+
+        <!-- Import -->
+        <v-tooltip text="Import Excel">
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              icon="mdi-upload"
+              color="success"
+              variant="tonal"
+              :loading="importing"
+              @click="importQuestionTypes"
+            />
+          </template>
+        </v-tooltip>
+
+        <!-- Download Template -->
+        <v-tooltip text="Download Template">
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              icon="mdi-download"
+              color="info"
+              variant="tonal"
+              @click="downloadTemplate"
+            />
+          </template>
+        </v-tooltip>
+      </div>
 
       <v-btn
-        color="success"
-        prepend-icon="mdi-file-excel"
-        :loading="importing"
-        @click="importQuestionTypes"
+        class="ml-3"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="openAdd"
       >
-        Import
-      </v-btn>
-      <v-btn
-        color="success"
-        prepend-icon="mdi-download"
-        @click="downloadTemplate"
-      >
-        Download Template
-      </v-btn>
-
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="openAdd">
         Add Question Type
       </v-btn>
     </div>

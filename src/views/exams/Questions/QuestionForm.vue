@@ -16,6 +16,9 @@ const taskInfo = ref(null);
 const grades = ref([]);
 const subjects = ref([]);
 const lessons = ref([]);
+const questionTypes = ref([]);
+const aiLoading = ref(false);
+const aiSuggestion = ref(null);
 
 const isEditMode = computed(() => !!route.params.id);
 
@@ -103,6 +106,25 @@ const fetchLessons = async () => {
   lessons.value = res.data.data || res.data;
 };
 
+/* FETCH QUESTION TYPE */
+
+const fetchQuestionTypes = async () => {
+  if (!form.value.grade_id || !form.value.subject_id) {
+    questionTypes.value = [];
+    return;
+  }
+
+  const res = await api.get("/question-types", {
+    params: {
+      grade_id: form.value.grade_id,
+      subject_id: form.value.subject_id,
+      ...(isEditMode.value ? {} : { active_only: 1 }),
+    },
+  });
+
+  questionTypes.value = res.data.data || res.data;
+};
+
 const form = ref({
   id: null,
   grade_id: null,
@@ -152,18 +174,6 @@ const applyQueryDefaults = async () => {
   }
 };
 
-const questionTypes = [
-  { text: "Multiple Choice (Single Answer)", value: "mcq" },
-  { text: "Multiple Choice (Multiple Answers)", value: "multiple_mcq" },
-  { text: "True/False", value: "true_false" },
-  { text: "Fill in the Blank", value: "fill_blank" },
-  { text: "Short Answer", value: "short" },
-  { text: "Long Answer", value: "long" },
-  { text: "Match the Column", value: "match_column" },
-  { text: "Assertion-Reason", value: "assertion_reason" },
-  { text: "Numerical", value: "numerical" },
-];
-
 const difficultyLevels = [
   { text: "Easy", value: "easy" },
   { text: "Medium", value: "medium" },
@@ -212,14 +222,7 @@ const removeMatchRow = (index) => {
 
 const fetchQuestionForEdit = async () => {
   const res = await api.get(`/questions/${route.params.id}`);
-
   const q = res.data;
-
-  /*
-  |--------------------------------------------------------------------------
-  | LOAD DROPDOWNS FIRST
-  |--------------------------------------------------------------------------
-  */
 
   form.value.grade_id = q.grade_id;
 
@@ -228,17 +231,13 @@ const fetchQuestionForEdit = async () => {
   form.value.subject_id = q.subject_id;
 
   await fetchLessons();
+  await fetchQuestionTypes();
 
   form.value.lesson_id = q.lesson_id;
 
-  /*
-  |--------------------------------------------------------------------------
-  | LOAD ALL FORM DATA
-  |--------------------------------------------------------------------------
-  */
   Object.assign(form.value, {
     id: q.id,
-    type: q.type,
+    type: q.type, // set after fetchQuestionTypes()
     difficulty: q.difficulty,
     bloom_level: q.bloom_level,
     marks: q.marks,
@@ -334,7 +333,7 @@ const save = async () => {
           "Content-Type": "multipart/form-data",
         },
       });
-
+      form.value.question = null;
       ui.showSnackbar("Question saved successfully");
 
       if (!isEditMode.value && route.query.task_id) {
@@ -358,6 +357,55 @@ const makeSingleCorrect = (selectedIndex) => {
   });
 };
 
+// AI Suggestions for Bloom's Level
+const suggestBloomLevel = async () => {
+  if (!form.value.question) {
+    ui.showSnackbar("Please enter question first", "warning");
+    return;
+  }
+
+  aiLoading.value = true;
+
+  try {
+    const text = form.value.question.replace(/<[^>]*>/g, "").toLowerCase();
+
+    let level = "remember";
+    let reason = "This question mainly asks for recall of facts.";
+
+    if (/(define|list|name|identify|state|recall)/.test(text)) {
+      level = "remember";
+      reason = "The question asks students to recall or identify information.";
+    } else if (/(explain|describe|summarize|classify|compare)/.test(text)) {
+      level = "understand";
+      reason = "The question asks students to explain or understand a concept.";
+    } else if (/(solve|calculate|use|apply|demonstrate|show)/.test(text)) {
+      level = "apply";
+      reason =
+        "The question asks students to apply knowledge or solve a problem.";
+    } else if (/(analyze|differentiate|distinguish|examine|why)/.test(text)) {
+      level = "analyze";
+      reason =
+        "The question asks students to break down or examine relationships.";
+    } else if (/(evaluate|justify|judge|critique|assess|opinion)/.test(text)) {
+      level = "evaluate";
+      reason = "The question asks students to justify or evaluate an answer.";
+    } else if (/(create|design|develop|prepare|compose|construct)/.test(text)) {
+      level = "create";
+      reason =
+        "The question asks students to create or construct something new.";
+    }
+
+    aiSuggestion.value = {
+      level,
+      reason,
+    };
+
+    form.value.bloom_level = level;
+  } finally {
+    aiLoading.value = false;
+  }
+};
+
 watch(
   () => form.value.grade_id,
 
@@ -373,13 +421,14 @@ watch(
 
 watch(
   () => form.value.subject_id,
-
-  async (newVal, oldVal) => {
-    if (pageLoading.value || !newVal) return;
+  async () => {
+    if (pageLoading.value || !form.value.subject_id) return;
 
     form.value.lesson_id = null;
+    form.value.type = null;
 
     await fetchLessons();
+    await fetchQuestionTypes();
   },
 );
 
@@ -598,11 +647,10 @@ onMounted(async () => {
         <v-select
           v-model="form.type"
           :items="questionTypes"
-          item-title="text"
-          item-value="value"
+          item-title="name"
+          item-value="slug"
           label="Question Type"
           :error-messages="errors.type"
-          :disabled="taskInfo?.status === 'completed'"
         />
       </v-col>
 
@@ -640,10 +688,27 @@ onMounted(async () => {
         />
       </v-col>
     </v-row>
-
+    <v-alert v-if="aiSuggestion" type="info" variant="tonal" class="mt-2">
+      Suggested Level:
+      <strong>{{ aiSuggestion.level }}</strong>
+      <br />
+      {{ aiSuggestion.reason }}
+    </v-alert>
     <!-- QUESTION -->
     <v-card class="pa-4 mb-6" variant="outlined">
-      <div class="text-subtitle-1 font-weight-bold mb-2">Question</div>
+      <div class="text-subtitle-1 font-weight-bold mb-2">
+        Question
+        <v-space></v-space>
+        <v-btn
+          color="primary"
+          variant="tonal"
+          prepend-icon="mdi-creation"
+          :loading="aiLoading"
+          @click="suggestBloomLevel"
+        >
+          Suggest Bloom
+        </v-btn>
+      </div>
 
       <AppEditor v-model="form.question" />
 
