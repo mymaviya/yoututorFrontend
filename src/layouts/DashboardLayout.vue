@@ -12,9 +12,9 @@ const route = useRoute();
 const theme = useTheme();
 const auth = useAuthStore();
 
-const notificationMenu = ref(false)
-const notifications = ref([])
-const unreadCount = ref(0)
+const notificationMenu = ref(false);
+const notifications = ref([]);
+const unreadCount = ref(0);
 
 const drawer = ref(true);
 const ui = useUIStore();
@@ -46,14 +46,14 @@ const toggleTheme = () => {
 };
 
 const fetchNotifications = async () => {
-  const res = await api.get('/notifications', {
+  const res = await api.get("/notifications", {
     params: {
-      unread_only: 1
-    }
-  })
+      unread_only: 1,
+    },
+  });
 
-  notifications.value = res.data.data || res.data
-}
+  notifications.value = res.data.data || res.data;
+};
 
 const fetchUnreadCount = async () => {
   try {
@@ -85,20 +85,20 @@ const openNotification = async (notification) => {
 
 const markAllAsRead = async () => {
   try {
-    await api.post('/notifications/read-all')
+    await api.post("/notifications/read-all");
 
-    notifications.value = notifications.value.map(n => ({
+    notifications.value = notifications.value.map((n) => ({
       ...n,
-      is_read: true
-    }))
+      is_read: true,
+    }));
 
-    unreadCount.value = 0
+    unreadCount.value = 0;
 
-    notificationMenu.value = false
+    notificationMenu.value = false;
 
-    ui.showSnackbar('All notifications marked as read')
+    ui.showSnackbar("All notifications marked as read");
   } catch (err) {
-    ui.showSnackbar('Failed to mark notifications', 'error')
+    ui.showSnackbar("Failed to mark notifications", "error");
   }
 };
 
@@ -127,26 +127,26 @@ const goSettings = () => {
 
 watch(notificationMenu, async (val) => {
   if (val) {
-    await fetchNotifications()
-    await fetchUnreadCount()
+    await fetchNotifications();
+    await fetchUnreadCount();
   }
-})
+});
 
-let notificationTimer = null
+let notificationTimer = null;
 
 onMounted(() => {
-  fetchUnreadCount()
-  fetchNotifications()
+  fetchUnreadCount();
+  fetchNotifications();
 
   notificationTimer = setInterval(() => {
-    fetchUnreadCount()
-    fetchNotifications()
-  }, 30000)
+    fetchUnreadCount();
+    fetchNotifications();
+  }, 30000);
 });
 
 onBeforeUnmount(() => {
   if (notificationTimer) {
-    clearInterval(notificationTimer)
+    clearInterval(notificationTimer);
   }
 });
 </script>
@@ -224,16 +224,29 @@ onBeforeUnmount(() => {
 
         <v-list v-if="notifications.length">
           <v-list-item
-            v-for="notification in notifications"
-            :key="notification.id"
-            @click="openNotification(notification)"
+            v-for="item in notifications"
+            :key="item.id"
+            @click="openNotification(item)"
           >
+            <template #prepend>
+              <v-badge
+                v-if="item.count > 1"
+                :content="item.count"
+                color="error"
+              >
+                <v-icon color="primary">mdi-bell</v-icon>
+              </v-badge>
+
+              <v-icon v-else color="primary">mdi-bell</v-icon>
+            </template>
+
             <v-list-item-title>
-              {{ notification.title }}
+              {{ item.title }}
+              <span v-if="item.count > 1"> </span>
             </v-list-item-title>
 
             <v-list-item-subtitle>
-              {{ notification.message }}
+              {{ item.message }}
             </v-list-item-subtitle>
           </v-list-item>
         </v-list>
