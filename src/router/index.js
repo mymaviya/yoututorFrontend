@@ -64,6 +64,7 @@ const routes = [
       // BluePrint
       { path: 'paper-blueprints', name: 'paper.blueprints', component: () => import('../views/admin/PaperBlueprints.vue'), meta: { title: 'Paper Blueprints' } },
       { path: 'question-types', name: 'question.types', component: () => import('../views/admin/QuestionTypes.vue'), meta: { title: 'Question Types' } },
+      { path: 'paper-generator', name: 'paper.generator', component: () => import('../views/admin/PaperGenerator.vue'), meta: { title: 'Paper Generator' } },
       
 
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue'), meta: {title:'Login'} },
