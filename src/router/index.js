@@ -59,7 +59,9 @@ const routes = [
       { path: 'exam-names', name: 'exam.names', component: () => import('../views/admin/ExamNames.vue'), meta: { title: 'Exam Names' }},
       { path: 'exam-portions', name: 'exam.portions', component: () => import('../views/admin/ExamPortions.vue'), meta: { title: 'Exam Portions' } },
       { path: 'my-exam-portions', name: 'teacher.exam.portions', component: () => import('../views/teacher/MyExamPortions.vue'), meta: { title: 'My Exam Portions' } },
-      { path: 'paper-generate', name: 'papers.generate', component: () => import('../views/admin/PaperGenerator.vue'), meta: { title: 'Generate Paper' } },
+      { path: 'paper-generate', name: 'papers.generate', component: () => import('../views/admin/PaperGenerator_copy.vue'), meta: { title: 'Generate Paper' } },
+
+      { path: 'question-papers/:id', name: 'question.paper.view', component: () => import('../views/admin/QuestionPaperView.vue'), meta: { title: 'Question Paper View' } },
 
       // BluePrint
       { path: 'paper-blueprints', name: 'paper.blueprints', component: () => import('../views/admin/PaperBlueprints.vue'), meta: { title: 'Paper Blueprints' } },

@@ -10,7 +10,12 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["update:modelValue"]);
+const emit = defineEmits([
+  "update:modelValue",
+  "print",
+  "replace-question",
+  "remove-question",
+]);
 
 const sections = computed({
   get: () => props.modelValue,
@@ -38,11 +43,6 @@ const toggleSection = (index) => {
   openSections.value[index] = !openSections.value[index];
 };
 
-const removeQuestion = (sectionIndex, questionId) => {
-  sections.value[sectionIndex].questions = sections.value[
-    sectionIndex
-  ].questions.filter((q) => q.id !== questionId);
-};
 
 const stripHtml = (html = "") => {
   const div = document.createElement("div");
@@ -123,7 +123,7 @@ onMounted(() => {
               density="compact"
               hide-details
               label="Section Name"
-              width="220"
+              style="max-width: 220px"
             />
 
             <!-- TOTAL -->
@@ -208,13 +208,31 @@ onMounted(() => {
                   </div>
 
                   <!-- REMOVE -->
-                  <v-btn
-                    icon="mdi-close"
-                    size="small"
-                    color="error"
-                    variant="text"
-                    @click="removeQuestion(index, question.id)"
-                  />
+                  <div class="d-flex ga-1 no-print">
+                    <v-btn
+                      icon="mdi-refresh"
+                      size="small"
+                      variant="text"
+                      color="info"
+                      @click="
+                        $emit(
+                          'replace-question',
+                          index,
+                          qIndex,
+                          question,
+                        )
+                      "
+                    />
+
+                    <v-btn
+                      icon="mdi-delete"
+                      size="small"
+                      variant="text"
+                      color="error"
+                      @click="$emit('remove-question', index, qIndex)"
+                    />
+                  </div>
+                  
                 </div>
 
                 <!-- IMAGE -->

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import api from "../../plugins/api";
 import PaperSections from "../exams/components/PaperSections.vue";
 import GeneratedPaperPreview from "../exams/components/GeneratedPaperPreview.vue";
+import AnswerKeyPreview from "../exams/components/AnswerKeyPreview.vue";
 import AppEditor from "../exams/components/AppEditor.vue";
 import { useUIStore } from "../../stores/snackBar";
 
@@ -107,7 +108,7 @@ const fetchBlueprints = async () => {
   }
 
   try {
-    const res = await api.get("/paper-blueprints-dropdown", {
+    const res = await api.get("/paper-blueprints/dropdown", {
       params: {
         grade_id: filters.value.grade_id,
         subject_id: filters.value.subject_id,
@@ -204,7 +205,7 @@ const addQuestionToSection = (question, sectionIndex = 0) => {
   }
 
   const exists = paper.value.sections.some((section) =>
-    section.questions.some((q) => q.id === question.id),
+    section.questions.some((q) => Number(q.id) === Number(question.id)),
   );
 
   if (exists) {
@@ -212,9 +213,55 @@ const addQuestionToSection = (question, sectionIndex = 0) => {
     return;
   }
 
-  paper.value.sections[sectionIndex].questions.push(question);
+  const copiedQuestion = {
+    ...question,
+    marks: question.marks || 1,
+  };
+
+  paper.value.sections[sectionIndex].questions.push(copiedQuestion);
 
   ui.showSnackbar("Question added");
+};
+
+const replaceQuestion = async (sectionIndex, questionIndex, oldQuestion) => {
+  const section = paper.value.sections[sectionIndex];
+
+  const usedIds = paper.value.sections.flatMap((section) =>
+    section.questions.map((q) => q.id),
+  );
+
+  try {
+    const res = await api.get("/questions", {
+      params: {
+        for_paper: 1,
+        grade_id: filters.value.grade_id,
+        subject_id: filters.value.subject_id,
+        type: oldQuestion.type,
+        difficulty: oldQuestion.difficulty,
+        bloom_level: oldQuestion.bloom_level,
+      },
+    });
+
+    const available = (res.data.data || res.data).filter(
+      (q) => !usedIds.includes(q.id),
+    );
+
+    if (!available.length) {
+      ui.showSnackbar("No alternate question found", "warning");
+      return;
+    }
+
+    const replacement = {
+      ...available[Math.floor(Math.random() * available.length)],
+      marks: oldQuestion.marks,
+    };
+
+    section.questions.splice(questionIndex, 1, replacement);
+
+    ui.showSnackbar("Question replaced");
+  } catch (err) {
+    ui.showSnackbar("Failed to replace question", "error");
+  }
 };
 
 const savePaper = async () => {
@@ -460,6 +507,13 @@ const printPaper = () => {
       win.print();
     }, 500);
   };
+};
+
+const removeQuestionFromSection = (sectionIndex, questionIndex) => {
+  console.log("Question removed")
+  paper.value.sections[sectionIndex].questions.splice(questionIndex, 1);
+
+  ui.showSnackbar("Question removed");
 };
 
 const totalQuestions = computed(() => {
@@ -947,12 +1001,18 @@ onMounted(async () => {
         </v-card>
 
         <!-- SECTIONS -->
-        <PaperSections v-model="paper.sections" />
+        <PaperSections
+          @print="printPaper"
+          @replace-question="replaceQuestion"
+          @remove-question="removeQuestionFromSection"
+          v-model="paper.sections"
+        />
       </v-col>
 
       <!-- RIGHT PANEL -->
       <v-col cols="12" lg="5">
         <GeneratedPaperPreview :paper="paper" @print="printPaper" />
+        <AnswerKeyPreview :paper="paper" @print="printPaper" />
       </v-col>
     </v-row>
   </div>
