@@ -1,11 +1,8 @@
-<!-- src/views/exam/Questions/QuestionsPage.vue -->
-
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import api from "../../../plugins/api";
 import { useRouter } from "vue-router";
 import { useUIStore } from "../../../stores/snackBar";
-
 
 const router = useRouter();
 const ui = useUIStore();
@@ -86,7 +83,6 @@ const fetchQuestions = async () => {
 
     questions.value = listFromResponse(res.data);
     totalItems.value = Number(res.data.total ?? questions.value.length);
-    
   } catch (err) {
     ui.showSnackbar(
       err.response?.data?.message || "Failed to load questions",
@@ -289,7 +285,7 @@ onMounted(() => {
             variant="outlined"
           />
         </v-col>
-      
+
         <!-- SEARCH -->
         <v-col cols="12" md="10">
           <v-text-field
@@ -306,14 +302,14 @@ onMounted(() => {
     <!-- TABLE -->
     <v-card class="rounded-xl" elevation="0">
       <v-data-table-server
-          v-model:items-per-page="options.itemsPerPage"
-          v-model:page="options.page"
-          :headers="headers"
-          :items="questions"
-          :items-length="totalItems"
-          :loading="loading"
-          item-value="id"
-        >
+        v-model:items-per-page="options.itemsPerPage"
+        v-model:page="options.page"
+        :headers="headers"
+        :items="questions"
+        :items-length="totalItems"
+        :loading="loading"
+        item-value="id"
+      >
         <template #item.question="{ item }">
           <div class="py-3 question-html">
             <v-img
@@ -323,7 +319,31 @@ onMounted(() => {
               class="mb-2 rounded"
             />
 
-            <MathContent :html="tableItem(item).question" />
+            <!-- LANGUAGE QUESTIONS -->
+            <template v-if="tableItem(item).languageItems?.length">
+              <div class="font-weight-bold mb-2">
+                {{
+                  tableItem(item).question_type?.name || tableItem(item).type
+                }}
+              </div>
+
+              <div class="d-flex flex-wrap ga-2">
+                <v-chip
+                  v-for="row in tableItem(item).languageItems"
+                  :key="row.id"
+                  color="deep-purple"
+                  variant="tonal"
+                  size="small"
+                >
+                  {{ row.word }}
+                </v-chip>
+              </div>
+            </template>
+            
+            <!-- NORMAL QUESTIONS -->
+            <template v-else>
+              <MathContent :html="tableItem(item).question" />
+            </template>
 
             <div
               v-if="tableItem(item).rejection_reason"

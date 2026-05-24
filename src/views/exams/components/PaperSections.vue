@@ -123,7 +123,7 @@ onMounted(() => {
               density="compact"
               hide-details
               label="Section Name"
-              style="max-width: 220px"
+              style="min-width: 150px"
             />
 
             <!-- TOTAL -->

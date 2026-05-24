@@ -3,7 +3,6 @@ import { ref, computed, onMounted, watch } from "vue";
 import api from "../../plugins/api";
 import PaperSections from "../exams/components/PaperSections.vue";
 import GeneratedPaperPreview from "../exams/components/GeneratedPaperPreview.vue";
-import AnswerKeyPreview from "../exams/components/AnswerKeyPreview.vue";
 import AppEditor from "../exams/components/AppEditor.vue";
 import { useUIStore } from "../../stores/snackBar";
 
@@ -161,7 +160,11 @@ const fetchQuestions = async () => {
       },
     });
 
-    questions.value = res.data.data || res.data;
+    // questions.value = res.data.data || res.data;
+    questions.value = (res.data.data || res.data).map((q) => ({
+      ...q,
+      selected_items: [],
+    }));
   } catch (err) {
     ui.showSnackbar("Failed to load questions", "error");
   } finally {
@@ -204,6 +207,59 @@ const addQuestionToSection = (question, sectionIndex = 0) => {
     });
   }
 
+  if (question.is_language_group) {
+    const selectedItems = question.selected_items || [];
+
+    if (!selectedItems.length) {
+      ui.showSnackbar("Please select at least one word", "warning");
+      return;
+    }
+
+    const ids = selectedItems.map((row) => row.id);
+
+    const exists = paper.value.sections.some((section) =>
+      section.questions.some(
+        (q) =>
+          q.is_language_question_group &&
+          JSON.stringify(q.language_question_ids) === JSON.stringify(ids),
+      ),
+    );
+
+    if (exists) {
+      ui.showSnackbar("Selected words already added", "warning");
+      return;
+    }
+
+    paper.value.sections[sectionIndex].questions.push({
+      id: `language_group_${ids.join("_")}`,
+
+      is_language_question_group: true,
+      language_question_ids: ids,
+
+      type: question.type,
+      type_name: question.type_name || question.type,
+
+      question: selectedItems.map((row) => row.question).join(", "),
+      answer: selectedItems
+        .map((row) =>
+          row.answer ? `${row.question} - ${row.answer}` : row.question,
+        )
+        .join("<br>"),
+
+      difficulty: question.difficulty,
+      bloom_level: question.bloom_level,
+      marks: selectedItems.reduce(
+        (sum, row) => sum + Number(row.marks || question.marks || 1),
+        0,
+      ),
+    });
+
+    question.selected_items = [];
+
+    ui.showSnackbar("Selected words added");
+    return;
+  }
+
   const exists = paper.value.sections.some((section) =>
     section.questions.some((q) => Number(q.id) === Number(question.id)),
   );
@@ -213,12 +269,10 @@ const addQuestionToSection = (question, sectionIndex = 0) => {
     return;
   }
 
-  const copiedQuestion = {
+  paper.value.sections[sectionIndex].questions.push({
     ...question,
     marks: question.marks || 1,
-  };
-
-  paper.value.sections[sectionIndex].questions.push(copiedQuestion);
+  });
 
   ui.showSnackbar("Question added");
 };
@@ -287,7 +341,11 @@ const savePaper = async () => {
 
       questions: paper.value.sections.flatMap((section) =>
         section.questions.map((q, index) => ({
-          question_id: q.id,
+          question_id: q.is_language_question ? null : q.id,
+          language_question_id: q.is_language_question
+            ? q.language_question_id
+            : null,
+          is_language_question: q.is_language_question ? 1 : 0,
           marks: q.marks,
           section: section.name,
           instructions: section.instructions,
@@ -510,7 +568,7 @@ const printPaper = () => {
 };
 
 const removeQuestionFromSection = (sectionIndex, questionIndex) => {
-  console.log("Question removed")
+  console.log("Question removed");
   paper.value.sections[sectionIndex].questions.splice(questionIndex, 1);
 
   ui.showSnackbar("Question removed");
@@ -988,7 +1046,27 @@ onMounted(async () => {
                 </v-btn>
               </div>
 
-              <MathContent :html="question.question" />
+              <div
+                v-if="question.is_language_group"
+                class="d-flex flex-wrap ga-2"
+              >
+                <v-chip-group v-model="question.selected_items" multiple column>
+                  <v-chip
+                    v-for="row in question.items"
+                    :key="row.id"
+                    :value="row"
+                    size="small"
+                    color="deep-purple"
+                    variant="tonal"
+                    filter
+                  >
+                    {{ row.question }}
+                  </v-chip>
+                </v-chip-group>
+              </div>
+              <div v-else>
+                <MathContent :html="question.question" />
+              </div>
             </div>
 
             <div
@@ -1012,7 +1090,6 @@ onMounted(async () => {
       <!-- RIGHT PANEL -->
       <v-col cols="12" lg="5">
         <GeneratedPaperPreview :paper="paper" @print="printPaper" />
-        <AnswerKeyPreview :paper="paper" @print="printPaper" />
       </v-col>
     </v-row>
   </div>

@@ -36,6 +36,31 @@ const defaultMatchRows = () => [
   { left: "", right: "" },
 ];
 
+const contentBasedTypes = ["word_meaning", "make_sentence", "difficult_words"];
+
+const isContentBasedType = computed(() => {
+  return contentBasedTypes.includes(form.value.type);
+});
+
+const blankContentItem = () => {
+  if (form.value.type === "word_meaning") {
+    return {
+      word: "",
+      meaning: "",
+    };
+  }
+
+  if (form.value.type === "make_sentence") {
+    return {
+      word: "",
+      sentence: "",
+    };
+  }
+
+  return {
+    word: "",
+  };
+};
 // Task
 const fetchTaskInfo = async () => {
   if (!route.query.task_id) return;
@@ -130,15 +155,15 @@ const form = ref({
   grade_id: null,
   subject_id: null,
   lesson_id: null,
-  type: "mcq",
+  type: null,
   difficulty: "medium",
-  bloom_level: "remember",
+  bloom_level: null,
   marks: 1,
   question: "",
   answer: "",
   explanation: "",
   question_image: null,
-
+  content_items: [],
   options: defaultOptions(),
 
   matches: defaultMatchRows(),
@@ -197,6 +222,12 @@ const isMatchColumn = computed(() => {
   return form.value.type === "match_column";
 });
 
+const isLanguageContent = computed(() => {
+  return ["difficult_words", "word_meaning", "make_sentence"].includes(
+    form.value.type,
+  );
+});
+
 const addOption = () => {
   form.value.options.push({
     option_text: "",
@@ -237,7 +268,7 @@ const fetchQuestionForEdit = async () => {
 
   Object.assign(form.value, {
     id: q.id,
-    type: q.type, // set after fetchQuestionTypes()
+    type: q.type,
     difficulty: q.difficulty,
     bloom_level: q.bloom_level,
     marks: q.marks,
@@ -265,12 +296,67 @@ const fetchQuestionForEdit = async () => {
         }))
       : defaultMatchRows(),
   });
+
+  if (contentBasedTypes.includes(q.type)) {
+    form.value.content_items = (q.language_items || []).map((item) => ({
+      id: item.id,
+      word: item.word || "",
+      meaning: q.type === "word_meaning" ? item.answer || "" : "",
+      sentence: q.type === "make_sentence" ? item.answer || "" : "",
+      answer: item.answer || "",
+    }));
+
+    if (!form.value.content_items.length) {
+      form.value.content_items = [blankContentItem()];
+    }
+  }
+
 };
 
 const save = async () => {
   errors.value = {};
 
   try {
+    /* Prepare content-based question types */
+    if (isContentBasedType.value) {
+      const validItems = form.value.content_items.filter(
+        (item) => item.word && item.word.trim() !== "",
+      );
+
+      if (!validItems.length) {
+        ui.showSnackbar("Please add at least one word", "warning");
+        return;
+      }
+
+      if (form.value.type === "word_meaning") {
+        const missingMeaning = validItems.some(
+          (item) => !item.meaning || item.meaning.trim() === "",
+        );
+
+        if (missingMeaning) {
+          ui.showSnackbar("Please enter meaning for all words", "warning");
+          return;
+        }
+      }
+
+      if (form.value.type === "make_sentence") {
+        const missingSentence = validItems.some(
+          (item) => !item.sentence || item.sentence.trim() === "",
+        );
+
+        if (missingSentence) {
+          ui.showSnackbar("Please enter sentence for all words", "warning");
+          return;
+        }
+      }
+    }
+
+    /* Basic Validation */
+    if (!form.value.question || String(form.value.question).trim() === "") {
+      ui.showSnackbar("Please enter question", "warning");
+      return;
+    }
+
     const formData = new FormData();
 
     formData.append("grade_id", form.value.grade_id);
@@ -279,19 +365,53 @@ const save = async () => {
     formData.append("task_id", route.query.task_id || "");
     formData.append("type", form.value.type);
     formData.append("difficulty", form.value.difficulty);
-    formData.append("bloom_level", form.value.bloom_level);
+    formData.append("bloom_level", form.value.bloom_level || "");
     formData.append("marks", form.value.marks);
     formData.append("question", form.value.question);
-    formData.append("answer", form.value.answer);
-    formData.append("explanation", form.value.explanation);
+    formData.append("answer", form.value.answer || "");
+    formData.append("explanation", form.value.explanation || "");
 
+    /* Optional Content Items JSON */
+    if (isContentBasedType.value) {
+      formData.append(
+        "content_items",
+        JSON.stringify(form.value.content_items),
+      );
+    }
+
+    /* Question Image */
     if (form.value.question_image) {
       formData.append("question_image", form.value.question_image);
     }
 
+    /* MCQ Options */
     if (isMCQ.value) {
-      form.value.options.forEach((option, index) => {
-        formData.append(`options[${index}][option_text]`, option.option_text);
+      const validOptions = form.value.options.filter(
+        (option) =>
+          option.option_text || option.option_image || option.old_option_image,
+      );
+
+      if (validOptions.length < 3) {
+        ui.showSnackbar("Minimum 3 options required", "warning");
+        return;
+      }
+
+      const hasCorrect = validOptions.some((option) => option.is_correct);
+
+      if (!hasCorrect) {
+        ui.showSnackbar("Please select correct option", "warning");
+        return;
+      }
+
+      validOptions.forEach((option, index) => {
+        if (option.id) {
+          formData.append(`options[${index}][id]`, option.id);
+        }
+
+        formData.append(
+          `options[${index}][option_text]`,
+          option.option_text || "",
+        );
 
         formData.append(
           `options[${index}][is_correct]`,
@@ -304,18 +424,49 @@ const save = async () => {
             option.option_image,
           );
         }
-      });
 
-      if (form.value.options.length < 3) {
-        ui.showSnackbar("Minimum 3 options required", "warning");
+        if (option.old_option_image) {
+          formData.append(
+            `options[${index}][old_option_image]`,
+            option.old_option_image,
+          );
+        }
+      });
+    }
+
+    /* Match Column */
+    if (form.value.type === "match_column") {
+      const validMatches = form.value.matches.filter(
+        (row) =>
+          (row.left && row.left.trim() !== "") ||
+          (row.right && row.right.trim() !== ""),
+      );
+
+      if (!validMatches.length) {
+        ui.showSnackbar("Please add at least one match pair", "warning");
         return;
       }
+
+      const incompletePair = validMatches.some(
+        (row) =>
+          !row.left ||
+          row.left.trim() === "" ||
+          !row.right ||
+          row.right.trim() === "",
+      );
+
+      if (incompletePair) {
+        ui.showSnackbar(
+          "Please complete both columns in match pairs",
+          "warning",
+        );
+        return;
+      }
+
+      formData.append("matches", JSON.stringify(validMatches));
     }
 
-    if (form.value.type === "match_column") {
-      formData.append("matches", JSON.stringify(form.value.matches));
-    }
-
+    /* Save / Update */
     if (isEditMode.value) {
       formData.append("_method", "PUT");
 
@@ -328,13 +479,29 @@ const save = async () => {
       ui.showSnackbar("Question updated successfully");
       router.push({ name: "questions.index" });
     } else {
+      console.log(
+        "Form Data to be sent:",
+        formData.values
+          ? Object.fromEntries(formData.entries())
+          : "No form data entries",
+      );
       await api.post("/questions", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
-      form.value.question = null;
+
       ui.showSnackbar("Question saved successfully");
+
+      form.value.question = "";
+      form.value.answer = "";
+      form.value.explanation = "";
+      form.value.question_image = null;
+      aiSuggestion.value = null;
+
+      if (isContentBasedType.value) {
+        form.value.content_items = [blankContentItem()];
+      }
 
       if (!isEditMode.value && route.query.task_id) {
         await fetchTaskInfo();
@@ -342,7 +509,11 @@ const save = async () => {
     }
   } catch (err) {
     if (err.response?.status === 422) {
-      errors.value = err.response.data.errors;
+      errors.value = err.response.data.errors || {};
+      ui.showSnackbar(
+        Object.values(errors.value).flat()[0] || "Validation failed",
+        "error",
+      );
     } else if (err.response?.status === 403) {
       ui.showSnackbar(err.response.data.message, "error");
     } else {
@@ -405,6 +576,20 @@ const suggestBloomLevel = async () => {
     aiLoading.value = false;
   }
 };
+
+watch(
+  () => form.value.type,
+  () => {
+    if (pageLoading.value) return;
+
+    if (isContentBasedType.value) {
+      form.value.content_items = [blankContentItem()];
+      form.value.answer = "";
+      form.value.options = [];
+      form.value.matches = [];
+    }
+  },
+);
 
 watch(
   () => form.value.grade_id,
@@ -688,44 +873,106 @@ onMounted(async () => {
         />
       </v-col>
     </v-row>
-    <v-alert v-if="aiSuggestion" type="info" variant="tonal" class="mt-2">
+
+    <v-alert v-if="aiSuggestion" type="info" variant="tonal" class="mb-5">
       Suggested Level:
       <strong>{{ aiSuggestion.level }}</strong>
       <br />
       {{ aiSuggestion.reason }}
     </v-alert>
     <!-- QUESTION -->
-    <v-card class="pa-4 mb-6" variant="outlined">
-      <div class="text-subtitle-1 font-weight-bold mb-2">
-        Question
-        <v-space></v-space>
+
+    <template v-if="!isContentBasedType || isLanguageContent">
+      <v-card class="pa-4 mb-6" variant="outlined">
+        <div class="text-subtitle-1 font-weight-bold mb-2">
+          Question
+          <v-space></v-space>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-creation"
+            :loading="aiLoading"
+            @click="suggestBloomLevel"
+          >
+            Suggest Bloom
+          </v-btn>
+        </div>
+
+        <AppEditor v-model="form.question" />
+
+        <v-file-input
+          v-model="form.question_image"
+          class="mt-4"
+          label="Question Image"
+          accept="image/*"
+          :disabled="taskInfo?.status === 'completed'"
+        />
+        <v-img
+          v-if="form.old_question_image"
+          :src="form.old_question_image"
+          width="140"
+          class="mt-2 rounded"
+          :disabled="taskInfo?.status === 'completed'"
+        />
+      </v-card>
+    </template>
+
+    <!-- Language content-based question types (like word meaning, make sentence)  -->
+    <v-card
+      v-if="isLanguageContent"
+      class="pa-4 rounded-xl mb-4"
+      variant="outlined"
+    >
+      <div class="d-flex justify-space-between align-center mb-4">
+        <div class="text-h6 font-weight-bold text-capitalize">
+          {{ form.type.replaceAll("_", " ") }} Items
+        </div>
+
         <v-btn
           color="primary"
           variant="tonal"
-          prepend-icon="mdi-creation"
-          :loading="aiLoading"
-          @click="suggestBloomLevel"
+          prepend-icon="mdi-plus"
+          @click="form.content_items.push(blankContentItem())"
         >
-          Suggest Bloom
+          Add Row
         </v-btn>
       </div>
 
-      <AppEditor v-model="form.question" />
+      <v-row
+        v-for="(item, index) in form.content_items"
+        :key="index"
+        class="align-center"
+      >
+        <v-col cols="12" md="5">
+          <v-text-field v-model="item.word" label="Word" variant="outlined" />
+        </v-col>
 
-      <v-file-input
-        v-model="form.question_image"
-        class="mt-4"
-        label="Question Image"
-        accept="image/*"
-        :disabled="taskInfo?.status === 'completed'"
-      />
-      <v-img
-        v-if="form.old_question_image"
-        :src="form.old_question_image"
-        width="140"
-        class="mt-2 rounded"
-        :disabled="taskInfo?.status === 'completed'"
-      />
+        <v-col v-if="form.type === 'word_meaning'" cols="12" md="5">
+          <v-text-field
+            v-model="item.meaning"
+            label="Meaning"
+            variant="outlined"
+          />
+        </v-col>
+
+        <v-col v-if="form.type === 'make_sentence'" cols="12" md="5">
+          <v-text-field
+            v-model="item.sentence"
+            label="Sentence"
+            variant="outlined"
+          />
+        </v-col>
+
+        <v-col cols="12" md="2">
+          <v-btn
+            icon="mdi-delete"
+            color="error"
+            variant="text"
+            :disabled="form.content_items.length === 1"
+            @click="form.content_items.splice(index, 1)"
+          />
+        </v-col>
+      </v-row>
     </v-card>
 
     <!-- MCQ OPTIONS -->
@@ -845,14 +1092,22 @@ onMounted(async () => {
     </v-card>
 
     <!-- ANSWER -->
-    <v-card class="pa-4 mb-6" variant="outlined">
+    <v-card
+      v-if="!isLanguageContent && !isMatchColumn"
+      class="pa-4 mb-6"
+      variant="outlined"
+    >
       <div class="text-subtitle-1 font-weight-bold mb-2">Answer</div>
 
       <AppEditor v-model="form.answer" />
     </v-card>
 
     <!-- EXPLANATION -->
-    <v-card class="pa-4" variant="outlined">
+    <v-card
+      v-if="!isLanguageContent && !isMatchColumn"
+      class="pa-4"
+      variant="outlined"
+    >
       <div class="text-subtitle-1 font-weight-bold mb-2">Explanation</div>
 
       <AppEditor

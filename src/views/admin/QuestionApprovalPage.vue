@@ -289,12 +289,25 @@ onMounted(() => {
               max-width="120"
               class="rounded mt-2"
             />
-            
-            <v-chip v-if="item.type === 'match_column' && item.match_pairs?.length" size="small" color="primary" variant="tonal">
+
+            <v-chip
+              v-if="item.type === 'match_column' && item.match_pairs?.length"
+              size="small"
+              color="primary"
+              variant="tonal"
+            >
               {{ item.match_pairs.length }} match rows
             </v-chip>
+
+            <v-chip
+              v-if="item.type === 'word_meaning' && item.language_items?.length"
+              size="small"
+              color="primary"
+              variant="tonal"
+            >
+              {{ item.language_items.length }} Word items
+            </v-chip>
           </div>
-          
         </template>
 
         <!-- CREATED BY -->
@@ -418,6 +431,11 @@ onMounted(() => {
           </div>
 
           <MathContent
+            v-if="
+              !['word_meaning', 'difficult_words', 'make_sentence'].includes(
+                selectedQuestion.type,
+              )
+            "
             class="preview-question-html mb-4"
             :html="selectedQuestion.question"
           />
@@ -452,6 +470,55 @@ onMounted(() => {
                   <td>{{ index + 1 }}. {{ pair.left_text }}</td>
                   <td>
                     {{ String.fromCharCode(65 + index) }}. {{ pair.right_text }}
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </div>
+
+          <!-- LANGUAGE QUESTIONS -->
+          <div
+            v-if="
+              ['word_meaning', 'difficult_words', 'make_sentence'].includes(
+                selectedQuestion.type,
+              ) && selectedQuestion.language_items?.length
+            "
+            class="mt-4"
+          >
+            <v-table density="comfortable">
+              <thead>
+                <tr>
+                  <th width="80">#</th>
+
+                  <th>Word</th>
+
+                  <th v-if="selectedQuestion.type === 'word_meaning'">
+                    Meaning
+                  </th>
+
+                  <th v-if="selectedQuestion.type === 'make_sentence'">
+                    Sentence
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <tr
+                  v-for="(item, index) in selectedQuestion.language_items"
+                  :key="item.id || index"
+                >
+                  <td>{{ index + 1 }}</td>
+
+                  <td class="font-weight-medium">
+                    {{ item.word }}
+                  </td>
+
+                  <td v-if="selectedQuestion.type === 'word_meaning'">
+                    {{ item.answer }}
+                  </td>
+
+                  <td v-if="selectedQuestion.type === 'make_sentence'">
+                    {{ item.answer }}
                   </td>
                 </tr>
               </tbody>

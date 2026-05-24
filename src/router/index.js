@@ -35,6 +35,7 @@ const routes = [
       { path: 'questions', name:'questions.index', component: () => import('../views/exams/Questions/QuestionsPage.vue'), meta: {title:'All Questions'} },
       { path: 'questions/create', name:'questions.create', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Create Question'} },
       { path: 'questions/:id/edit', name:'questions.edit', component: () => import('../views/exams/Questions/QuestionForm.vue'), meta: {title:'Edit Question'} },
+      { path: "language-questions/edit", name: "language.questions.edit", component: () => import('../views/exams/Questions/LanguageQuestionEdit.vue'), meta: { title: "Edit Language Questions" } },
       { path: 'papers', name:'papers.index', component: () => import('../views/exams/Papers/PapersPage.vue'), meta: {title:'All Papers'} },
       { path: 'papers/:id/edit', name:'paper.edit', component: () => import('../views/exams/Papers/PaperCreator.vue'), meta: {title:'Edit Papers'} },
       { path: 'papers/creator', name:'papers.creator', component: () => import('../views/exams/Papers/PaperCreator.vue'), meta: {title:'Create Paper'} },
