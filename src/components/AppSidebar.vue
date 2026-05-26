@@ -38,7 +38,8 @@ const initials = computed(() => {
 
 const menu = computed(() => [
   { title: "Dashboard", icon: "mdi-view-dashboard", routeName: "Dashboard", roles: ["admin", "student"], },
-  { title: "Teacher Dashboard", icon: "mdi-view-dashboard", routeName: "teacher.dashboard", roles: ["admin", "teacher"], },
+  // { title: "Teacher Dashboard", icon: "mdi-view-dashboard", routeName: "teacher.dashboard", roles: ["admin", "teacher"], },
+  { title: "Teacher Analytics", icon: "mdi-view-dashboard", routeName: "teacher.analytics", roles: ["admin", "teacher"], },
   { title: "Teachers", icon: "mdi-account-tie", roles: ["admin"],
     children: [
       { title: "All Teachers", icon: "mdi-account-group", routeName: "teachers.index", roles: ["admin"], },

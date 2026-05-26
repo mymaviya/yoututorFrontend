@@ -50,6 +50,7 @@ const routes = [
 
       // Reports
       { path: 'reports/teacher-progress', name:'teacher.progress', component: () => import('../views/reports/TeacherProgressReport.vue'), meta: {title:'Teachers Progress Report'}},
+      { path: "/teacher-analytics", name: "teacher.analytics", component: () => import("../views/admin/TeacherAnalyticsDashboard.vue"), meta: { title: "Teacher Analytics" }},
 
       // Assign Task To Teachers
 
