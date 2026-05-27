@@ -69,6 +69,17 @@ const routes = [
       { path: 'paper-blueprints', name: 'paper.blueprints', component: () => import('../views/admin/PaperBlueprints.vue'), meta: { title: 'Paper Blueprints' } },
       { path: 'question-types', name: 'question.types', component: () => import('../views/admin/QuestionTypes.vue'), meta: { title: 'Question Types' } },
       { path: 'paper-generator', name: 'paper.generator', component: () => import('../views/admin/PaperGenerator.vue'), meta: { title: 'Paper Generator' } },
+
+      { path: "/permissions", name: "permissions.index", component: () => import("../views/admin/permissions/PermissionManagement.vue"), meta: { title: "Permission Management" } },
+
+      // Role
+      { path: "/roles", name: "roles.index", component: () => import("../views/admin/roles/RolesPage.vue"), meta: { title: "Roles Management" } },
+      { path: "/roles/create", name: "roles.create", component: () => import("../views/admin/roles/RoleForm.vue"), meta: { title: "Create Role" } },
+      { path: "/roles/:id/edit", name: "roles.edit", component: () => import("../views/admin/roles/RoleForm.vue"), meta: { title: "Edit Role" } },
+
+      { path: "/users", name: "users.index", component: () => import("../views/admin/users/UsersPage.vue"), meta: { title: "Users" } },
+      { path: "/users/create", name: "users.create", component: () => import("../views/admin/users/UserForm.vue"), meta: { title: "Create User" } },
+      { path: "/users/:id/edit", name: "users.edit", component: () => import("../views/admin/users/UserForm.vue"), meta: { title: "Edit User" } },
       
 
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue'), meta: {title:'Login'} },

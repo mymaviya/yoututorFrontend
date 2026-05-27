@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', {
     },
     
     async login(credentials) {
-      try {
+      
         const res = await api.post('/login', credentials)
 
         this.token = res.data.token
@@ -35,26 +35,29 @@ export const useAuthStore = defineStore('auth', {
 
         api.defaults.headers.common.Authorization = `Bearer ${res.data.token}`
 
-        return res
-      } catch (error) {
-        throw error.response?.data || error
-      }
     },
 
     async fetchUser() {
       try {
         const res = await api.get('/current-user')
         this.user = res.data
+        this.role = res.data.role;
         console.log('Fetched user:', this.user.name)
       } catch {
         this.logout()
       }
     },
 
-    logout() {
-      this.token = null
-      this.user = null
-      localStorage.removeItem('token')
-    }
+    async logout() {
+      try {
+        await api.post("/logout");
+      } catch (e) {
+        // ignore
+      }
+
+      localStorage.removeItem("token");
+      this.user = null;
+      this.token = null;
+    },
   }
 })

@@ -635,7 +635,7 @@ onMounted(() => {
         <v-card-actions v-if="selectedPortion?.status === 'submitted'">
           <v-spacer />
 
-          <v-btn color="success" @click="approvePortion(selectedPortion)">
+          <v-btn v-if="permission.can('approve_questions')" color="success" @click="approvePortion(selectedPortion)">
             Approve
           </v-btn>
 

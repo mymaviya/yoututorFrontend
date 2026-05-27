@@ -150,7 +150,19 @@ const menu = computed(() => [
       { title: "Subjects", icon: "mdi-book-open-page-variant", routeName: "subjects.index", roles: ["admin"], },
       { title: "Lessons", icon: "mdi-book-education", routeName: "lessons.index",  roles: ["admin"], },
       { title: "Exam Names", icon: "mdi-format-list-text", routeName: "exam.names", roles: ["admin"], },
-      { title: 'Question Types', icon: 'mdi-format-list-bulleted-type', routeName: 'question.types', roles: ['admin'] },
+      { title: 'Question Types', icon: 'mdi-format-list-bulleted-type', routeName: 'question.types', roles: ['admin'] },      
+    ],
+  },
+  {
+    title: "User Roles", icon: "mdi-account-cog", roles: ["admin"],
+    children: [
+      { title: "All Users", icon: "mdi-account-group", routeName: "users.index", roles: ["admin"], },
+      { title: "Create User", icon: "mdi-account-plus", routeName: "users.create", roles: ["admin"], },
+      { title: "Roles", icon: "mdi-account-group", routeName: "roles.index", roles: ["admin"], },
+      { title: "Roles", icon: "mdi-account-group", routeName: "roles.index", roles: ["admin"], },
+      { title: "Create Role", icon: "mdi-account-plus", routeName: "roles.create", roles: ["admin"], },
+      { title: 'Permissions', icon: 'mdi-shield-check', routeName: 'permissions.index', roles: ['admin'] },
+     
     ],
   },
   {

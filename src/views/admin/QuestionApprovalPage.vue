@@ -564,7 +564,7 @@ onMounted(() => {
           <v-spacer />
 
           <v-btn
-            v-if="selectedQuestion?.status !== 'approved'"
+            v-if="permission.can('approve_questions') && selectedQuestion?.status !== 'approved'"
             color="success"
             @click="approveQuestion(selectedQuestion)"
           >
@@ -572,7 +572,7 @@ onMounted(() => {
           </v-btn>
 
           <v-btn
-            v-if="selectedQuestion?.status !== 'rejected'"
+            v-if="permission.can('approve_questions') && selectedQuestion?.status !== 'rejected'"
             color="error"
             variant="tonal"
             @click="openReject(selectedQuestion)"

@@ -4,6 +4,7 @@ import { useUIStore } from '../stores/snackBar'
 const silentRoutes = [
   '/notifications',
   '/notifications/unread-count'
+  
 ]
 
 const isSilentRequest = (config) => {
@@ -59,6 +60,10 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401) {
       ui.showSnackbar('Unauthorized - login again', 'error')
+    }
+
+    if (error.response?.status === 403) {
+      ui.showSnackbar(error.response?.data?.message || "Login failed", "error")
     }
 
     return Promise.reject(error)

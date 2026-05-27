@@ -7,6 +7,8 @@ import { useAuthStore } from "../stores/auth";
 import AppSidebar from "../components/AppSidebar.vue";
 import { useUIStore } from "../stores/snackBar";
 
+import LoginTimeCountdown from "../components/LoginTimeCountdown.vue";
+
 const router = useRouter();
 const route = useRoute();
 const theme = useTheme();
@@ -144,6 +146,12 @@ onMounted(() => {
   }, 30000);
 });
 
+onMounted(async () => {
+  if (auth.user && localStorage.getItem("token")) {
+    await auth.fetchUser();
+  }
+});
+
 onBeforeUnmount(() => {
   if (notificationTimer) {
     clearInterval(notificationTimer);
@@ -168,6 +176,11 @@ onBeforeUnmount(() => {
     <v-spacer />
 
     <!-- THEME -->
+
+    <LoginTimeCountdown
+      class="me-4"
+      :end-time="auth.user?.daily_login_end_time || null"
+    />
     <v-btn
       icon
       variant="tonal"
