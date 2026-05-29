@@ -18,6 +18,7 @@ const errors = ref({});
 const form = ref({
   name: "",
   slug: "",
+  bypass_device_restriction: false,
   permissions: [],
 });
 
@@ -47,6 +48,7 @@ const fetchRole = async () => {
 
     form.value.name = role.name;
     form.value.slug = role.slug;
+    form.value.bypass_device_restriction = role.bypass_device_restriction;
     form.value.permissions = (role.permissions || []).map((p) => p.slug);
   } finally {
     loading.value = false;
@@ -61,6 +63,7 @@ const saveRole = async () => {
     const payload = {
       name: form.value.name,
       slug: form.value.slug,
+      bypass_device_restriction: form.value.bypass_device_restriction,
       permissions: form.value.permissions,
     };
 
@@ -219,6 +222,26 @@ onMounted(async () => {
         </div>
 
         <div class="d-flex ga-2 align-center">
+          <v-chip-group v-model="form.bypass_device_restriction" mandatory>
+            <v-chip
+              :value=1
+              color="success"
+              prepend-icon="mdi-laptop"
+              filter
+            >
+              Any Device Access
+            </v-chip>
+
+            <v-chip
+              :value=0
+              color="warning"
+              prepend-icon="mdi-lock"
+              filter
+            >
+              One Device Only
+            </v-chip>
+          </v-chip-group>
+
           <v-chip color="primary" variant="tonal">
             {{ form.permissions.length }} Selected
           </v-chip>
@@ -309,8 +332,6 @@ onMounted(async () => {
           </v-card>
         </v-col>
       </v-row>
-
-
 
       <v-card-actions class="px-0 mt-4">
         <v-spacer />

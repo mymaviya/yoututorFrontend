@@ -14,6 +14,7 @@ const headers = [
   { title: "Role Name", key: "name" },
   { title: "Slug", key: "slug" },
   { title: "Permissions", key: "permissions_count" },
+  { title: "Device Access", key: "bypass_device_restriction", sortable: false },
   { title: "Actions", key: "actions", sortable: false },
 ];
 
@@ -58,15 +59,23 @@ onMounted(fetchRoles);
     </div>
 
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table
-        :headers="headers"
-        :items="roles"
-        :loading="loading"
-      >
+      <v-data-table :headers="headers" :items="roles" :loading="loading">
         <template #item.permissions_count="{ item }">
           <v-chip color="primary" variant="tonal" size="small">
             {{ item.permissions?.length || 0 }} Permissions
           </v-chip>
+        </template>
+
+        <template #item.bypass_device_restriction="{ item }">
+          <v-chip
+            v-if="item.bypass_device_restriction"
+            color="success"
+            size="small"
+          >
+            Any Device
+          </v-chip>
+
+          <v-chip v-else color="warning" size="small"> Restricted </v-chip>
         </template>
 
         <template #item.actions="{ item }">
@@ -75,7 +84,9 @@ onMounted(fetchRoles);
             size="small"
             variant="text"
             color="primary"
-            @click="router.push({ name: 'roles.edit', params: { id: item.id } })"
+            @click="
+              router.push({ name: 'roles.edit', params: { id: item.id } })
+            "
           />
 
           <v-btn
