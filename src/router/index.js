@@ -47,6 +47,7 @@ const routes = [
       { path: 'teachers', name:'teachers.index', component: () => import('../views/admin/Teachers.vue'), meta: {title:'All Teachers'}},
       { path: 'question-approvals', name: 'question.approvals', component: () => import('../views/admin/QuestionApprovalPage.vue'), meta: { title: 'Question Approval'} },
       { path: 'my-question-tasks', name: 'teacher.my.tasks', component: () => import('../views/teacher/MyQuestionTasks.vue'), meta: { title: 'My Tasks' }},
+      
 
       // Reports
       { path: 'reports/teacher-progress', name:'teacher.progress', component: () => import('../views/reports/TeacherProgressReport.vue'), meta: {title:'Teachers Progress Report'}},
@@ -80,7 +81,15 @@ const routes = [
       { path: "/users", name: "users.index", component: () => import("../views/admin/users/UsersPage.vue"), meta: { title: "Users" } },
       { path: "/users/create", name: "users.create", component: () => import("../views/admin/users/UserForm.vue"), meta: { title: "Create User" } },
       { path: "/users/:id/edit", name: "users.edit", component: () => import("../views/admin/users/UserForm.vue"), meta: { title: "Edit User" } },
-      
+
+      //Security
+      { path: "/security-settings", name: "security.settings", component: () => import("../views/admin/security/SecuritySettingsPage.vue"), meta: { title: "Security Settings" } },
+      { path: "/login-holidays", name: "login.holidays", component: () => import("../views/admin/security/LoginHolidayPage.vue"), meta: { title: "Login Holidays" } },
+      { path: "/user-devices", name: "user.devices", component: () => import("../views/admin/security/UserDevicesPage.vue"), meta: { title: "User Devices" } },
+      { path: "/audit-logs", name: "audit.logs", component: () => import("../views/admin/security/AuditLogsPage.vue"), meta: { title: "Audit Logs" } },
+
+      // All Imports
+      { path: "/teachers/import", name: "teachers.import", component: () => import("../views/admin/teachers/TeacherImportPage.vue"), meta: { title: "Import Teachers" } },
 
       // { path: '/papers/:id', component: () => import('@/views/exam/Papers/PaperView.vue'), meta: {title:'Login'} },
       // { path: '/exams', component: () => import('../views/exams/Exams/ExamsPage.vue'), meta: {title:'Login'} },

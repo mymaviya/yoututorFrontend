@@ -150,7 +150,9 @@ const menu = computed(() => [
       { title: "Subjects", icon: "mdi-book-open-page-variant", routeName: "subjects.index", roles: ["admin"], },
       { title: "Lessons", icon: "mdi-book-education", routeName: "lessons.index",  roles: ["admin"], },
       { title: "Exam Names", icon: "mdi-format-list-text", routeName: "exam.names", roles: ["admin"], },
-      { title: 'Question Types', icon: 'mdi-format-list-bulleted-type', routeName: 'question.types', roles: ['admin'] },      
+      { title: 'Question Types', icon: 'mdi-format-list-bulleted-type', routeName: 'question.types', roles: ['admin'] },    
+      { title: "Teachers Import", icon: "mdi-file-upload", routeName: "teachers.import", roles: ["admin"], },  
+      
     ],
   },
   {
@@ -159,9 +161,9 @@ const menu = computed(() => [
       { title: "All Users", icon: "mdi-account-group", routeName: "users.index", roles: ["admin"], },
       { title: "Create User", icon: "mdi-account-plus", routeName: "users.create", roles: ["admin"], },
       { title: "Roles", icon: "mdi-account-group", routeName: "roles.index", roles: ["admin"], },
-      { title: "Roles", icon: "mdi-account-group", routeName: "roles.index", roles: ["admin"], },
       { title: "Create Role", icon: "mdi-account-plus", routeName: "roles.create", roles: ["admin"], },
       { title: 'Permissions', icon: 'mdi-shield-check', routeName: 'permissions.index', roles: ['admin'] },
+      
      
     ],
   },
@@ -171,7 +173,15 @@ const menu = computed(() => [
     routeName: "dashboard",
     roles: ["admin", "teacher", "student"],
   },
-
+  {
+    title: "Security", icon: "mdi-shield-check", roles: ["admin"],
+    children: [
+      { title: "Security Settings", icon: "mdi-cogs", routeName: "security.settings", roles: ["admin"], },
+      { title: "Login Holidays", icon: "mdi-calendar-clock", routeName: "login.holidays", roles: ["admin"], },
+      { title: "User Devices", icon: "mdi-cellphone", routeName: "user.devices", roles: ["admin"], },
+      { title: "Audit Logs", icon: "mdi-file-find", routeName: "audit.logs", roles: ["admin"], },
+    ],
+  },
   {
     title: "Profile",
     icon: "mdi-account-circle",
