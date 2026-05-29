@@ -38,8 +38,8 @@ const initials = computed(() => {
 
 const menu = computed(() => [
   { title: "Dashboard", icon: "mdi-view-dashboard", routeName: "Dashboard", roles: ["admin", "student"], },
-  // { title: "Teacher Dashboard", icon: "mdi-view-dashboard", routeName: "teacher.dashboard", roles: ["admin", "teacher"], },
-  { title: "Teacher Analytics", icon: "mdi-view-dashboard", routeName: "teacher.analytics", roles: ["admin", "teacher"], },
+  { title: "Teacher Dashboard", icon: "mdi-view-dashboard", routeName: "teacher.dashboard", roles: ["teacher"], },
+  { title: "Teacher Analytics", icon: "mdi-view-dashboard", routeName: "teacher.analytics", roles: ["admin"], },
   { title: "Teachers", icon: "mdi-account-tie", roles: ["admin"],
     children: [
       { title: "All Teachers", icon: "mdi-account-group", routeName: "teachers.index", roles: ["admin"], },
@@ -293,6 +293,7 @@ const logout = async () => {
       <v-divider />
 
       <!-- MENU -->
+       <div class="sidebar-menu">
       <v-list nav density="compact" class="px-2 py-2">
         <template v-for="item in filteredMenu" :key="item.title">
           <!-- SIMPLE ITEM -->
@@ -350,6 +351,7 @@ const logout = async () => {
           </div>
         </template>
       </v-list>
+       </div>
     </div>
     <div class="mt-auto pa-4">
       <v-btn
@@ -454,5 +456,35 @@ const logout = async () => {
 
 .logo-section {
   padding: 12px !important;
+}
+.sidebar-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  flex-shrink: 0;
+}
+
+.sidebar-menu {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Firefox */
+  scrollbar-width: none;
+
+  /* IE/Edge */
+  -ms-overflow-style: none;
+}
+
+.sidebar-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 120, 0.35);
+  border-radius: 10px;
 }
 </style>
