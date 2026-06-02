@@ -27,9 +27,7 @@ const login = async () => {
 
     setTimeout(() => {
       // Role-based redirect
-      if (auth.role === "admin") router.push("/dashboard");
-      else if (auth.role === "teacher") router.push("teacher-dashboard");
-      else router.push("/dashboard");
+      router.push({name: auth.user.dashboard_route || 'Dashboard'});
     }, 100);
   } catch (err) {
     

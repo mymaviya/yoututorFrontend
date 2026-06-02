@@ -18,6 +18,91 @@ const selectedUser = ref(null);
 const rolePermissions = ref([]);
 const userPermissions = ref([]);
 
+const permissionDialog = ref(false);
+const editPermission = ref(false);
+
+const permissionForm = ref({
+  id: null,
+  name: "",
+  slug: "",
+});
+
+const generateSlug = (value) => {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+};
+
+const openAddPermission = () => {
+  permissionForm.value = {
+    id: null,
+    name: "",
+    slug: "",
+  };
+
+  editPermission.value = false;
+  permissionDialog.value = true;
+};
+
+const openEditPermission = (permission) => {
+  permissionForm.value = { ...permission };
+
+  editPermission.value = true;
+  permissionDialog.value = true;
+};
+
+const savePermission = async () => {
+  try {
+    if (editPermission.value) {
+      await api.put(
+        `/permissions/${permissionForm.value.id}`,
+        permissionForm.value
+      );
+    } else {
+      await api.post(
+        "/permissions",
+        permissionForm.value
+      );
+    }
+
+    await fetchData();
+
+    permissionDialog.value = false;
+
+    ui.showSnackbar(
+      "Permission saved successfully",
+      "success"
+    );
+  } catch (e) {
+    ui.showSnackbar(
+      e.response?.data?.message ||
+      "Unable to save permission",
+      "error"
+    );
+  }
+};
+
+const deletePermission = async (permission) => {
+  if (
+    !confirm(
+      `Delete ${permission.name}?`
+    )
+  ) return;
+
+  await api.delete(
+    `/permissions/${permission.id}`
+  );
+
+  await fetchData();
+
+  ui.showSnackbar(
+    "Permission deleted successfully",
+    "success"
+  );
+};
+
 const fetchData = async () => {
   loading.value = true;
 
@@ -91,6 +176,47 @@ onMounted(fetchData);
     </div>
 
     <v-progress-linear v-if="loading" indeterminate class="mb-4" />
+
+    <v-card class="mb-6 rounded-xl" elevation="0">
+  <v-card-title
+    class="d-flex justify-space-between"
+  >
+    <span>Permissions</span>
+
+    <v-btn
+      color="primary"
+      prepend-icon="mdi-plus"
+      @click="openAddPermission"
+    >
+      Add Permission
+    </v-btn>
+  </v-card-title>
+
+  <v-data-table
+    :items="permissions"
+    :headers="[
+      { title:'Name', key:'name' },
+      { title:'Slug', key:'slug' },
+      { title:'Actions', key:'actions' }
+    ]"
+  >
+    <template #item.actions="{ item }">
+      <v-btn
+        icon="mdi-pencil"
+        variant="text"
+        color="primary"
+        @click="openEditPermission(item)"
+      />
+
+      <v-btn
+        icon="mdi-delete"
+        variant="text"
+        color="error"
+        @click="deletePermission(item)"
+      />
+    </template>
+  </v-data-table>
+</v-card>
 
     <v-row>
       <v-col cols="12" md="6">
@@ -187,5 +313,55 @@ onMounted(fetchData);
         </v-card>
       </v-col>
     </v-row>
+    <v-dialog
+  v-model="permissionDialog"
+  max-width="600"
+>
+  <v-card>
+    <v-card-title>
+      {{
+        editPermission
+          ? "Edit Permission"
+          : "Add Permission"
+      }}
+    </v-card-title>
+
+    <v-card-text>
+      <v-text-field
+        v-model="permissionForm.name"
+        label="Permission Name"
+        variant="outlined"
+        @update:model-value="
+          permissionForm.slug =
+          generateSlug($event)
+        "
+      />
+
+      <v-text-field
+        v-model="permissionForm.slug"
+        label="Permission Slug"
+        variant="outlined"
+      />
+    </v-card-text>
+
+    <v-card-actions>
+      <v-spacer />
+
+      <v-btn
+        variant="text"
+        @click="permissionDialog = false"
+      >
+        Cancel
+      </v-btn>
+
+      <v-btn
+        color="primary"
+        @click="savePermission"
+      >
+        Save
+      </v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
   </div>
 </template>

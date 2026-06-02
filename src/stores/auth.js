@@ -39,6 +39,7 @@ export const useAuthStore = defineStore("auth", {
       api.defaults.headers.common.Authorization = `Bearer ${this.token}`;
 
       await this.fetchUser();
+      
     },
 
     async fetchUser() {

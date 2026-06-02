@@ -8,6 +8,7 @@ const route = useRoute();
 const router = useRouter();
 const ui = useUIStore();
 
+const openedPermissionGroups = ref([]);
 const isEdit = computed(() => !!route.params.id);
 
 const loading = ref(false);
@@ -32,6 +33,18 @@ const generateSlug = () => {
     .replace(/[^a-z0-9_]/g, "");
 };
 
+const openSelectedPermissionGroups = () => {
+  const selectedIds = form.value.permissions || [];
+
+  openedPermissionGroups.value = Object.entries(groupedPermissions.value)
+    .filter(([groupName, permissions]) => {
+      return permissions.some((permission) =>
+        selectedIds.includes(permission.id)
+      );
+    })
+    .map(([groupName]) => groupName);
+};
+
 const fetchPermissions = async () => {
   const res = await api.get("/permissions");
   permissions.value = res.data.data || res.data;
@@ -49,7 +62,9 @@ const fetchRole = async () => {
     form.value.name = role.name;
     form.value.slug = role.slug;
     form.value.bypass_device_restriction = role.bypass_device_restriction;
-    form.value.permissions = (role.permissions || []).map((p) => p.slug);
+    form.value.permissions = role.permissions.map(p => p.id);
+    openSelectedPermissionGroups();
+  
   } finally {
     loading.value = false;
   }
@@ -91,39 +106,39 @@ const saveRole = async () => {
   }
 };
 
-const permissionGroups = computed(() => {
-  const groups = {};
+// const permissionGroups = computed(() => {
+//   const groups = {};
 
-  permissions.value.forEach((permission) => {
-    const group = permission.slug.split("_").pop();
+//   permissions.value.forEach((permission) => {
+//     const group = permission.slug.split("_").pop();
 
-    const groupNameMap = {
-      dashboard: "Dashboard",
-      analytics: "Analytics",
-      teachers: "Teachers",
-      questions: "Questions",
-      bank: "Question Bank",
-      types: "Question Types",
-      blueprints: "Blueprints",
-      papers: "Papers",
-      exams: "Exams",
-      students: "Students",
-      notifications: "Notifications",
-      roles: "Roles",
-      permissions: "Permissions",
-    };
+//     const groupNameMap = {
+//       dashboard: "Dashboard",
+//       analytics: "Analytics",
+//       teachers: "Teachers",
+//       questions: "Questions",
+//       bank: "Question Bank",
+//       types: "Question Types",
+//       blueprints: "Blueprints",
+//       papers: "Papers",
+//       exams: "Exams",
+//       students: "Students",
+//       notifications: "Notifications",
+//       roles: "Roles",
+//       permissions: "Permissions",
+//     };
 
-    const label = groupNameMap[group] || "Others";
+//     const label = groupNameMap[group] || "Others";
 
-    if (!groups[label]) {
-      groups[label] = [];
-    }
+//     if (!groups[label]) {
+//       groups[label] = [];
+//     }
 
-    groups[label].push(permission);
-  });
+//     groups[label].push(permission);
+//   });
 
-  return groups;
-});
+//   return groups;
+// });
 
 const isPermissionSelected = (slug) => {
   return form.value.permissions.includes(slug);
@@ -162,6 +177,29 @@ const toggleGroupPermissions = (groupPermissions) => {
     ];
   }
 };
+
+const groupedPermissions = computed(() => {
+  const groups = {};
+
+  permissions.value.forEach((permission) => {
+    const group = permission.group_name || "Other";
+
+    if (!groups[group]) {
+      groups[group] = [];
+    }
+
+    groups[group].push(permission);
+  });
+
+  return Object.keys(groups)
+    .sort()
+    .reduce((sorted, key) => {
+      sorted[key] = groups[key].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+      return sorted;
+    }, {});
+});
 
 const isGroupSelected = (groupPermissions) => {
   return groupPermissions.every((p) => form.value.permissions.includes(p.slug));
@@ -221,6 +259,8 @@ onMounted(async () => {
           </div>
         </div>
 
+        
+
         <div class="d-flex ga-2 align-center">
           <v-chip-group v-model="form.bypass_device_restriction" mandatory>
             <v-chip
@@ -266,72 +306,46 @@ onMounted(async () => {
         </div>
       </div>
 
+      <v-expansion-panels   v-model="openedPermissionGroups" multiple variant="accordion">
+  <v-expansion-panel
+    v-for="(items, groupName) in groupedPermissions"
+    :key="groupName"
+    :value="groupName"
+  >
+    <v-expansion-panel-title>
+      <div class="d-flex align-center ga-2">
+        <v-icon>mdi-shield-key</v-icon>
+
+        <span class="font-weight-bold">
+          {{ groupName }}
+        </span>
+
+        <v-chip size="small" color="primary" variant="tonal">
+          {{ items.length }}
+        </v-chip>
+      </div>
+    </v-expansion-panel-title>
+
+    <v-expansion-panel-text>
       <v-row>
         <v-col
-          v-for="(groupPermissions, groupName) in permissionGroups"
-          :key="groupName"
+          v-for="permission in items"
+          :key="permission.id"
           cols="12"
-          md="6"
+          md="4"
         >
-          <v-card
-            class="pa-4 rounded-xl permission-group-card"
-            variant="outlined"
-          >
-            <div class="d-flex justify-space-between align-center mb-3">
-              <div>
-                <div class="text-subtitle-1 font-weight-bold">
-                  {{ groupName }}
-                </div>
-
-                <div class="text-caption text-grey">
-                  {{ groupPermissions.length }} permissions
-                </div>
-              </div>
-
-              <v-chip
-                size="small"
-                :color="
-                  isGroupSelected(groupPermissions) ? 'success' : 'primary'
-                "
-                variant="tonal"
-                class="cursor-pointer"
-                @click="toggleGroupPermissions(groupPermissions)"
-              >
-                {{
-                  isGroupSelected(groupPermissions)
-                    ? "Selected"
-                    : "Select Group"
-                }}
-              </v-chip>
-            </div>
-
-            <div class="d-flex flex-wrap ga-2">
-              <v-chip
-                v-for="permission in groupPermissions"
-                :key="permission.id"
-                :color="
-                  isPermissionSelected(permission.slug) ? 'primary' : 'grey'
-                "
-                :variant="
-                  isPermissionSelected(permission.slug) ? 'flat' : 'tonal'
-                "
-                class="permission-chip"
-                @click="togglePermission(permission.slug)"
-              >
-                <v-icon start size="16">
-                  {{
-                    isPermissionSelected(permission.slug)
-                      ? "mdi-check-circle"
-                      : "mdi-circle-outline"
-                  }}
-                </v-icon>
-
-                {{ permission.name }}
-              </v-chip>
-            </div>
-          </v-card>
+          <v-checkbox
+            v-model="form.permissions"
+            :label="permission.name"
+            :value="permission.id"
+            density="compact"
+            hide-details
+          />
         </v-col>
       </v-row>
+    </v-expansion-panel-text>
+  </v-expansion-panel>
+</v-expansion-panels>
 
       <v-card-actions class="px-0 mt-4">
         <v-spacer />
