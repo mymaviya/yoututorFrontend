@@ -1,50 +1,56 @@
-import { defineStore } from 'pinia'
-import api from '../plugins/api'
+import { defineStore } from "pinia";
+import api from "../plugins/api";
 
-export const useAuthStore = defineStore('auth', {
+export const useAuthStore = defineStore("auth", {
   state: () => ({
     drawer: true,
     user: null,
-    token: localStorage.getItem('token') || null,
-    theme: localStorage.getItem('theme') || 'light', // light | dark
+    token: localStorage.getItem("token") || null,
+    theme: localStorage.getItem("theme") || "light", // light | dark
+    permissions: [],
+    sidebarMenus: [],
   }),
 
   getters: {
     isAuth: (state) => !!state.token,
-    role: (state) => state.user?.role
+    role: (state) => state.user?.role,
   },
 
   actions: {
     toggleDrawer() {
-      this.drawer = !this.drawer
+      this.drawer = !this.drawer;
     },
 
     toggleTheme() {
-      this.theme = this.theme === 'light' ? 'dark' : 'light'
-      localStorage.setItem('theme', this.theme)
+      this.theme = this.theme === "light" ? "dark" : "light";
+      localStorage.setItem("theme", this.theme);
     },
-    
+
     async login(credentials) {
-      
-        const res = await api.post('/login', credentials)
+      const res = await api.post("/login", credentials);
 
-        this.token = res.data.token
-        this.user = res.data.user
+      this.token = res.data.token;
+      this.user = res.data.user;
+      this.permissions = res.data.user.permissions || [];
+      this.sidebarMenus = res.data.user.sidebar_menus || [];
 
-        localStorage.setItem('token', this.token)
+      localStorage.setItem("token", this.token);
 
-        api.defaults.headers.common.Authorization = `Bearer ${res.data.token}`
+      api.defaults.headers.common.Authorization = `Bearer ${this.token}`;
 
+      await this.fetchUser();
     },
 
     async fetchUser() {
       try {
-        const res = await api.get('/current-user')
-        this.user = res.data
-        this.role = res.data.role;
-        console.log('Fetched user:', this.user.name)
-      } catch {
-        this.logout()
+        const res = await api.get("/current-user");
+        this.user = res.data;
+        this.permissions = res.data.permissions || [];
+        this.sidebarMenus = res.data.sidebar_menus || [];
+        console.log("SIDEBAR MENUS:", this.sidebarMenus);
+      } catch (error) {
+        console.error(error);
+        this.logout();
       }
     },
 
@@ -59,5 +65,5 @@ export const useAuthStore = defineStore('auth', {
       this.user = null;
       this.token = null;
     },
-  }
-})
+  },
+});

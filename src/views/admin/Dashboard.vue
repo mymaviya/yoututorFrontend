@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../plugins/api'
+import { useAuthStore } from '../../stores/auth'
+
+const auth = useAuthStore()
 
 const loading = ref(false)
 
