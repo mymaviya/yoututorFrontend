@@ -1,9 +1,10 @@
 <script setup>
 import "../../../assets/print.css";
 const props = defineProps({
-  paper: {
-    type: Object,
-    required: true,
+  paper: Object,
+  mode: {
+    type: String,
+    default: "paper",
   },
 });
 
@@ -171,6 +172,35 @@ const getOptionLayout = (question) => {
                   </div>
                 </div>
               </div>
+              <!-- Question -->
+              <div v-if="mode === 'scheme'" class="answer-box">
+                
+                <div v-if="q.answer">
+                <strong>Answer:</strong>
+                <MathContent :html="q.answer" />
+                </div>
+
+                <div
+                  v-else-if="q.options?.some((o) => Number(o.is_correct) === 1)"
+                >
+                  <div
+                    v-for="option in q.options.filter(
+                      (o) => Number(o.is_correct) === 1,
+                    )"
+                    :key="option.id"
+                  >
+                    <strong>Correct Option:</strong>
+                    {{ option.option_text }}
+                  </div>
+                </div>
+
+                <div v-else class="text-grey">Answer not available</div>
+
+                <div v-if="q.explanation" class="mt-2">
+                  <strong>Explanation:</strong>
+                  <MathContent :html="q.explanation" />
+                </div>
+              </div>
             </div>
 
             <div class="marks-box">{{ q.marks }} Marks</div>
@@ -182,8 +212,13 @@ const getOptionLayout = (question) => {
 </template>
 
 <style scoped>
-
-
+.answer-box {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 4px solid #4caf50;
+  background: #f3fff4;
+  font-size: 13px;
+}
 .preview-container {
   height: calc(100vh - 120px);
   position: sticky;

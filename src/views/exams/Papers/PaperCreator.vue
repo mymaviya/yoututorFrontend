@@ -1,4 +1,5 @@
 <script setup>
+import { useTheme } from "vuetify";
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUIStore } from "../../../stores/snackBar";
@@ -10,6 +11,7 @@ import AppEditor from "../../exams/components/AppEditor.vue";
 import draggable from "vuedraggable";
 
 const ui = useUIStore();
+const theme = useTheme();
 
 const loading = ref(false);
 const questions = ref([]);
@@ -23,6 +25,7 @@ const isEditMode = computed(() => !!route.params.id);
 
 const previewDrawer = ref(false);
 const previewQuestion = ref(null);
+const previewMode = ref("paper");
 
 const openPreview = (question) => {
   previewQuestion.value = {
@@ -967,9 +970,15 @@ onMounted(async () => {
           >
             <template #item="{ element }">
               <div
-                class="question-card cursor-grab drag-handle"
+                class="question-card"
                 :class="{
-                  'question-added': isQuestionAdded(element.id),
+                  'question-added-dark':
+                    isQuestionAdded(element.id) &&
+                    theme.global.current.value.dark,
+
+                  'question-added-light':
+                    isQuestionAdded(element.id) &&
+                    !theme.global.current.value.dark,
                 }"
               >
                 <div class="d-flex justify-space-between mb-3">
@@ -984,13 +993,14 @@ onMounted(async () => {
                   </div>
 
                   <v-btn
-                    :disabled="isQuestionAdded(element.id)"
+                    v-if="!isQuestionAdded(element.id)"
                     color="primary"
                     size="small"
                     @click="addQuestion(element)"
                   >
-                    {{ isQuestionAdded(element.id) ? "Added" : "Add" }}
+                    Add
                   </v-btn>
+                  
                 </div>
 
                 <MathContent class="question-html" :html="element.question" />
@@ -1035,7 +1045,16 @@ onMounted(async () => {
               </div>
             </v-card-text>
           </v-card>
-          <LivePaperPreview :paper="paper" @print="printPaper" />
+          <v-btn-toggle v-model="previewMode" mandatory class="mb-4">
+            <v-btn value="paper"> Question Paper </v-btn>
+
+            <v-btn value="scheme"> Marking Scheme </v-btn>
+          </v-btn-toggle>
+          <LivePaperPreview
+            :paper="paper"
+            :mode="previewMode"
+            @print="printPaper"
+          />
         </v-card>
       </v-col>
     </v-row>
@@ -1046,7 +1065,23 @@ onMounted(async () => {
 <style scoped>
 .question-added {
   opacity: 0.5;
-  background: #f5f5f5;
+  border: 1px dashed rgba(76, 175, 80, 0.5) !important;
+  position: relative;
+}
+.added-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+}
+.question-added-light {
+  background: rgba(0,0,0,0.03);
+  border: 1px dashed rgba(76, 175, 80, 0.5) !important;
+}
+
+.question-added-dark {
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(76,175,80,0.5) !important;
 }
 .cursor-grab {
   cursor: grab;
