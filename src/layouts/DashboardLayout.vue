@@ -4,8 +4,10 @@ import { useRouter, useRoute } from "vue-router";
 import { useTheme } from "vuetify";
 import api from "../plugins/api";
 import { useAuthStore } from "../stores/auth";
+import { useAppStore } from "../stores/app";
 import AppSidebar from "../components/AppSidebar.vue";
 import { useUIStore } from "../stores/snackBar";
+
 
 import LoginTimeCountdown from "../components/LoginTimeCountdown.vue";
 
@@ -13,6 +15,7 @@ const router = useRouter();
 const route = useRoute();
 const theme = useTheme();
 const auth = useAuthStore();
+const appStore = useAppStore();
 
 const notificationMenu = ref(false);
 const notifications = ref([]);
@@ -23,6 +26,18 @@ const ui = useUIStore();
 
 const user = computed(() => auth.user || {});
 
+const refreshing = ref(false);
+
+const refreshPage = () => {
+  refreshing.value = true;
+
+  appStore.triggerRefresh();
+
+  setTimeout(() => {
+    refreshing.value = false;
+  }, 800);
+};
+
 const pageTitle = computed(() => {
   return route.meta?.title || "Dashboard";
 });
@@ -30,11 +45,11 @@ const pageTitle = computed(() => {
 const initials = computed(() => {
   return user.value?.name
     ? user.value.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .substring(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase()
     : "U";
 });
 
@@ -134,6 +149,7 @@ watch(notificationMenu, async (val) => {
   }
 });
 
+
 let notificationTimer = null;
 
 onMounted(() => {
@@ -157,6 +173,8 @@ onBeforeUnmount(() => {
     clearInterval(notificationTimer);
   }
 });
+
+
 </script>
 
 <template>
@@ -177,43 +195,27 @@ onBeforeUnmount(() => {
 
     <!-- THEME -->
 
-    <LoginTimeCountdown
-      class="me-4"
-      :end-time="auth.user?.daily_login_end_time || null"
-    />
-    <v-btn
-      icon
-      variant="tonal"
-      color="primary"
-      class="mr-2"
-      @click="toggleTheme"
-    >
+    <LoginTimeCountdown class="me-4" :end-time="auth.user?.daily_login_end_time || null" />
+    <v-tooltip text="Refresh Page">
+      <template #activator="{ props }">
+        <v-btn icon variant="tonal" color="primary mr-2" @click="refreshPage">
+          <v-icon :class="{ 'spin-icon': refreshing }">
+            mdi-refresh
+          </v-icon>
+        </v-btn>
+      </template>
+    </v-tooltip>
+    <v-btn icon variant="tonal" color="primary" class="mr-2" @click="toggleTheme">
       <v-icon>
         {{ isDark ? "mdi-weather-sunny" : "mdi-weather-night" }}
       </v-icon>
     </v-btn>
 
     <!-- NOTIFICATION -->
-    <v-menu
-      v-model="notificationMenu"
-      location="bottom end"
-      offset="10"
-      :close-on-content-click="false"
-    >
+    <v-menu v-model="notificationMenu" location="bottom end" offset="10" :close-on-content-click="false">
       <template #activator="{ props }">
-        <v-btn
-          v-bind="props"
-          icon
-          variant="tonal"
-          color="primary"
-          class="mr-2"
-          @click="fetchNotifications"
-        >
-          <v-badge
-            :content="unreadCount"
-            :model-value="unreadCount > 0"
-            color="error"
-          >
+        <v-btn v-bind="props" icon variant="tonal" color="primary" class="mr-2" @click="fetchNotifications">
+          <v-badge :content="unreadCount" :model-value="unreadCount > 0" color="error">
             <v-icon>mdi-bell-outline</v-icon>
           </v-badge>
         </v-btn>
@@ -223,12 +225,7 @@ onBeforeUnmount(() => {
         <v-card-title class="d-flex justify-space-between align-center">
           Notifications
 
-          <v-btn
-            size="small"
-            variant="text"
-            color="primary"
-            @click="markAllAsRead"
-          >
+          <v-btn size="small" variant="text" color="primary" @click="markAllAsRead">
             Mark all read
           </v-btn>
         </v-card-title>
@@ -236,17 +233,9 @@ onBeforeUnmount(() => {
         <v-divider />
 
         <v-list v-if="notifications.length">
-          <v-list-item
-            v-for="item in notifications"
-            :key="item.id"
-            @click="openNotification(item)"
-          >
+          <v-list-item v-for="item in notifications" :key="item.id" @click="openNotification(item)">
             <template #prepend>
-              <v-badge
-                v-if="item.count > 1"
-                :content="item.count"
-                color="error"
-              >
+              <v-badge v-if="item.count > 1" :content="item.count" color="error">
                 <v-icon color="primary">mdi-bell</v-icon>
               </v-badge>
 
@@ -315,12 +304,7 @@ onBeforeUnmount(() => {
                 {{ user.email }}
               </div>
 
-              <v-chip
-                size="x-small"
-                color="primary"
-                variant="tonal"
-                class="mt-1"
-              >
+              <v-chip size="x-small" color="primary" variant="tonal" class="mt-1">
                 {{ user.role }}
               </v-chip>
             </div>
@@ -330,34 +314,18 @@ onBeforeUnmount(() => {
         <v-divider />
 
         <v-list density="comfortable">
-          <v-list-item
-            prepend-icon="mdi-account-circle"
-            title="My Profile"
-            @click="goProfile"
-          />
+          <v-list-item prepend-icon="mdi-account-circle" title="My Profile" @click="goProfile" />
 
-          <v-list-item
-            prepend-icon="mdi-cog-outline"
-            title="Settings"
-            @click="goSettings"
-          />
+          <v-list-item prepend-icon="mdi-cog-outline" title="Settings" @click="goSettings" />
 
-          <v-list-item
-            prepend-icon="mdi-theme-light-dark"
-            :title="isDark ? 'Light Mode' : 'Dark Mode'"
-            @click="toggleTheme"
-          />
+          <v-list-item prepend-icon="mdi-theme-light-dark" :title="isDark ? 'Light Mode' : 'Dark Mode'"
+            @click="toggleTheme" />
         </v-list>
 
         <v-divider />
 
         <v-list density="comfortable">
-          <v-list-item
-            prepend-icon="mdi-logout"
-            title="Logout"
-            class="text-error"
-            @click="logout"
-          />
+          <v-list-item prepend-icon="mdi-logout" title="Logout" class="text-error" @click="logout" />
         </v-list>
       </v-card>
     </v-menu>
@@ -379,11 +347,9 @@ onBeforeUnmount(() => {
 .main-bg {
   min-height: 100vh;
   background:
-    radial-gradient(
-      circle at top left,
+    radial-gradient(circle at top left,
       rgba(var(--v-theme-primary), 0.08),
-      transparent 28%
-    ),
+      transparent 28%),
     rgb(var(--v-theme-background));
 }
 
@@ -403,5 +369,19 @@ onBeforeUnmount(() => {
 
 .notification-unread {
   background: rgba(var(--v-theme-primary), 0.06);
+}
+
+.spin-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

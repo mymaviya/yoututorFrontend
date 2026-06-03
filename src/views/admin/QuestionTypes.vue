@@ -2,6 +2,8 @@
 import { ref, onMounted } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
+import { usePageRefresh } from "../../composables/usePageRefresh";
+
 
 const ui = useUIStore();
 
@@ -234,10 +236,16 @@ const clearFilters = () => {
   fetchQuestionTypes();
 };
 
-onMounted(() => {
-  fetchGrades();
-  fetchQuestionTypes();
-});
+
+const loadData = async () => {
+   console.log("REFRESH WORKING");
+  await fetchGrades();
+  await fetchQuestionTypes();
+};
+
+onMounted(loadData);
+
+usePageRefresh(loadData);
 </script>
 
 <template>
