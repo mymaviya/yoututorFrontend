@@ -37,6 +37,7 @@ const paper = ref({
   grade_id: null,
   subject_id: null,
   exam_name_id: null,
+  status: "draft",
   sections: [
     {
       name: "Section A",
@@ -698,6 +699,20 @@ onMounted(async () => {
       </div>
 
       <div class="d-flex ga-2">
+        <v-chip
+          v-if="paper.status"
+          :color="
+            {
+              draft: 'orange',
+              finalized: 'success',
+              printed: 'primary',
+              archived: 'error',
+            }[paper.status]
+          "
+          variant="tonal"
+        >
+          {{ paper.status }}
+        </v-chip>
         <v-chip color="primary" variant="tonal">
           {{ totalQuestions }} Questions
         </v-chip>

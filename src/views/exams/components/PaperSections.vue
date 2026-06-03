@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, onMounted } from "vue";
+import draggable from "vuedraggable";
 
 const openSections = ref({});
 
@@ -15,6 +16,7 @@ const emit = defineEmits([
   "print",
   "replace-question",
   "remove-question",
+  "preview-question",
 ]);
 
 const sections = computed({
@@ -42,7 +44,6 @@ const removeSection = (index) => {
 const toggleSection = (index) => {
   openSections.value[index] = !openSections.value[index];
 };
-
 
 const stripHtml = (html = "") => {
   const div = document.createElement("div");
@@ -78,6 +79,21 @@ const getSectionMarks = (section) => {
   });
 
   return total;
+};
+
+const onQuestionDropped = (section) => {
+  const seen = new Set();
+
+  section.questions = section.questions.filter((q) => {
+    if (!q || !q.id) return false;
+
+    if (seen.has(q.id)) {
+      return false;
+    }
+
+    seen.add(q.id);
+    return true;
+  });
 };
 
 onMounted(() => {
@@ -167,153 +183,84 @@ onMounted(() => {
               </div>
 
               <!-- QUESTION LIST -->
-              <div
-                v-for="(question, qIndex) in section.questions"
-                :key="question.id"
-                class="question-card"
+              <draggable
+                v-model="section.questions"
+                item-key="id"
+                handle=".drag-handle"
+                animation="200"
+                :group="{ name: 'questions', pull: true, put: true }"
+                @add="onQuestionDropped(section)"
               >
-                <!-- TOP -->
-                <div class="d-flex justify-space-between align-center mb-3">
-                  <div class="d-flex ga-2">
-                    <!-- NUMBER -->
-                    <v-chip size="small" color="primary">
-                      Q{{ qIndex + 1 }}
-                    </v-chip>
+                <template #item="{ element, index }">
+                  <v-card class="mb-2" rounded="lg" variant="outlined">
+                    <v-card-text>
+                      <div class="d-flex align-center">
+                        <v-icon class="drag-handle mr-2" color="grey">
+                          mdi-drag
+                        </v-icon>
 
-                    <!-- TYPE -->
-                    <v-chip size="small" variant="tonal">
-                      {{ question.type }}
-                    </v-chip>
+                        <v-chip size="small" color="primary">
+                          Q{{ index + 1 }}
+                        </v-chip>
 
-                    <!-- DIFFICULTY -->
-                    <v-chip
-                      size="small"
-                      :color="
-                        question.difficulty === 'easy'
-                          ? 'success'
-                          : question.difficulty === 'medium'
-                            ? 'warning'
-                            : 'error'
-                      "
-                      variant="tonal"
-                    >
-                      {{ question.difficulty }}
-                    </v-chip>
+                        <v-chip class="ml-2" size="small" color="success">
+                          {{ element?.type }}
+                        </v-chip>
 
-                    <!-- MARKS -->
-                    <v-chip size="small" color="secondary" variant="tonal">
-                      {{ question.marks }}
-                      Marks
-                    </v-chip>
-                  </div>
+                        <v-spacer />
 
-                  <!-- REMOVE -->
-                  <div class="d-flex ga-1 no-print">
-                    <v-btn
-                      icon="mdi-refresh"
-                      size="small"
-                      variant="text"
-                      color="info"
-                      @click="
-                        $emit(
-                          'replace-question',
-                          index,
-                          qIndex,
-                          question,
-                        )
-                      "
-                    />
+                        <v-chip size="small" color="success">
+                          {{ element.marks }} Marks
+                        </v-chip>
 
-                    <v-btn
-                      icon="mdi-delete"
-                      size="small"
-                      variant="text"
-                      color="error"
-                      @click="$emit('remove-question', index, qIndex)"
-                    />
-                  </div>
-                  
-                </div>
+                        <v-tooltip text="Preview">
+                          <template #activator="{ props }">
+                            <v-btn
+                              v-bind="props"
+                              icon="mdi-eye"
+                              size="small"
+                              variant="text"
+                              @click="$emit('preview-question', element)"
+                            />
+                          </template>
+                        </v-tooltip>
 
-                <!-- IMAGE -->
-                <v-img
-                  v-if="question.question_image"
-                  :src="question.question_image"
-                  width="160"
-                  class="mb-3 rounded"
-                />
+                        <v-tooltip text="Replace Question">
+                          <template #activator="{ props }">
+                            <v-btn
+                              v-bind="props"
+                              icon="mdi-refresh"
+                              size="small"
+                              variant="text"
+                              color="warning"
+                              @click="$emit('replace-question', {
+                                  question: element,
+                                  sectionIndex: sections.findIndex(s => s === section),
+                                  questionIndex: index,
+                                })"
+                            />
+                          </template>
+                        </v-tooltip>
 
-                <!-- QUESTION -->
-                <MathContent class="question-html" :html="question.question" />
-
-                <!-- OPTIONS -->
-                <div
-                  v-if="question.options && question.options.length"
-                  :class="['mt-4', 'mcq-options', getOptionLayout(question)]"
-                >
-                  <div
-                    v-for="(option, optIndex) in question.options"
-                    :key="option.id"
-                    class="option-card"
-                  >
-                    <!-- OPTION LABEL -->
-                    <div class="option-label">
-                      {{ String.fromCharCode(65 + optIndex) }}
-                    </div>
-
-                    <!-- TEXT -->
-                    <div class="option-content">
-                      <MathContent
-                        v-if="option.option_text"
-                        :html="option.option_text"
-                      />
-
-                      <v-img
-                        v-if="option.option_image"
-                        :src="option.option_image"
-                        width="100"
-                        class="rounded mt-2"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <!-- Match the Column -->
-                <div
-                  v-if="
-                    question.type === 'match_column' &&
-                    question.match_pairs?.length
-                  "
-                  class="match-column mt-4"
-                >
-                  <div class="match-title">Match the Column</div>
-
-                  <div class="match-grid">
-                    <div>
-                      <strong>Column A</strong>
-
-                      <div
-                        v-for="(pair, i) in question.match_pairs"
-                        :key="pair.id"
-                        class="match-row"
-                      >
-                        {{ i + 1 }}. {{ pair.left_text }}
+                        <v-tooltip text="Remove Question">
+                          <template #activator="{ props }">
+                            <v-btn
+                              v-bind="props"
+                              icon="mdi-delete"
+                              size="small"
+                              variant="text"
+                              color="error"
+                              @click="section.questions.splice(index, 1)"
+                            />
+                          </template>
+                        </v-tooltip>
                       </div>
-                    </div>
 
-                    <div>
-                      <strong>Column B</strong>
-
-                      <div
-                        v-for="(pair, i) in question.match_pairs"
-                        :key="pair.id"
-                        class="match-row"
-                      >
-                        {{ String.fromCharCode(65 + i) }}. {{ pair.right_text }}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                      <div class="mt-3" v-html="element.question" />
+                    </v-card-text>
+                  </v-card>
+                </template>
+              </draggable>
             </div>
           </div>
         </v-expand-transition>
@@ -444,5 +391,13 @@ onMounted(() => {
   .two-column {
     grid-template-columns: 1fr;
   }
+}
+
+.cursor-grab {
+  cursor: grab;
+}
+
+.drag-handle {
+  cursor: move;
 }
 </style>

@@ -1,13 +1,10 @@
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useUIStore } from "../../../stores/snackBar";
-import api from "../../../plugins/api";
 import PaperSections from "../components/PaperSections.vue";
-import QuestionPreviewDrawer from "../components/QuestionPreviewDrawer.vue";
+import { useRoute, useRouter } from "vue-router";
+import { ref, computed, onMounted, watch } from "vue";
+import api from "../../../plugins/api";
+import { useUIStore } from "../../../stores/snackBar";
 import LivePaperPreview from "../components/LivePaperPreview.vue";
-import AppEditor from "../../exams/components/AppEditor.vue";
-import draggable from "vuedraggable";
 
 const ui = useUIStore();
 
@@ -20,27 +17,6 @@ const route = useRoute();
 const router = useRouter();
 
 const isEditMode = computed(() => !!route.params.id);
-
-const previewDrawer = ref(false);
-const previewQuestion = ref(null);
-
-const openPreview = (question) => {
-  previewQuestion.value = {
-    ...question,
-
-    grade: question.grade || paper.value.grade || selectedGrade.value || null,
-
-    subject:
-      question.subject || paper.value.subject || selectedSubject.value || null,
-
-    lesson:
-      question.lesson ||
-      lessons.value.find((l) => Number(l.id) === Number(question.lesson_id)) ||
-      null,
-  };
-
-  previewDrawer.value = true;
-};
 
 // add Total Question
 
@@ -105,56 +81,6 @@ const clearFilters = () => {
   ui.showSnackbar("Filters cleared");
 };
 
-const replaceQuestion = async ({ sectionIndex, questionIndex, question }) => {
-  const section = paper.value.sections[sectionIndex];
-
-  if (!section) {
-    ui.showSnackbar("Section not found", "error");
-    return;
-  }
-
-  const usedIds = paper.value.sections.flatMap((section) =>
-    section.questions.map((q) => Number(q.id)),
-  );
-
-  try {
-    const res = await api.get("/questions", {
-      params: {
-        for_paper: 1,
-        grade_id: filters.value.grade_id || paper.value.grade_id,
-        subject_id: filters.value.subject_id || paper.value.subject_id,
-        lesson_id: question.lesson_id,
-        type: question.type,
-        difficulty: question.difficulty,
-        status: "approved",
-      },
-    });
-
-    const available = (res.data.data || res.data).filter((q) => {
-      return (
-        Number(q.id) !== Number(question.id) && !usedIds.includes(Number(q.id))
-      );
-    });
-
-    if (!available.length) {
-      ui.showSnackbar("No alternate question found", "warning");
-      return;
-    }
-
-    const replacement = {
-      ...available[Math.floor(Math.random() * available.length)],
-      marks: question.marks,
-    };
-
-    section.questions.splice(questionIndex, 1, replacement);
-
-    ui.showSnackbar("Question replaced successfully", "success");
-  } catch (err) {
-    console.error(err);
-    ui.showSnackbar("Failed to replace question", "error");
-  }
-};
-
 /*  PAPER FORM */
 
 const paper = ref({
@@ -173,9 +99,20 @@ const grades = ref([]);
 const subjects = ref([]);
 const lessons = ref([]);
 
+/*TOTAL MARKS */
+
 const selectedSection = ref(0);
 
+// const totalMarks = computed(() => {
+//   let total = 0;
+//   selectedQuestions.value.forEach((q) => {
+//     total += Number(q.marks);
+//   });
+//   return total;
+// });
+
 /* FETCH QUESTIONS */
+
 const fetchQuestions = async () => {
   loading.value = true;
 
@@ -201,6 +138,7 @@ const fetchQuestions = async () => {
 };
 
 /* FETCH grades */
+
 const fetchGrades = async () => {
   const res = await api.get("/my-assignments");
 
@@ -215,6 +153,7 @@ const fetchGrades = async () => {
 };
 
 /*  FETCH SUBJECTS */
+
 const fetchSubjects = async () => {
   if (!filters.value.grade_id) {
     subjects.value = [];
@@ -248,6 +187,7 @@ const fetchSubjects = async () => {
 };
 
 /* FETCH LESSONS */
+
 const fetchLessons = async () => {
   if (!filters.value.subject_id) {
     lessons.value = [];
@@ -267,6 +207,7 @@ const fetchLessons = async () => {
 };
 
 /* ADD QUESTION */
+
 const addQuestion = (question) => {
   const exists = selectedQuestions.value.find((q) => q.id === question.id);
 
@@ -280,11 +221,13 @@ const addQuestion = (question) => {
 };
 
 /* REMOVE QUESTION */
+
 const removeQuestion = (id) => {
   selectedQuestions.value = selectedQuestions.value.filter((q) => q.id !== id);
 };
 
 /* AUTO GENERATE */
+
 const autoGenerate = async () => {
   try {
     const res = await api.post("/papers/auto-generate", {
@@ -320,6 +263,7 @@ const autoGenerate = async () => {
 };
 
 // Fetch Paper to Edit
+
 const fetchPaperForEdit = async () => {
   if (!isEditMode.value) return;
 
@@ -346,31 +290,24 @@ const fetchPaperForEdit = async () => {
   });
 
   paper.value = {
-    id: data.id,
     title: data.title,
     exam_type: data.exam_type,
     duration: data.duration,
     instructions: data.instructions,
     grade_id: data.grade_id,
     subject_id: data.subject_id,
-
-    grade: data.grade,
-    subject: data.subject,
-
     sections: Object.values(grouped),
   };
 
   filters.value.grade_id = data.grade_id;
-
-  await fetchSubjects();
-
   filters.value.subject_id = data.subject_id;
 
-  await fetchLessons();
+  await fetchSubjects();
   await fetchQuestions();
 };
 
 /* SAVE PAPER */
+
 const errors = ref({});
 
 const savePaper = async () => {
@@ -402,17 +339,46 @@ const savePaper = async () => {
   }
 };
 
+// const savePaper = async () => {
+//   try {
+//     await api.post("/question-papers", {
+//       title: paper.value.title,
+//       exam_type: paper.value.exam_type,
+//       duration: paper.value.duration,
+//       instructions: paper.value.instructions,
+//       grade_id: filters.value.grade_id,
+//       subject_id: filters.value.subject_id,
+//       questions: paper.value.sections.flatMap((section) =>
+//         section.questions.map((q) => ({
+//           question_id: q.id,
+//           marks: q.marks,
+//           section: section.name,
+//           instructions: section.instructions,
+//         })),
+//       ),
+//     });
+
+//     ui.showSnackbar("Paper saved successfully");
+//   } catch (err) {
+//     if (err.response?.status === 422) {
+//       errors.value = err.response.data.errors;
+//     } else {
+//       ui.showSnackbar("Failed to save paper", "error");
+//     }
+//   }
+// };
 const questionTypes = [
-  { title: "MCQ", value: "mcq" },
-  { title: "Multiple MCQ", value: "multiple_mcq" },
-  { title: "True / False", value: "true_false" },
-  { title: "Fill in the Blank", value: "fill_blank" },
-  { title: "Short Answer", value: "short" },
-  { title: "Long Answer", value: "long" },
-  { title: "Match the Column", value: "match_column" },
-  { title: "Assertion Reason", value: "assertion_reason" },
-  { title: "Numerical", value: "numerical" },
-];
+  { title: 'MCQ', value: 'mcq' },
+  { title: 'Multiple MCQ', value: 'multiple_mcq' },
+  { title: 'True / False', value: 'true_false' },
+  { title: 'Fill in the Blank', value: 'fill_blank' },
+  { title: 'Short Answer', value: 'short' },
+  { title: 'Long Answer', value: 'long' },
+  { title: 'Match the Column', value: 'match_column' },
+  { title: 'Assertion Reason', value: 'assertion_reason' },
+  { title: 'Numerical', value: 'numerical' }
+]
+
 
 const totalQuestions = computed(() => {
   let total = 0;
@@ -437,6 +403,7 @@ const totalMarks = computed(() => {
 });
 
 // Print Function
+
 const printPaper = () => {
   const content = document.querySelector(".a4-preview")?.innerHTML || "";
 
@@ -700,54 +667,6 @@ const printPaper = () => {
   };
 };
 
-const cloneQuestion = (question) => {
-  const exists = selectedQuestions.value.some(
-    (q) => Number(q.id) === Number(question.id),
-  );
-
-  if (exists) {
-    ui.showSnackbar("Question already added", "warning");
-    return null;
-  }
-
-  return {
-    ...question,
-    marks: Number(question.marks || 1),
-  };
-};
-
-const addedQuestionIds = computed(() => {
-  const ids = [];
-
-  paper.value.sections.forEach((section) => {
-    section.questions.forEach((q) => {
-      ids.push(Number(q.id));
-    });
-  });
-
-  return ids;
-});
-
-const isQuestionAdded = (questionId) => {
-  return addedQuestionIds.value.includes(Number(questionId));
-};
-
-const checkMove = (evt) => {
-  return !isQuestionAdded(evt.draggedContext.element.id);
-};
-
-const selectedGrade = computed(() => {
-  return grades.value.find(
-    (g) => Number(g.id) === Number(filters.value.grade_id),
-  );
-});
-
-const selectedSubject = computed(() => {
-  return subjects.value.find(
-    (s) => Number(s.id) === Number(filters.value.subject_id),
-  );
-});
-
 watch(
   () => paper.sections,
   () => paper.value.sections,
@@ -865,7 +784,12 @@ onMounted(async () => {
         </v-col>
       </v-row>
 
-      <AppEditor v-model="paper.instructions" label="General Instructions" />
+      <v-textarea
+        v-model="paper.instructions"
+        :error-messages="errors.instructions"
+        label="Instructions"
+        rows="3"
+      />
     </v-card>
 
     <v-row>
@@ -944,59 +868,50 @@ onMounted(async () => {
             >
               Clear
             </v-btn>
-            <v-spacer />
-            <v-chip color="success">
-              Added:
-              {{ addedQuestionIds.length }}
-            </v-chip>
-
-            <v-chip color="primary">
-              Available:
-              {{ questions.length - addedQuestionIds.length }}
-            </v-chip>
           </div>
 
           <!-- QUESTIONS -->
-          <draggable
-            :list="questions"
-            item-key="id"
-            :move="checkMove"
-            :group="{ name: 'questions', pull: 'clone', put: false }"
-            :clone="cloneQuestion"
-            sort="false"
+          <div class="mb-4">
+            <v-select
+              v-model="selectedSection"
+              :items="
+                paper.sections.map((s, i) => ({
+                  title: s.name,
+                  value: i,
+                }))
+              "
+              item-title="title"
+              item-value="value"
+              label="Select Section"
+            />
+          </div>
+          <div
+            v-for="question in questions"
+            :key="question.id"
+            class="question-card"
           >
-            <template #item="{ element }">
-              <div
-                class="question-card cursor-grab drag-handle"
-                :class="{
-                  'question-added': isQuestionAdded(element.id),
-                }"
-              >
-                <div class="d-flex justify-space-between mb-3">
-                  <div class="d-flex ga-2">
-                    <v-chip size="small" color="primary" variant="tonal">
-                      {{ element.type }}
-                    </v-chip>
+            <div class="d-flex justify-space-between mb-3">
+              <div class="d-flex ga-2">
+                <v-chip size="small" color="primary" variant="tonal">
+                  {{ question.type }}
+                </v-chip>
 
-                    <v-chip size="small" color="success" variant="tonal">
-                      {{ element.marks }} Marks
-                    </v-chip>
-                  </div>
-
-                  <v-btn
-                    :disabled="isQuestionAdded(element.id)"
-                    color="primary"
-                    size="small"
-                    @click="addQuestion(element)"
-                  >
-                    {{ isQuestionAdded(element.id) ? "Added" : "Add" }}
-                  </v-btn>
-                </div>
-
-                <MathContent class="question-html" :html="element.question" />
+                <v-chip size="small" color="success" variant="tonal">
+                  {{ question.marks }} Marks
+                </v-chip>
               </div>
-            </template>
-          </draggable>
+
+              <v-btn
+                color="primary"
+                size="small"
+                @click="addToSection(selectedSection, question)"
+              >
+                Add
+              </v-btn>
+            </div>
+
+            <MathContent class="question-html" :html="question.question" />
+          </div>
         </v-card>
       </v-col>
 
@@ -1004,11 +919,7 @@ onMounted(async () => {
       <v-col cols="12" md="5" class="d-flex">
         <v-card class="flex-grow-1 rounded-xl sections-scroll" elevation="0">
           <div class="pa-4">
-            <PaperSections
-              v-model="paper.sections"
-              @replace-question="replaceQuestion"
-              @preview-question="openPreview"
-            />
+            <PaperSections v-model="paper.sections" />
           </div>
         </v-card>
       </v-col>
@@ -1016,45 +927,14 @@ onMounted(async () => {
       <!-- Live Preview PANEL -->
       <v-col cols="12" md="12">
         <v-card class="rounded-xl pa-4" elevation="0">
-          <v-card class="mb-4" color="primary" variant="tonal">
-            <v-card-text>
-              <div class="d-flex align-center">
-                <div>
-                  Total Questions:
-                  <strong>
-                    {{ selectedQuestions.length }}
-                  </strong>
-                </div>
-
-                <v-spacer />
-
-                <v-chip size="large" color="success">
-                  {{ totalMarks }}
-                  Marks
-                </v-chip>
-              </div>
-            </v-card-text>
-          </v-card>
           <LivePaperPreview :paper="paper" @print="printPaper" />
         </v-card>
       </v-col>
     </v-row>
   </div>
-  <QuestionPreviewDrawer v-model="previewDrawer" :question="previewQuestion" />
 </template>
 
 <style scoped>
-.question-added {
-  opacity: 0.5;
-  background: #f5f5f5;
-}
-.cursor-grab {
-  cursor: grab;
-}
-
-.drag-handle {
-  cursor: move;
-}
 .question-card {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
