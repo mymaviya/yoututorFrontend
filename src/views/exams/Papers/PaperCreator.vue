@@ -360,10 +360,12 @@ const fetchPaperForEdit = async () => {
     grade: data.grade,
     subject: data.subject,
 
+ 
     sections: Object.values(grouped),
   };
 
   filters.value.grade_id = data.grade_id;
+  filters.value.subject_id = data.subject_id;
 
   await fetchSubjects();
 
@@ -384,6 +386,9 @@ const savePaper = async () => {
     instructions: paper.value.instructions,
     total_marks: totalMarks.value,
 
+    grade_id: paper.value.grade_id || filters.value.grade_id,
+    subject_id: paper.value.subject_id || filters.value.subject_id,
+
     questions: paper.value.sections.flatMap((section) =>
       section.questions.map((q, index) => ({
         question_id: q.id,
@@ -394,6 +399,7 @@ const savePaper = async () => {
       })),
     ),
   };
+  console.log("Paper Payload", payload);
 
   if (isEditMode.value) {
     await api.put(`/question-papers/${route.params.id}`, payload);
@@ -909,8 +915,8 @@ onMounted(async () => {
                 :items="questionTypes"
                 item-title="title"
                 item-value="value"
-                dd
                 label="Question Type"
+                @update:model-value="fetchQuestions"
                 clearable
               />
             </v-col>

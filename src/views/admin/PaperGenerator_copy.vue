@@ -339,6 +339,7 @@ const savePaper = async () => {
       grade_id: filters.value.grade_id,
       subject_id: filters.value.subject_id,
       total_marks: totalMarks.value,
+      paper_blueprint_id: selectedBlueprintId.value,
 
       questions: paper.value.sections.flatMap((section) =>
         section.questions.map((q, index) => ({
