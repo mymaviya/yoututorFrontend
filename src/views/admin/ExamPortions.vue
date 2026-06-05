@@ -24,15 +24,6 @@ const selectedAssignment = ref(null);
 const selectedPortion = ref(null);
 const rejectionReason = ref("");
 
-const form = ref({
-  id: null,
-  teacher_id: null,
-  grade_id: null,
-  subject_id: null,
-  exam_name_ids: [],
-  due_date: null,
-});
-
 const examNames = ref([]);
 
 const fetchExamNames = async () => {
@@ -76,6 +67,23 @@ const fetchPortions = async () => {
 const fetchTeachers = async () => {
   const res = await api.get("/teachers");
   teachers.value = res.data.data || res.data;
+};
+
+const getDefaultForm = () => ({
+  id: null,
+  teacher_id: null,
+  grade_id: null,
+  subject_id: null,
+  exam_name_ids: [],
+  due_date: null,
+});
+
+const form = ref(getDefaultForm());
+
+const resetForm = () => {
+  form.value = getDefaultForm();
+  errors.value = {};
+  editMode.value = false;
 };
 
 const openAdd = () => {
@@ -169,8 +177,25 @@ const savePortion = async () => {
   } catch (err) {
     if (err.response?.status === 422) {
       errors.value = err.response.data.errors;
+      ui.showSnackbar(
+        err.response?.data?.message || "Failed to save exam portion",
+      );
+    } else if (err.response?.status === 500) {
+      ui.showSnackbar(
+        err.response?.data?.message || "Failed to save exam portion",
+        "error",
+      );
+      selectedTeacher.value = null;
+      selectedAssignment.value = null;
+      saving.value = false;
+      resetForm();
+      // dialog.value = false;
+      return;
     } else {
       ui.showSnackbar("Failed to save exam portion", "error");
+      ui.showSnackbar(
+        err.response?.data?.message || "Failed to save exam portion",
+      );
     }
   } finally {
     saving.value = false;
@@ -343,7 +368,6 @@ onMounted(() => {
           </div>
         </template>
 
-        
         <template #item.due_date="{ item }">
           {{ formatDate(item.due_date) }}
         </template>
@@ -635,7 +659,11 @@ onMounted(() => {
         <v-card-actions v-if="selectedPortion?.status === 'submitted'">
           <v-spacer />
 
-          <v-btn v-if="permission.can('approve_questions')" color="success" @click="approvePortion(selectedPortion)">
+          <v-btn
+            v-if="permission.can('approve_questions')"
+            color="success"
+            @click="approvePortion(selectedPortion)"
+          >
             Approve
           </v-btn>
 

@@ -3,17 +3,24 @@ import { useTheme } from "vuetify";
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUIStore } from "../../../stores/snackBar";
+import { useUiLoaderStore } from "../../../stores/uiLoader";
+import { useLoadingStore } from "../../../stores/loading";
 import api from "../../../plugins/api";
 import PaperSections from "../components/PaperSections.vue";
 import QuestionPreviewDrawer from "../components/QuestionPreviewDrawer.vue";
 import LivePaperPreview from "../components/LivePaperPreview.vue";
 import AppEditor from "../../exams/components/AppEditor.vue";
+import BlueprintSelectorCard from "../../../components/paper/BlueprintSelectorCard.vue";
+import PageSkeleton from "../../../components/common/PageSkeleton.vue";
 import draggable from "vuedraggable";
+
+const loading = useLoadingStore();
+const pageReady = ref(false);
 
 const ui = useUIStore();
 const theme = useTheme();
+const loader = useUiLoaderStore();
 
-const loading = ref(false);
 const questions = ref([]);
 
 const assignedSubjects = ref([]);
@@ -44,6 +51,132 @@ const openPreview = (question) => {
 
   previewDrawer.value = true;
 };
+
+//BluePrint Section Starts
+
+const blueprints = ref([]);
+const selectedBlueprint = ref(null);
+const blueprintErrors = ref([]);
+
+const fetchBlueprints = async () => {
+  if (!filters.value.grade_id || !filters.value.subject_id) return;
+
+  const res = await api.get("/paper-blueprints", {
+    params: {
+      grade_id: filters.value.grade_id,
+      subject_id: filters.value.subject_id,
+      is_active: 1,
+    },
+  });
+
+  blueprints.value = res.data.data || res.data;
+};
+
+const applyBlueprintStructure = () => {
+  if (!selectedBlueprint.value?.sections?.length) return;
+
+  paper.value.sections = selectedBlueprint.value.sections.map((section) => ({
+    id: null,
+    name: section.section_name,
+    instructions: section.instructions || "",
+    questions: [],
+  }));
+};
+
+const onBlueprintChange = async (blueprintId, overwriteSections = true) => {
+  selectedBlueprint.value = null;
+  blueprintErrors.value = [];
+
+  if (!blueprintId) return;
+
+  const res = await api.get(`/paper-blueprints/${blueprintId}`);
+  selectedBlueprint.value = res.data.data || res.data;
+
+  if (overwriteSections) {
+    applyBlueprintStructure();
+  }
+};
+
+const validateBlueprintStructure = () => {
+  blueprintErrors.value = [];
+
+  if (!selectedBlueprint.value) return true;
+
+  selectedBlueprint.value.sections.forEach((bpSection) => {
+    const paperSection = paper.value.sections.find(
+      (s) => s.name === bpSection.section_name,
+    );
+
+    if (!paperSection) {
+      blueprintErrors.value.push(`${bpSection.section_name} is missing.`);
+      return;
+    }
+
+    const items = bpSection.items || [];
+
+    items.forEach((item) => {
+      const matchingQuestions = paperSection.questions.filter((q) => {
+        return (
+          q.type === item.question_type &&
+          (!item.difficulty || q.difficulty === item.difficulty) &&
+          (!item.bloom_level || q.bloom_level === item.bloom_level)
+        );
+      });
+
+      if (matchingQuestions.length !== Number(item.question_count)) {
+        blueprintErrors.value.push(
+          `${bpSection.section_name} needs ${item.question_count} ${item.question_type} questions. Current: ${matchingQuestions.length}`,
+        );
+      }
+
+      matchingQuestions.forEach((q) => {
+        q.marks = safeNumber(item.marks_per_question, 0);
+      });
+    });
+  });
+
+  if (
+    safeNumber(totalMarks.value) !==
+    safeNumber(selectedBlueprint.value.total_marks)
+  ) {
+    blueprintErrors.value.push(
+      `Total marks must be ${selectedBlueprint.value.total_marks}. Current: ${totalMarks.value}`,
+    );
+  }
+
+  return blueprintErrors.value.length === 0;
+};
+
+const getQuestionBlueprintMarks = (section, question) => {
+  if (!selectedBlueprint.value) {
+    return Number(question.marks || section.marks_per_question || 0);
+  }
+
+  const blueprintSection = selectedBlueprint.value.sections?.find(
+    (bpSection) => bpSection.section_name === section.name,
+  );
+
+  if (!blueprintSection) {
+    return Number(question.marks || section.marks_per_question || 0);
+  }
+
+  const blueprintItem = (blueprintSection.items || []).find((item) => {
+    return (
+      item.question_type === question.type &&
+      (!item.difficulty || item.difficulty === question.difficulty) &&
+      (!item.bloom_level || item.bloom_level === question.bloom_level)
+    );
+  });
+
+  return Number(
+    blueprintItem?.marks_per_question ||
+      section.marks_per_question ||
+      question.marks ||
+      0,
+  );
+};
+
+//BluePrint Section Ends
 
 // add Total Question
 
@@ -120,6 +253,10 @@ const replaceQuestion = async ({ sectionIndex, questionIndex, question }) => {
     section.questions.map((q) => Number(q.id)),
   );
 
+  refreshBlueprintStatus();
+  recalculateSectionMarks(section);
+  validateBlueprintStructure();
+
   try {
     const res = await api.get("/questions", {
       params: {
@@ -160,6 +297,8 @@ const replaceQuestion = async ({ sectionIndex, questionIndex, question }) => {
 
 /*  PAPER FORM */
 
+const saving = ref(false);
+
 const paper = ref({
   title: "",
   exam_type: "",
@@ -167,6 +306,7 @@ const paper = ref({
   instructions: "",
   grade_id: null,
   subject_id: null,
+  paper_blueprint_id: null,
   sections: [{ name: "Section A", questions: [] }],
 });
 
@@ -269,17 +409,74 @@ const fetchLessons = async () => {
   fetchQuestions();
 };
 
+const findTargetSectionForQuestion = (question) => {
+  const normalized = {
+    ...question,
+    type: question.type || question.question_type,
+    difficulty: question.difficulty || question.difficulty_level,
+    bloom_level: question.bloom_level || question.bloom,
+  };
+
+  if (!selectedBlueprint.value?.sections?.length) {
+    return paper.value.sections[0];
+  }
+
+  for (const bpSection of selectedBlueprint.value.sections) {
+    const paperSection = paper.value.sections.find(
+      (s) => s.name === bpSection.section_name,
+    );
+
+    if (!paperSection) continue;
+
+    for (const item of bpSection.items || []) {
+      const matches =
+        item.question_type === normalized.type &&
+        (!item.difficulty || item.difficulty === normalized.difficulty) &&
+        (!item.bloom_level || item.bloom_level === normalized.bloom_level);
+
+      if (!matches) continue;
+
+      const currentCount = paperSection.questions.filter((q) => {
+        return (
+          (q.type || q.question_type) === item.question_type &&
+          (!item.difficulty || q.difficulty === item.difficulty) &&
+          (!item.bloom_level || q.bloom_level === item.bloom_level)
+        );
+      }).length;
+
+      if (currentCount < Number(item.question_count || 0)) {
+        return paperSection;
+      }
+    }
+  }
+
+  return paper.value.sections[0];
+};
+
 /* ADD QUESTION */
 const addQuestion = (question) => {
-  const exists = selectedQuestions.value.find((q) => q.id === question.id);
-
-  if (exists) {
+  if (isQuestionAdded(question.id)) {
     ui.showSnackbar("Question already added", "warning");
     return;
   }
 
-  selectedQuestions.value.push(question);
-  ui.showSnackbar("Question added");
+  const targetSection = findTargetSectionForQuestion(question);
+
+  const normalizedQuestion = {
+    ...question,
+    type: question.type || question.question_type,
+    difficulty: question.difficulty || question.difficulty_level,
+    bloom_level: question.bloom_level || question.bloom,
+  };
+
+  targetSection.questions.push({
+    ...normalizedQuestion,
+    marks: getQuestionMarks(targetSection, normalizedQuestion),
+  });
+
+  refreshBlueprintStatus();
+
+  ui.showSnackbar(`Question added to ${targetSection.name}`);
 };
 
 /* REMOVE QUESTION */
@@ -348,6 +545,11 @@ const fetchPaperForEdit = async () => {
     });
   });
 
+  if (data.paper_blueprint_id) {
+    const res = await api.get(`/paper-blueprints/${data.paper_blueprint_id}`);
+    selectedBlueprint.value = res.data.data || res.data;
+  }
+
   paper.value = {
     id: data.id,
     title: data.title,
@@ -356,17 +558,23 @@ const fetchPaperForEdit = async () => {
     instructions: data.instructions,
     grade_id: data.grade_id,
     subject_id: data.subject_id,
+    paper_blueprint_id: data.paper_blueprint_id,
 
     grade: data.grade,
     subject: data.subject,
 
- 
     sections: Object.values(grouped),
   };
+
+  if (data.paper_blueprint_id) {
+    await onBlueprintChange(data.paper_blueprint_id, false);
+    validateBlueprintStructure();
+  }
 
   filters.value.grade_id = data.grade_id;
   filters.value.subject_id = data.subject_id;
 
+  await fetchBlueprints();
   await fetchSubjects();
 
   filters.value.subject_id = data.subject_id;
@@ -379,12 +587,20 @@ const fetchPaperForEdit = async () => {
 const errors = ref({});
 
 const savePaper = async () => {
+  saving.value = true;
+  if (!validateBlueprintStructure()) {
+    ui.showSnackbar("Paper does not match blueprint structure", "error");
+    saving.value = false;
+    return;
+  }
+
   const payload = {
     title: paper.value.title,
     exam_type: paper.value.exam_type,
     duration: paper.value.duration,
     instructions: paper.value.instructions,
     total_marks: totalMarks.value,
+    paper_blueprint_id: paper.value.paper_blueprint_id,
 
     grade_id: paper.value.grade_id || filters.value.grade_id,
     subject_id: paper.value.subject_id || filters.value.subject_id,
@@ -392,23 +608,40 @@ const savePaper = async () => {
     questions: paper.value.sections.flatMap((section) =>
       section.questions.map((q, index) => ({
         question_id: q.id,
-        marks: q.marks,
+        marks: getQuestionMarks(section, q),
         section: section.name,
         instructions: section.instructions,
         sort_order: index + 1,
       })),
     ),
   };
+
   console.log("Paper Payload", payload);
 
   if (isEditMode.value) {
     await api.put(`/question-papers/${route.params.id}`, payload);
     ui.showSnackbar("Paper updated successfully");
+    saving.value = false;
     router.push(`/papers/${route.params.id}`);
   } else {
     await api.post("/question-papers", payload);
+    saving.value = false;
     ui.showSnackbar("Paper saved successfully");
   }
+};
+
+const recalculateSectionMarks = (section) => {
+  section.questions = section.questions.map((question) => ({
+    ...question,
+    marks: getQuestionMarks(section, question),
+  }));
+  
+};
+
+const recalculateAllMarks = () => {
+  paper.value.sections.forEach((section) => {
+    recalculateSectionMarks(section);
+  });
 };
 
 const questionTypes = [
@@ -433,16 +666,51 @@ const totalQuestions = computed(() => {
   return total;
 });
 
-const totalMarks = computed(() => {
-  let total = 0;
+const safeNumber = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
 
-  paper.value.sections.forEach((section) => {
-    section.questions.forEach((q) => {
-      total += Number(q.marks);
-    });
+const getMatchingBlueprintItem = (section, question) => {
+  if (!selectedBlueprint.value) return null;
+
+  const blueprintSection = selectedBlueprint.value.sections?.find(
+    (bpSection) => bpSection.section_name === section.name,
+  );
+
+  if (!blueprintSection) return null;
+
+  const items = blueprintSection.items || [];
+
+  return items.find((item) => {
+    return (
+      item.question_type === question.type &&
+      (!item.difficulty || item.difficulty === question.difficulty) &&
+      (!item.bloom_level || item.bloom_level === question.bloom_level)
+    );
   });
+};
 
-  return total;
+const getQuestionMarks = (section, question) => {
+  const blueprintItem = getMatchingBlueprintItem(section, question);
+
+  return safeNumber(
+    blueprintItem?.marks_per_question ??
+      question.marks ??
+      section.marks_per_question ??
+      0,
+  );
+};
+
+const totalMarks = computed(() => {
+  return paper.value.sections.reduce((total, section) => {
+    return (
+      total +
+      section.questions.reduce((sum, question) => {
+        return sum + getQuestionMarks(section, question);
+      }, 0)
+    );
+  }, 0);
 });
 
 // Print Function
@@ -710,17 +978,16 @@ const printPaper = () => {
 };
 
 const cloneQuestion = (question) => {
-  const exists = selectedQuestions.value.some(
-    (q) => Number(q.id) === Number(question.id),
-  );
-
-  if (exists) {
+  if (isQuestionAdded(question.id)) {
     ui.showSnackbar("Question already added", "warning");
     return null;
   }
 
   return {
     ...question,
+    type: question.type || question.question_type,
+    difficulty: question.difficulty || question.difficulty_level,
+    bloom_level: question.bloom_level || question.bloom,
     marks: Number(question.marks || 1),
   };
 };
@@ -757,6 +1024,36 @@ const selectedSubject = computed(() => {
   );
 });
 
+const blueprintRefreshKey = ref(0);
+
+const refreshBlueprintStatus = () => {
+  recalculateAllMarks();
+  validateBlueprintStructure();
+
+  paper.value.sections = paper.value.sections.map((section) => ({
+    ...section,
+    questions: section.questions.map((q) => ({ ...q })),
+  }));
+
+  blueprintRefreshKey.value++;
+};
+
+watch(
+  () => paper.value.paper_blueprint_id,
+  async (blueprintId) => {
+    if (!blueprintId) {
+      selectedBlueprint.value = null;
+      blueprintErrors.value = [];
+      return;
+    }
+
+    const res = await api.get(`/paper-blueprints/${blueprintId}`);
+    selectedBlueprint.value = res.data.data || res.data;
+
+    validateBlueprintStructure();
+  },
+);
+
 watch(
   () => paper.sections,
   () => paper.value.sections,
@@ -766,306 +1063,336 @@ watch(
 /* INIT */
 
 onMounted(async () => {
-  await fetchGrades();
+  loading.startPage();
+  pageReady.value = false;
 
-  if (isEditMode.value) {
-    await fetchPaperForEdit();
-  } else {
-    await fetchQuestions();
+  try {
+    if (isEditMode.value) {
+      await fetchPaperForEdit();
+    } else {
+      await fetchQuestions();
+    }
+    await Promise.all([fetchGrades()]);
+  } finally {
+    pageReady.value = true;
+    loading.stopPage();
   }
 });
 </script>
 
 <template>
-  <div>
-    <!-- PAGE HEADER -->
-    <div class="d-flex justify-space-between align-center mb-6">
-      <div>
-        <!-- STICKY SUMMARY -->
-        <div class="sticky-summary">
-          <div>
-            <div class="text-subtitle-2 text-grey">Total Questions</div>
+  <PageSkeleton
+    :loading="!pageReady"
+    type="card, table-heading, table-row-divider@8"
+  >
+    <div>
+      <!-- PAGE HEADER -->
+      <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+          <!-- STICKY SUMMARY -->
+          <div class="sticky-summary">
+            <div>
+              <div class="text-subtitle-2 text-grey">Total Questions</div>
 
-            <div class="text-h6 font-weight-bold">
-              {{ totalQuestions }}
+              <div class="text-h6 font-weight-bold">
+                {{ totalQuestions }}
+              </div>
+            </div>
+
+            <v-divider vertical />
+
+            <div>
+              <div class="text-subtitle-2 text-grey">Total Marks</div>
+
+              <div class="text-h6 font-weight-bold">
+                {{ totalMarks }}
+              </div>
+            </div>
+
+            <v-divider vertical />
+
+            <div>
+              <div class="text-subtitle-2 text-grey">Sections</div>
+
+              <div class="text-h6 font-weight-bold">
+                {{ paper.sections.length }}
+              </div>
             </div>
           </div>
+          <h1 class="text-h4 font-weight-bold">
+            {{
+              isEditMode ? "Edit Question Paper" : "Question Paper Generator"
+            }}
+          </h1>
 
-          <v-divider vertical />
-
-          <div>
-            <div class="text-subtitle-2 text-grey">Total Marks</div>
-
-            <div class="text-h6 font-weight-bold">
-              {{ totalMarks }}
-            </div>
-          </div>
-
-          <v-divider vertical />
-
-          <div>
-            <div class="text-subtitle-2 text-grey">Sections</div>
-
-            <div class="text-h6 font-weight-bold">
-              {{ paper.sections.length }}
-            </div>
-          </div>
+          <p class="text-grey">Create smart exam papers</p>
         </div>
-        <h1 class="text-h4 font-weight-bold">
-          {{ isEditMode ? "Edit Question Paper" : "Question Paper Generator" }}
-        </h1>
 
-        <p class="text-grey">Create smart exam papers</p>
-      </div>
-
-      <div class="d-flex ga-2">
-        <v-btn
-          color="secondary"
-          prepend-icon="mdi-auto-fix"
-          @click="autoGenerate"
-        >
-          Auto Generate
-        </v-btn>
-
-        <v-btn
-          color="primary"
-          prepend-icon="mdi-content-save"
-          @click="savePaper"
-        >
-          {{ isEditMode ? "Update Paper" : "Save Paper" }}
-        </v-btn>
-      </div>
-    </div>
-
-    <!-- PAPER DETAILS -->
-    <v-card class="pa-4 mb-6 rounded-xl" elevation="0">
-      <v-row>
-        <v-col cols="12" md="4">
-          <v-text-field
-            v-model="paper.title"
-            label="Paper Title"
-            :error-messages="errors.title"
-          />
-        </v-col>
-
-        <v-col cols="12" md="3">
-          <v-select
-            v-model="paper.exam_type"
-            :items="['Unit Test', 'Half Yearly', 'Final Exam']"
-            label="Exam Type"
-            :error-messages="errors.exam_type"
-          />
-        </v-col>
-
-        <v-col cols="12" md="2">
-          <v-text-field
-            v-model="paper.duration"
-            type="number"
-            label="Duration (Min)"
-          />
-        </v-col>
-
-        <v-col cols="12" md="3">
-          <v-text-field
-            :model-value="totalMarks"
-            label="Total Marks"
-            readonly
-          />
-        </v-col>
-      </v-row>
-
-      <AppEditor v-model="paper.instructions" label="General Instructions" />
-    </v-card>
-
-    <v-row>
-      <!-- LEFT PANEL for question bank -->
-      <v-col cols="12" md="7">
-        <v-card class="rounded-xl pa-4" elevation="0">
-          <div class="text-h6 mb-4">Question Bank Filter by:</div>
-
-          <!-- FILTERS -->
-          <v-row>
-            <v-col cols="12" md="3">
-              <v-select
-                v-model="filters.grade_id"
-                :items="grades"
-                item-title="name"
-                item-value="id"
-                label="Class"
-                @update:model-value="fetchSubjects"
-                :error-messages="errors.grade_id"
-              />
-            </v-col>
-
-            <v-col cols="12" md="3">
-              <v-select
-                v-model="filters.subject_id"
-                :items="subjects"
-                item-title="name"
-                item-value="id"
-                label="Subject"
-                @update:model-value="fetchLessons"
-                :error-messages="errors.subject_id"
-              />
-            </v-col>
-
-            <v-col cols="12" md="3">
-              <v-select
-                v-model="filters.type"
-                :items="questionTypes"
-                item-title="title"
-                item-value="value"
-                label="Question Type"
-                @update:model-value="fetchQuestions"
-                clearable
-              />
-            </v-col>
-
-            <v-col cols="12" md="3">
-              <v-select
-                v-model="filters.difficulty"
-                :items="['easy', 'medium', 'hard']"
-                label="Difficulty"
-                :error-messages="errors.difficulty"
-              />
-            </v-col>
-          </v-row>
-
-          <v-text-field
-            v-model="filters.search"
-            prepend-inner-icon="mdi-magnify"
-            label="Search Questions"
-            class="mb-4"
-          />
-
-          <div class="d-flex ga-2 mb-4">
-            <!-- APPLY -->
-            <v-btn color="primary" @click="fetchQuestions">
-              Apply Filters
-            </v-btn>
-
-            <!-- CLEAR -->
-            <v-btn
-              color="grey"
-              variant="outlined"
-              prepend-icon="mdi-filter-remove"
-              @click="clearFilters"
-            >
-              Clear
-            </v-btn>
-            <v-spacer />
-            <v-chip color="success">
-              Added:
-              {{ addedQuestionIds.length }}
-            </v-chip>
-
-            <v-chip color="primary">
-              Available:
-              {{ questions.length - addedQuestionIds.length }}
-            </v-chip>
-          </div>
-
-          <!-- QUESTIONS -->
-          <draggable
-            :list="questions"
-            item-key="id"
-            :move="checkMove"
-            :group="{ name: 'questions', pull: 'clone', put: false }"
-            :clone="cloneQuestion"
-            sort="false"
+        <div class="d-flex ga-2">
+          <v-btn
+            color="secondary"
+            prepend-icon="mdi-auto-fix"
+            @click="autoGenerate"
           >
-            <template #item="{ element }">
-              <div
-                class="question-card"
-                :class="{
-                  'question-added-dark':
-                    isQuestionAdded(element.id) &&
-                    theme.global.current.value.dark,
+            Auto Generate
+          </v-btn>
 
-                  'question-added-light':
-                    isQuestionAdded(element.id) &&
-                    !theme.global.current.value.dark,
-                }"
+          <v-btn
+            color="primary"
+            prepend-icon="mdi-content-save"
+            :loading="saving"
+            :disabled="saving"
+            @click="savePaper"
+          >
+            {{ isEditMode ? "Update Paper" : "Save Paper" }}
+          </v-btn>
+        </div>
+      </div>
+
+      <!-- PAPER DETAILS -->
+      <v-card class="pa-4 mb-6 rounded-xl" elevation="0">
+        <v-row>
+          <v-col cols="12" md="4">
+            <v-text-field
+              v-model="paper.title"
+              label="Paper Title"
+              :error-messages="errors.title"
+            />
+          </v-col>
+
+          <v-col cols="12" md="3">
+            <v-select
+              v-model="paper.exam_type"
+              :items="['Unit Test', 'Half Yearly', 'Final Exam']"
+              label="Exam Type"
+              :error-messages="errors.exam_type"
+            />
+          </v-col>
+
+          <v-col cols="12" md="2">
+            <v-text-field
+              v-model="paper.duration"
+              type="number"
+              label="Duration (Min)"
+            />
+          </v-col>
+
+          <v-col cols="12" md="3">
+            <v-text-field
+              :model-value="totalMarks"
+              label="Total Marks"
+              readonly
+            />
+          </v-col>
+        </v-row>
+
+        <AppEditor v-model="paper.instructions" label="General Instructions" />
+      </v-card>
+      <BlueprintSelectorCard
+        :key="blueprintRefreshKey"
+        v-model="paper.paper_blueprint_id"
+        :blueprints="blueprints"
+        :selected-blueprint="selectedBlueprint"
+        :current-sections="paper.sections"
+        :disabled="!paper.grade_id || !paper.subject_id"
+        :show-generate-button="false"
+        title="Question Paper Blueprint"
+        subtitle="This paper must follow the selected blueprint structure."
+      />
+
+      <v-row>
+        <!-- LEFT PANEL for question bank -->
+        <v-col cols="12" md="7">
+          <v-card class="rounded-xl pa-4" elevation="0">
+            <div class="text-h6 mb-4">Question Bank Filter by:</div>
+
+            <!-- FILTERS -->
+            <v-row>
+              <v-col cols="12" md="3">
+                <v-select
+                  v-model="filters.grade_id"
+                  :items="grades"
+                  item-title="name"
+                  item-value="id"
+                  label="Class"
+                  @update:model-value="fetchSubjects"
+                  :error-messages="errors.grade_id"
+                />
+              </v-col>
+
+              <v-col cols="12" md="3">
+                <v-select
+                  v-model="filters.subject_id"
+                  :items="subjects"
+                  item-title="name"
+                  item-value="id"
+                  label="Subject"
+                  @update:model-value="fetchLessons"
+                  :error-messages="errors.subject_id"
+                />
+              </v-col>
+
+              <v-col cols="12" md="3">
+                <v-select
+                  v-model="filters.type"
+                  :items="questionTypes"
+                  item-title="title"
+                  item-value="value"
+                  label="Question Type"
+                  @update:model-value="fetchQuestions"
+                  clearable
+                />
+              </v-col>
+
+              <v-col cols="12" md="3">
+                <v-select
+                  v-model="filters.difficulty"
+                  :items="['easy', 'medium', 'hard']"
+                  label="Difficulty"
+                  :error-messages="errors.difficulty"
+                />
+              </v-col>
+            </v-row>
+
+            <v-text-field
+              v-model="filters.search"
+              prepend-inner-icon="mdi-magnify"
+              label="Search Questions"
+              class="mb-4"
+            />
+
+            <div class="d-flex ga-2 mb-4">
+              <!-- APPLY -->
+              <v-btn color="primary" @click="fetchQuestions">
+                Apply Filters
+              </v-btn>
+
+              <!-- CLEAR -->
+              <v-btn
+                color="grey"
+                variant="outlined"
+                prepend-icon="mdi-filter-remove"
+                @click="clearFilters"
               >
-                <div class="d-flex justify-space-between mb-3">
-                  <div class="d-flex ga-2">
-                    <v-chip size="small" color="primary" variant="tonal">
-                      {{ element.type }}
-                    </v-chip>
+                Clear
+              </v-btn>
+              <v-spacer />
+              <v-chip color="success">
+                Added:
+                {{ addedQuestionIds.length }}
+              </v-chip>
 
-                    <v-chip size="small" color="success" variant="tonal">
-                      {{ element.marks }} Marks
-                    </v-chip>
+              <v-chip color="primary">
+                Available:
+                {{ questions.length - addedQuestionIds.length }}
+              </v-chip>
+            </div>
+
+            <!-- QUESTIONS -->
+            <draggable
+              :list="questions"
+              item-key="id"
+              :move="checkMove"
+              :group="{ name: 'questions', pull: 'clone', put: false }"
+              :clone="cloneQuestion"
+              sort="false"
+            >
+              <template #item="{ element }">
+                <div
+                  class="question-card"
+                  :class="{
+                    'question-added-dark':
+                      isQuestionAdded(element.id) &&
+                      theme.global.current.value.dark,
+
+                    'question-added-light':
+                      isQuestionAdded(element.id) &&
+                      !theme.global.current.value.dark,
+                  }"
+                >
+                  <div class="d-flex justify-space-between mb-3">
+                    <div class="d-flex ga-2">
+                      <v-chip size="small" color="primary" variant="tonal">
+                        {{ element.type }}
+                      </v-chip>
+
+                      <v-chip size="small" color="success" variant="tonal">
+                        {{ element.marks }} Marks
+                      </v-chip>
+                    </div>
+
+                    <v-btn
+                      v-if="!isQuestionAdded(element.id)"
+                      color="primary"
+                      size="small"
+                      @click="addQuestion(element)"
+                    >
+                      Add
+                    </v-btn>
                   </div>
 
-                  <v-btn
-                    v-if="!isQuestionAdded(element.id)"
-                    color="primary"
-                    size="small"
-                    @click="addQuestion(element)"
-                  >
-                    Add
-                  </v-btn>
-                  
+                  <MathContent class="question-html" :html="element.question" />
                 </div>
-
-                <MathContent class="question-html" :html="element.question" />
-              </div>
-            </template>
-          </draggable>
-        </v-card>
-      </v-col>
-
-      <!-- RIGHT PANEL for SECTIONS -->
-      <v-col cols="12" md="5" class="d-flex">
-        <v-card class="flex-grow-1 rounded-xl sections-scroll" elevation="0">
-          <div class="pa-4">
-            <PaperSections
-              v-model="paper.sections"
-              @replace-question="replaceQuestion"
-              @preview-question="openPreview"
-            />
-          </div>
-        </v-card>
-      </v-col>
-
-      <!-- Live Preview PANEL -->
-      <v-col cols="12" md="12">
-        <v-card class="rounded-xl pa-4" elevation="0">
-          <v-card class="mb-4" color="primary" variant="tonal">
-            <v-card-text>
-              <div class="d-flex align-center">
-                <div>
-                  Total Questions:
-                  <strong>
-                    {{ selectedQuestions.length }}
-                  </strong>
-                </div>
-
-                <v-spacer />
-
-                <v-chip size="large" color="success">
-                  {{ totalMarks }}
-                  Marks
-                </v-chip>
-              </div>
-            </v-card-text>
+              </template>
+            </draggable>
           </v-card>
-          <v-btn-toggle v-model="previewMode" mandatory class="mb-4">
-            <v-btn value="paper"> Question Paper </v-btn>
+        </v-col>
 
-            <v-btn value="scheme"> Marking Scheme </v-btn>
-          </v-btn-toggle>
-          <LivePaperPreview
-            :paper="paper"
-            :mode="previewMode"
-            @print="printPaper"
-          />
-        </v-card>
-      </v-col>
-    </v-row>
-  </div>
-  <QuestionPreviewDrawer v-model="previewDrawer" :question="previewQuestion" />
+        <!-- RIGHT PANEL for SECTIONS -->
+        <v-col cols="12" md="5" class="d-flex">
+          <v-card class="flex-grow-1 rounded-xl sections-scroll" elevation="0">
+            <div class="pa-4">
+              <PaperSections
+                v-model="paper.sections"
+                @replace-question="replaceQuestion"
+                @preview-question="openPreview"
+                @blueprint-refresh="refreshBlueprintStatus"
+              />
+            </div>
+          </v-card>
+        </v-col>
+
+        <!-- Live Preview PANEL -->
+        <v-col cols="12" md="12">
+          <v-card class="rounded-xl pa-4" elevation="0">
+            <v-card class="mb-4" color="primary" variant="tonal">
+              <v-card-text>
+                <div class="d-flex align-center">
+                  <div>
+                    Total Questions:
+                    <strong>
+                      {{ selectedQuestions.length }}
+                    </strong>
+                  </div>
+
+                  <v-spacer />
+
+                  <v-chip size="large" color="success">
+                    {{ totalMarks }}
+                    Marks
+                  </v-chip>
+                </div>
+              </v-card-text>
+            </v-card>
+            <v-btn-toggle v-model="previewMode" mandatory class="mb-4">
+              <v-btn value="paper"> Question Paper </v-btn>
+
+              <v-btn value="scheme"> Marking Scheme </v-btn>
+            </v-btn-toggle>
+            <LivePaperPreview
+              :paper="paper"
+              :mode="previewMode"
+              @print="printPaper"
+            />
+          </v-card>
+        </v-col>
+      </v-row>
+    </div>
+    <QuestionPreviewDrawer
+      v-model="previewDrawer"
+      :question="previewQuestion"
+    />
+  </PageSkeleton>
 </template>
 
 <style scoped>
@@ -1081,13 +1408,13 @@ onMounted(async () => {
   z-index: 1;
 }
 .question-added-light {
-  background: rgba(0,0,0,0.03);
+  background: rgba(0, 0, 0, 0.03);
   border: 1px dashed rgba(76, 175, 80, 0.5) !important;
 }
 
 .question-added-dark {
-  background: rgba(255,255,255,0.04);
-  border: 1px dashed rgba(76,175,80,0.5) !important;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(76, 175, 80, 0.5) !important;
 }
 .cursor-grab {
   cursor: grab;

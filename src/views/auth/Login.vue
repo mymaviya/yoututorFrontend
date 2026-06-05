@@ -13,27 +13,42 @@ const errors = ref({});
 
 const router = useRouter();
 const auth = useAuthStore();
+const showPassword = ref(false);
 
 const login = async () => {
   loading.value = true;
-  errors.value = {};
 
   try {
-    await auth.login({
+    const result = await auth.login({
       email: email.value,
       password: password.value,
       remember: remember.value,
     });
 
-    setTimeout(() => {
-      // Role-based redirect
-      router.push({name: auth.user.dashboard_route || 'Dashboard'});
-    }, 100);
-  } catch (err) {
-    
-    errors.value = {
-      general: err.response?.data?.message || err.message || "Login failed",
-    };
+    if (!result.success) {
+      ui.showSnackbar(
+        result.message || "Login failed",
+        result.code === "USER_ALREADY_LOGGED_IN" ? "warning" : "error",
+      );
+      return;
+    }
+
+    ui.showSnackbar("Login successful", "success");
+
+    if (auth.user?.password_change_required) {
+      router.replace({ name: "change.first.password" });
+      return;
+    }
+
+    router.replace({
+      name: auth.user?.dashboard_route || "Dashboard",
+    });
+
+    router.replace(
+      auth.user?.dashboard_route
+        ? { name: auth.user.dashboard_route }
+        : { name: "Dashboard" },
+    );
   } finally {
     loading.value = false;
   }
@@ -73,10 +88,12 @@ const login = async () => {
       v-model="password"
       label="Password"
       prepend-inner-icon="mdi-lock"
-      type="password"
+      :type="showPassword ? 'text' : 'password'"
+      :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
       variant="outlined"
       :error-messages="errors.password"
       @keyup.enter="login"
+      @click:append-inner="showPassword = !showPassword"
     />
 
     <div class="d-flex justify-space-between align-center mb-4">

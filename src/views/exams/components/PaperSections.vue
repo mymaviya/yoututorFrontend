@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, onMounted, nextTick } from "vue";
 import draggable from "vuedraggable";
 
 const openSections = ref({});
@@ -17,6 +17,7 @@ const emit = defineEmits([
   "replace-question",
   "remove-question",
   "preview-question",
+  "blueprint-refresh",
 ]);
 
 const sections = computed({
@@ -35,6 +36,13 @@ const addSection = () => {
 
     questions: [],
   });
+};
+
+const removeQuestionFromSection = (section, questionIndex) => {
+  section.questions.splice(questionIndex, 1);
+
+  emit("update:modelValue", [...sections.value]);
+  emit("blueprint-refresh");
 };
 
 const removeSection = (index) => {
@@ -75,25 +83,46 @@ const getSectionMarks = (section) => {
   let total = 0;
 
   section.questions.forEach((q) => {
-    total += Number(q.marks);
+    total += Number.isFinite(Number(q.marks)) ? Number(q.marks) : 0;
   });
 
   return total;
 };
 
-const onQuestionDropped = (section) => {
-  const seen = new Set();
+const normalizeQuestion = (q) => ({
+  ...q,
+  type: q.type || q.question_type,
+  difficulty: q.difficulty || q.difficulty_level,
+  bloom_level: q.bloom_level || q.bloom,
+});
 
-  section.questions = section.questions.filter((q) => {
-    if (!q || !q.id) return false;
+const onQuestionDropped = async (sectionIndex) => {
+  await nextTick();
 
-    if (seen.has(q.id)) {
-      return false;
-    }
+  const updatedSections = sections.value.map((section, index) => {
+    if (index !== sectionIndex) return section;
 
-    seen.add(q.id);
-    return true;
+    const seen = new Set();
+
+    return {
+      ...section,
+      questions: section.questions
+        .map((q) => normalizeQuestion(q))
+        .filter((q) => {
+          if (!q || !q.id) return false;
+          if (seen.has(Number(q.id))) return false;
+
+          seen.add(Number(q.id));
+          return true;
+        }),
+    };
   });
+
+  emit("update:modelValue", updatedSections);
+
+  await nextTick();
+
+  emit("blueprint-refresh");
 };
 
 onMounted(() => {
@@ -115,7 +144,7 @@ onMounted(() => {
     </div>
 
     <!-- SECTIONS -->
-    <div v-for="(section, index) in sections" :key="index" class="mb-6">
+    <div v-for="(section, index) in sections" :key="section.name" class="mb-6">
       <v-card class="rounded-xl" elevation="0">
         <!-- SECTION HEADER -->
         <div class="d-flex justify-space-between align-center pa-4">
@@ -189,7 +218,9 @@ onMounted(() => {
                 handle=".drag-handle"
                 animation="200"
                 :group="{ name: 'questions', pull: true, put: true }"
-                @add="onQuestionDropped(section)"
+                @add="onQuestionDropped(index)"
+                @change="onQuestionDropped(index)"
+                @end="onQuestionDropped(index)"
               >
                 <template #item="{ element, index }">
                   <v-card class="mb-2" rounded="lg" variant="outlined">
@@ -233,11 +264,15 @@ onMounted(() => {
                               size="small"
                               variant="text"
                               color="warning"
-                              @click="$emit('replace-question', {
+                              @click="
+                                $emit('replace-question', {
                                   question: element,
-                                  sectionIndex: sections.findIndex(s => s === section),
+                                  sectionIndex: sections.findIndex(
+                                    (s) => s === section,
+                                  ),
                                   questionIndex: index,
-                                })"
+                                })
+                              "
                             />
                           </template>
                         </v-tooltip>
@@ -250,7 +285,7 @@ onMounted(() => {
                               size="small"
                               variant="text"
                               color="error"
-                              @click="section.questions.splice(index, 1)"
+                              @click="removeQuestionFromSection(section, index)"
                             />
                           </template>
                         </v-tooltip>

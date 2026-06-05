@@ -4,6 +4,7 @@ import Login from "../views/Login.vue";
 import Dashboard from "../views/Dashboard.vue";
 import Home from "../views/Home.vue";
 import About from "../views/About.vue";
+import { useUiLoaderStore } from "../stores/uiLoader";
 
 import DashboardLayout from "../layouts/DashboardLayout.vue";
 import AuthLayout from "../layouts/AuthLayout.vue";
@@ -329,6 +330,12 @@ const routes = [
     component: () => import("../views/errors/NotFound.vue"),
     meta: { title: "404 Not Found" },
   },
+  {
+    path: "/change-password",
+    name: "change.first.password",
+    component: () => import("../views/auth/ChangeFirstPassword.vue"),
+    meta: { title: "Change Password", requiresAuth: true, allowPasswordChange: true },
+  },
 ];
 
 const router = createRouter({
@@ -336,23 +343,63 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore();
+  const loader = useUiLoaderStore();
+  loader.start();
 
-  if (!auth.isAuth && to.path !== "/login" && to.path !== "/register") {
-    return next("/login");
+  // Public routes
+  if (["login", "register", "forgot-password"].includes(to.name)) {
+    return next();
+  }
+
+  // Protected routes
+  if (to.meta.requiresAuth) {
+
+    if (!auth.token) {
+      return next("/login");
+    }
+
+    if (!auth.user) {
+      try {
+        await auth.fetchUser();
+      } catch (e) {
+        return next("/login");
+      }
+    }
+
+    // First login password change
+    if (
+      auth.user?.password_change_required &&
+      to.name !== "change.first.password"
+    ) {
+      return next({
+        name: "change.first.password",
+      });
+    }
   }
 
   next();
 });
 
 router.afterEach((to, from) => {
+  const loader = useUiLoaderStore();
   const toDepth = to.path.split("/").length;
   const fromDepth = from.path.split("/").length;
   const pageTitle = to.meta.title;
   document.title = pageTitle ? `${pageTitle} | ${APP_NAME}` : APP_NAME;
 
   to.meta.transition = toDepth < fromDepth ? "slide-right" : "slide-left";
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      loader.stop();
+    }, 300);
+  });
+});
+
+router.onError(() => {
+  const loader = useUiLoaderStore();
+  loader.reset();
 });
 
 export default router;

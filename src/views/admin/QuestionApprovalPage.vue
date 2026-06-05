@@ -2,6 +2,9 @@
 import { ref, onMounted } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
+import { usePermissionStore } from "../../stores/permission";
+
+const permission = usePermissionStore();
 
 const ui = useUIStore();
 
@@ -564,7 +567,7 @@ onMounted(() => {
           <v-spacer />
 
           <v-btn
-            v-if="permission.can('approve_questions') && selectedQuestion?.status !== 'approved'"
+            v-if="permission.can('approve.questions') && selectedQuestion?.status !== 'approved'"
             color="success"
             @click="approveQuestion(selectedQuestion)"
           >
@@ -572,7 +575,7 @@ onMounted(() => {
           </v-btn>
 
           <v-btn
-            v-if="permission.can('approve_questions') && selectedQuestion?.status !== 'rejected'"
+            v-if="permission.can('approve.questions') && selectedQuestion?.status !== 'rejected'"
             color="error"
             variant="tonal"
             @click="openReject(selectedQuestion)"

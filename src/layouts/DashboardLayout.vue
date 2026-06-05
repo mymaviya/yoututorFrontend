@@ -63,11 +63,18 @@ const toggleTheme = () => {
 };
 
 const fetchNotifications = async () => {
-  const res = await api.get("/notifications", {
-    params: {
-      unread_only: 1,
-    },
-  });
+  if (!auth.token) return;
+  
+    try {
+    const res = await api.get("/notifications", {
+      params: { unread_only: 1 },
+    });
+
+    notifications.value = res.data.data || res.data;
+  } catch (error) {
+    if (error.response?.status === 401) return;
+    console.error(error);
+  }
 
   notifications.value = res.data.data || res.data;
 };
@@ -156,9 +163,14 @@ onMounted(() => {
   fetchUnreadCount();
   fetchNotifications();
 
+  setInterval(() => {
+    auth.heartbeat();
+  }, 60000);
+
+
   notificationTimer = setInterval(() => {
     fetchUnreadCount();
-    fetchNotifications();
+    fetchNotifications();    
   }, 30000);
 });
 
