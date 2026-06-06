@@ -306,7 +306,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <v-expansion-panels   v-model="openedPermissionGroups" multiple variant="accordion">
+      <v-expansion-panels v-model="openedPermissionGroups" multiple variant="accordion">
   <v-expansion-panel
     v-for="(items, groupName) in groupedPermissions"
     :key="groupName"

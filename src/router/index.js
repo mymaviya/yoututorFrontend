@@ -12,26 +12,33 @@ import AuthLayout from "../layouts/AuthLayout.vue";
 const APP_NAME = "GoLearn";
 
 const routes = [
-  { path: "/", redirect: "/login" },
+  {
+    path: "/",
+    name: "root",
+    redirect: () => {
+      const token = localStorage.getItem("token");
+      return token ? "/dashboard" : "/login";
+    },
+  },
   {
     path: "/",
     component: AuthLayout,
     children: [
       {
         path: "login",
+        name: "login",
         component: () => import("../views/auth/Login.vue"),
-        meta: { title: "Login" },
-        meta: { title: "Login" },
+        meta: { title: "Login", guestOnly: true },
       },
       {
         path: "register",
         component: () => import("../views/auth/Register.vue"),
-        meta: { title: "Login" },
+        meta: { title: "Login", guestOnly: true },
       },
       {
         path: "forgot-password",
         component: () => import("../views/auth/ForgotPassword.vue"),
-        meta: { title: "Login" },
+        meta: { title: "Login", guestOnly: true },
       },
     ],
   },
@@ -39,6 +46,7 @@ const routes = [
   {
     path: "/",
     component: DashboardLayout,
+    meta: { requiresAuth: true },
     children: [
       {
         path: "dashboard",
@@ -322,6 +330,16 @@ const routes = [
           permission: "manage_permissions",
         },
       },
+      {
+        path: "/change-password",
+        name: "change.first.password",
+        component: () => import("../views/auth/ChangeFirstPassword.vue"),
+        meta: {
+          title: "Change Password",
+          requiresAuth: true,
+          allowPasswordChange: true,
+        },
+      },
     ],
   },
   {
@@ -329,12 +347,6 @@ const routes = [
     name: "not-found",
     component: () => import("../views/errors/NotFound.vue"),
     meta: { title: "404 Not Found" },
-  },
-  {
-    path: "/change-password",
-    name: "change.first.password",
-    component: () => import("../views/auth/ChangeFirstPassword.vue"),
-    meta: { title: "Change Password", requiresAuth: true, allowPasswordChange: true },
   },
 ];
 
@@ -346,42 +358,44 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore();
   const loader = useUiLoaderStore();
+
   loader.start();
 
-  // Public routes
-  if (["login", "register", "forgot-password"].includes(to.name)) {
-    return next();
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+  const isGuestOnly = to.meta.guestOnly;
+
+  if (requiresAuth && !auth.token) {
+    loader.stop();
+    return next({ name: "login" });
   }
 
-  // Protected routes
-  if (to.meta.requiresAuth) {
-
-    if (!auth.token) {
-      return next("/login");
+  if (auth.token && !auth.user) {
+    try {
+      await auth.fetchUser();
+    } catch (e) {
+      loader.stop();
+      return next({ name: "login" });
     }
+  }
 
-    if (!auth.user) {
-      try {
-        await auth.fetchUser();
-      } catch (e) {
-        return next("/login");
-      }
-    }
+  if (isGuestOnly && auth.token && auth.user) {
+    loader.stop();
+    return next({
+      name: auth.user.dashboard_route || "Dashboard",
+    });
+  }
 
-    // First login password change
-    if (
-      auth.user?.password_change_required &&
-      to.name !== "change.first.password"
-    ) {
-      return next({
-        name: "change.first.password",
-      });
-    }
+  if (
+    requiresAuth &&
+    auth.user?.password_change_required &&
+    !to.meta.allowPasswordChange
+  ) {
+    loader.stop();
+    return next({ name: "change.first.password" });
   }
 
   next();
 });
-
 router.afterEach((to, from) => {
   const loader = useUiLoaderStore();
   const toDepth = to.path.split("/").length;

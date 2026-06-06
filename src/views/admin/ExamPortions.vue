@@ -3,6 +3,7 @@ import { ref, onMounted } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
 import { formatDate } from "../../utils/date";
+import { usePermissionStore } from "../../stores/permission";
 
 const ui = useUIStore();
 
@@ -23,6 +24,8 @@ const selectedTeacher = ref(null);
 const selectedAssignment = ref(null);
 const selectedPortion = ref(null);
 const rejectionReason = ref("");
+
+const permission = usePermissionStore();
 
 const examNames = ref([]);
 
@@ -320,6 +323,7 @@ onMounted(() => {
             label="Teacher"
             clearable
             variant="outlined"
+            @update:model-value="fetchPortions"
           />
         </v-col>
 
@@ -330,18 +334,11 @@ onMounted(() => {
             label="Status"
             clearable
             variant="outlined"
+            @update:model-value="fetchPortions"
           />
         </v-col>
 
         <v-col cols="12" md="4" class="d-flex align-center ga-2">
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-filter"
-            @click="fetchPortions"
-          >
-            Apply
-          </v-btn>
-
           <v-btn
             variant="outlined"
             prepend-icon="mdi-filter-remove"
@@ -445,7 +442,7 @@ onMounted(() => {
         <v-card-text>
           <v-row>
             <v-col cols="12">
-              <v-select
+              <v-autocomplete
                 v-model="form.teacher_id"
                 :items="teachers"
                 item-title="user.name"
@@ -659,11 +656,7 @@ onMounted(() => {
         <v-card-actions v-if="selectedPortion?.status === 'submitted'">
           <v-spacer />
 
-          <v-btn
-            v-if="permission.can('approve_questions')"
-            color="success"
-            @click="approvePortion(selectedPortion)"
-          >
+          <v-btn color="success" @click="approvePortion(selectedPortion)">
             Approve
           </v-btn>
 
