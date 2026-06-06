@@ -55,6 +55,12 @@ const routes = [
         meta: { title: "Dashboard" },
       },
       {
+        path: "dashboard-analytics",
+        name: "dashboard.analytics",
+        component: () => import("../views/admin/DashboardAnalytics.vue"),
+        meta: { title: "Analytics Dashboard" },
+      },
+      {
         path: "profile",
         name: "profile",
         component: () => import("../views/Profile.vue"),
