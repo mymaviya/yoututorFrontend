@@ -127,18 +127,8 @@ const markAllAsRead = async () => {
 };
 
 const logout = async () => {
-  try {
-    await api.post("/logout");
-  } catch (err) {
-    console.log(err);
-  } finally {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-
-    delete api.defaults.headers.common.Authorization;
-
-    router.push("/login");
-  }
+  await auth.logout();
+  router.replace({ name: "login" });
 };
 
 const goProfile = () => {
