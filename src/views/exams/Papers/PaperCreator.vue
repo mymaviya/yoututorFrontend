@@ -33,6 +33,7 @@ const isEditMode = computed(() => !!route.params.id);
 const previewDrawer = ref(false);
 const previewQuestion = ref(null);
 const previewMode = ref("paper");
+const moderateDifficultyMode = ref(false);
 
 const openPreview = (question) => {
   previewQuestion.value = {
@@ -97,6 +98,50 @@ const onBlueprintChange = async (blueprintId, overwriteSections = true) => {
   }
 };
 
+
+const getQuestionTypeValue = (question = {}) => {
+  if (typeof question.question_type === "object") {
+    return question.question_type?.slug || question.question_type?.question_type
+  }
+
+  return question.type || question.question_type
+}
+
+const normalizeQuestion = (question = {}) => {
+  const type = getQuestionTypeValue(question)
+
+  return {
+    ...question,
+    type,
+    question_type: type,
+    difficulty: question.difficulty || question.difficulty_level,
+    difficulty_level: question.difficulty || question.difficulty_level,
+    bloom_level: question.bloom_level || question.bloom,
+  }
+}
+
+const questionMatchesBlueprintItem = (question, item) => {
+  const q = normalizeQuestion(question);
+
+  return (
+    item.question_type === q.type &&
+    (
+      moderateDifficultyMode.value ||
+      !item.difficulty ||
+      item.difficulty === q.difficulty
+    ) &&
+    (!item.bloom_level || item.bloom_level === q.bloom_level)
+  );
+};
+
+const getBlueprintSectionForPaperSection = (section) => {
+  if (!selectedBlueprint.value?.sections?.length) return null;
+
+  return selectedBlueprint.value.sections.find(
+    (bpSection) => bpSection.section_name === section.name,
+  );
+};
+
 const validateBlueprintStructure = () => {
   blueprintErrors.value = [];
 
@@ -115,13 +160,25 @@ const validateBlueprintStructure = () => {
     const items = bpSection.items || [];
 
     items.forEach((item) => {
-      const matchingQuestions = paperSection.questions.filter((q) => {
-        return (
-          q.type === item.question_type &&
-          (!item.difficulty || q.difficulty === item.difficulty) &&
-          (!item.bloom_level || q.bloom_level === item.bloom_level)
-        );
-      });
+      const matchingQuestions = paperSection.questions.filter((q) =>
+        questionMatchesBlueprintItem(q, item)
+      );
+
+      // DEBUG START
+      console.log(
+        "Section:",
+        bpSection.section_name,
+        "Type:",
+        item.question_type,
+        paperSection.questions.map((q) => ({
+          id: q.id,
+          type: q.type,
+          question_type: q.question_type,
+          difficulty: q.difficulty,
+          difficulty_level: q.difficulty_level,
+        }))
+      );
+      // DEBUG END
 
       if (matchingQuestions.length !== Number(item.question_count)) {
         blueprintErrors.value.push(
@@ -130,6 +187,9 @@ const validateBlueprintStructure = () => {
       }
 
       matchingQuestions.forEach((q) => {
+        q.type = q.type || q.question_type;
+        q.difficulty = q.difficulty || q.difficulty_level;
+        q.bloom_level = q.bloom_level || q.bloom;
         q.marks = safeNumber(item.marks_per_question, 0);
       });
     });
@@ -148,31 +208,13 @@ const validateBlueprintStructure = () => {
 };
 
 const getQuestionBlueprintMarks = (section, question) => {
-  if (!selectedBlueprint.value) {
-    return Number(question.marks || section.marks_per_question || 0);
-  }
+  const blueprintItem = getMatchingBlueprintItem(section, question);
 
-  const blueprintSection = selectedBlueprint.value.sections?.find(
-    (bpSection) => bpSection.section_name === section.name,
-  );
-
-  if (!blueprintSection) {
-    return Number(question.marks || section.marks_per_question || 0);
-  }
-
-  const blueprintItem = (blueprintSection.items || []).find((item) => {
-    return (
-      item.question_type === question.type &&
-      (!item.difficulty || item.difficulty === question.difficulty) &&
-      (!item.bloom_level || item.bloom_level === question.bloom_level)
-    );
-  });
-
-  return Number(
-    blueprintItem?.marks_per_question ||
-      section.marks_per_question ||
-      question.marks ||
-      0,
+  return safeNumber(
+    blueprintItem?.marks_per_question ??
+    question.marks ??
+    section.marks_per_question ??
+    0,
   );
 };
 
@@ -409,51 +451,63 @@ const fetchLessons = async () => {
   fetchQuestions();
 };
 
-const findTargetSectionForQuestion = (question) => {
-  const normalized = {
-    ...question,
-    type: question.type || question.question_type,
-    difficulty: question.difficulty || question.difficulty_level,
-    bloom_level: question.bloom_level || question.bloom,
-  };
+const canQuestionFitInSection = (section, question, ignoreQuestionId = null) => {
+  if (!selectedBlueprint.value?.sections?.length) return true;
 
-  if (!selectedBlueprint.value?.sections?.length) {
-    return paper.value.sections[0];
-  }
+  const blueprintSection = getBlueprintSectionForPaperSection(section);
+  if (!blueprintSection) return false;
 
-  for (const bpSection of selectedBlueprint.value.sections) {
-    const paperSection = paper.value.sections.find(
-      (s) => s.name === bpSection.section_name,
-    );
+  const blueprintItem = (blueprintSection.items || []).find((item) =>
+    questionMatchesBlueprintItem(question, item),
+  );
 
-    if (!paperSection) continue;
+  if (!blueprintItem) return false;
 
-    for (const item of bpSection.items || []) {
-      const matches =
-        item.question_type === normalized.type &&
-        (!item.difficulty || item.difficulty === normalized.difficulty) &&
-        (!item.bloom_level || item.bloom_level === normalized.bloom_level);
-
-      if (!matches) continue;
-
-      const currentCount = paperSection.questions.filter((q) => {
-        return (
-          (q.type || q.question_type) === item.question_type &&
-          (!item.difficulty || q.difficulty === item.difficulty) &&
-          (!item.bloom_level || q.bloom_level === item.bloom_level)
-        );
-      }).length;
-
-      if (currentCount < Number(item.question_count || 0)) {
-        return paperSection;
-      }
+  const currentCount = section.questions.filter((existing) => {
+    if (
+      ignoreQuestionId !== null &&
+      Number(existing.id) === Number(ignoreQuestionId)
+    ) {
+      return false;
     }
-  }
 
-  return paper.value.sections[0];
+    return questionMatchesBlueprintItem(existing, blueprintItem);
+  }).length;
+
+  return currentCount < Number(blueprintItem.question_count || 0);
 };
 
-/* ADD QUESTION */
+const canAcceptQuestionForSection = (section, question) => {
+  if (!section || !question || !question.id) return false
+
+  const q = normalizeQuestion(question)
+
+  const alreadyAddedElsewhere = paper.value.sections.some((paperSection) => {
+    if (paperSection.name === section.name) return false
+
+    return paperSection.questions.some(
+      (existing) => Number(existing.id) === Number(q.id)
+    )
+  })
+
+  if (alreadyAddedElsewhere) return false
+
+  return canQuestionFitInSection(section, q)
+};
+
+const findTargetSectionForQuestion = (question) => {
+  if (!selectedBlueprint.value?.sections?.length) {
+    return paper.value.sections[0] || null;
+  }
+
+  return (
+    paper.value.sections.find((section) =>
+      canQuestionFitInSection(section, question),
+    ) || null
+  );
+};
+
+/* ADD QUESTION *//* ADD QUESTION */
 const addQuestion = (question) => {
   if (isQuestionAdded(question.id)) {
     ui.showSnackbar("Question already added", "warning");
@@ -462,12 +516,15 @@ const addQuestion = (question) => {
 
   const targetSection = findTargetSectionForQuestion(question);
 
-  const normalizedQuestion = {
-    ...question,
-    type: question.type || question.question_type,
-    difficulty: question.difficulty || question.difficulty_level,
-    bloom_level: question.bloom_level || question.bloom,
-  };
+  if (!targetSection) {
+    ui.showSnackbar(
+      "No blueprint slot available for this question type in any section",
+      "error",
+    );
+    return;
+  }
+
+  const normalizedQuestion = normalizeQuestion(question);
 
   targetSection.questions.push({
     ...normalizedQuestion,
@@ -479,12 +536,18 @@ const addQuestion = (question) => {
   ui.showSnackbar(`Question added to ${targetSection.name}`);
 };
 
-/* REMOVE QUESTION */
+/* REMOVE QUESTION *//* REMOVE QUESTION */
 const removeQuestion = (id) => {
-  selectedQuestions.value = selectedQuestions.value.filter((q) => q.id !== id);
+  paper.value.sections.forEach((section) => {
+    section.questions = section.questions.filter(
+      (q) => Number(q.id) !== Number(id),
+    );
+  });
+
+  refreshBlueprintStatus();
 };
 
-/* AUTO GENERATE */
+/* AUTO GENERATE *//* AUTO GENERATE */
 const autoGenerate = async () => {
   try {
     const res = await api.post("/papers/auto-generate", {
@@ -635,7 +698,7 @@ const recalculateSectionMarks = (section) => {
     ...question,
     marks: getQuestionMarks(section, question),
   }));
-  
+
 };
 
 const recalculateAllMarks = () => {
@@ -672,21 +735,19 @@ const safeNumber = (value, fallback = 0) => {
 };
 
 const getMatchingBlueprintItem = (section, question) => {
-  if (!selectedBlueprint.value) return null;
-
-  const blueprintSection = selectedBlueprint.value.sections?.find(
-    (bpSection) => bpSection.section_name === section.name,
-  );
+  const blueprintSection = getBlueprintSectionForPaperSection(section);
 
   if (!blueprintSection) return null;
 
-  const items = blueprintSection.items || [];
+  return (blueprintSection.items || []).find((item) => {
+    const type = question.type || question.question_type;
+    const difficulty = question.difficulty || question.difficulty_level;
+    const bloom = question.bloom_level || question.bloom;
 
-  return items.find((item) => {
     return (
-      item.question_type === question.type &&
-      (!item.difficulty || item.difficulty === question.difficulty) &&
-      (!item.bloom_level || item.bloom_level === question.bloom_level)
+      item.question_type === type &&
+      (!item.difficulty || item.difficulty === difficulty) &&
+      (!item.bloom_level || item.bloom_level === bloom)
     );
   });
 };
@@ -696,9 +757,9 @@ const getQuestionMarks = (section, question) => {
 
   return safeNumber(
     blueprintItem?.marks_per_question ??
-      question.marks ??
-      section.marks_per_question ??
-      0,
+    question.marks ??
+    section.marks_per_question ??
+    0,
   );
 };
 
@@ -1008,6 +1069,14 @@ const isQuestionAdded = (questionId) => {
   return addedQuestionIds.value.includes(Number(questionId));
 };
 
+const isBlueprintCompatible = (question) => {
+  if (isQuestionAdded(question.id)) return false;
+
+  return paper.value.sections.some((section) =>
+    canQuestionFitInSection(section, question)
+  );
+};
+
 const checkMove = (evt) => {
   return !isQuestionAdded(evt.draggedContext.element.id);
 };
@@ -1024,18 +1093,31 @@ const selectedSubject = computed(() => {
   );
 });
 
+const blueprintCurrentSections = computed(() => {
+  return paper.value.sections.map((section) => ({
+    ...section,
+    questions: section.questions.map((q) => normalizeQuestion(q)),
+  }))
+})
+
 const blueprintRefreshKey = ref(0);
 
 const refreshBlueprintStatus = () => {
   recalculateAllMarks();
   validateBlueprintStructure();
-
-  paper.value.sections = paper.value.sections.map((section) => ({
-    ...section,
-    questions: section.questions.map((q) => ({ ...q })),
-  }));
-
   blueprintRefreshKey.value++;
+};
+
+const handleAddQuestionClick = (question) => {
+  if (!isBlueprintCompatible(question)) {
+    ui.showSnackbar(
+      "This question does not match the blueprint criteria for any available section.",
+      "error"
+    );
+    return;
+  }
+
+  addQuestion(question);
 };
 
 watch(
@@ -1052,12 +1134,6 @@ watch(
 
     validateBlueprintStructure();
   },
-);
-
-watch(
-  () => paper.sections,
-  () => paper.value.sections,
-  { deep: true },
 );
 
 /* INIT */
@@ -1081,10 +1157,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageSkeleton
-    :loading="!pageReady"
-    type="card, table-heading, table-row-divider@8"
-  >
+  <PageSkeleton :loading="!pageReady" type="card, table-heading, table-row-divider@8">
     <div>
       <!-- PAGE HEADER -->
       <div class="d-flex justify-space-between align-center mb-6">
@@ -1129,21 +1202,12 @@ onMounted(async () => {
         </div>
 
         <div class="d-flex ga-2">
-          <v-btn
-            color="secondary"
-            prepend-icon="mdi-auto-fix"
-            @click="autoGenerate"
-          >
+          <v-btn color="secondary" prepend-icon="mdi-auto-fix" @click="autoGenerate">
             Auto Generate
           </v-btn>
 
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-content-save"
-            :loading="saving"
-            :disabled="saving"
-            @click="savePaper"
-          >
+          <v-btn color="primary" prepend-icon="mdi-content-save" :loading="saving" :disabled="saving"
+            @click="savePaper">
             {{ isEditMode ? "Update Paper" : "Save Paper" }}
           </v-btn>
         </div>
@@ -1153,52 +1217,30 @@ onMounted(async () => {
       <v-card class="pa-4 mb-6 rounded-xl" elevation="0">
         <v-row>
           <v-col cols="12" md="4">
-            <v-text-field
-              v-model="paper.title"
-              label="Paper Title"
-              :error-messages="errors.title"
-            />
+            <v-text-field v-model="paper.title" label="Paper Title" :error-messages="errors.title" />
           </v-col>
 
           <v-col cols="12" md="3">
-            <v-select
-              v-model="paper.exam_type"
-              :items="['Unit Test', 'Half Yearly', 'Final Exam']"
-              label="Exam Type"
-              :error-messages="errors.exam_type"
-            />
+            <v-select v-model="paper.exam_type" :items="['Unit Test', 'Half Yearly', 'Final Exam']" label="Exam Type"
+              :error-messages="errors.exam_type" />
           </v-col>
 
           <v-col cols="12" md="2">
-            <v-text-field
-              v-model="paper.duration"
-              type="number"
-              label="Duration (Min)"
-            />
+            <v-text-field v-model="paper.duration" type="number" label="Duration (Min)" />
           </v-col>
 
           <v-col cols="12" md="3">
-            <v-text-field
-              :model-value="totalMarks"
-              label="Total Marks"
-              readonly
-            />
+            <v-text-field :model-value="totalMarks" label="Total Marks" readonly />
           </v-col>
         </v-row>
 
         <AppEditor v-model="paper.instructions" label="General Instructions" />
       </v-card>
-      <BlueprintSelectorCard
-        :key="blueprintRefreshKey"
-        v-model="paper.paper_blueprint_id"
-        :blueprints="blueprints"
-        :selected-blueprint="selectedBlueprint"
-        :current-sections="paper.sections"
-        :disabled="!paper.grade_id || !paper.subject_id"
-        :show-generate-button="false"
-        title="Question Paper Blueprint"
-        subtitle="This paper must follow the selected blueprint structure."
-      />
+      <BlueprintSelectorCard :key="blueprintRefreshKey" v-model="paper.paper_blueprint_id"
+        v-model:moderate-difficulty-mode="moderateDifficultyMode" :blueprints="blueprints"
+        :selected-blueprint="selectedBlueprint" :current-sections="blueprintCurrentSections"
+        :disabled="!paper.grade_id || !paper.subject_id" :show-generate-button="false" title="Question Paper Blueprint"
+        subtitle="This paper must follow the selected blueprint structure." />
 
       <v-row>
         <!-- LEFT PANEL for question bank -->
@@ -1209,57 +1251,28 @@ onMounted(async () => {
             <!-- FILTERS -->
             <v-row>
               <v-col cols="12" md="3">
-                <v-select
-                  v-model="filters.grade_id"
-                  :items="grades"
-                  item-title="name"
-                  item-value="id"
-                  label="Class"
-                  @update:model-value="fetchSubjects"
-                  :error-messages="errors.grade_id"
-                />
+                <v-select v-model="filters.grade_id" :items="grades" item-title="name" item-value="id" label="Class"
+                  @update:model-value="fetchSubjects" :error-messages="errors.grade_id" />
               </v-col>
 
               <v-col cols="12" md="3">
-                <v-select
-                  v-model="filters.subject_id"
-                  :items="subjects"
-                  item-title="name"
-                  item-value="id"
-                  label="Subject"
-                  @update:model-value="fetchLessons"
-                  :error-messages="errors.subject_id"
-                />
+                <v-select v-model="filters.subject_id" :items="subjects" item-title="name" item-value="id"
+                  label="Subject" @update:model-value="fetchLessons" :error-messages="errors.subject_id" />
               </v-col>
 
               <v-col cols="12" md="3">
-                <v-select
-                  v-model="filters.type"
-                  :items="questionTypes"
-                  item-title="title"
-                  item-value="value"
-                  label="Question Type"
-                  @update:model-value="fetchQuestions"
-                  clearable
-                />
+                <v-select v-model="filters.type" :items="questionTypes" item-title="title" item-value="value"
+                  label="Question Type" @update:model-value="fetchQuestions" clearable />
               </v-col>
 
               <v-col cols="12" md="3">
-                <v-select
-                  v-model="filters.difficulty"
-                  :items="['easy', 'medium', 'hard']"
-                  label="Difficulty"
-                  :error-messages="errors.difficulty"
-                />
+                <v-select v-model="filters.difficulty" :items="['easy', 'medium', 'hard']" label="Difficulty"
+                  :error-messages="errors.difficulty" />
               </v-col>
             </v-row>
 
-            <v-text-field
-              v-model="filters.search"
-              prepend-inner-icon="mdi-magnify"
-              label="Search Questions"
-              class="mb-4"
-            />
+            <v-text-field v-model="filters.search" prepend-inner-icon="mdi-magnify" label="Search Questions"
+              class="mb-4" />
 
             <div class="d-flex ga-2 mb-4">
               <!-- APPLY -->
@@ -1268,12 +1281,7 @@ onMounted(async () => {
               </v-btn>
 
               <!-- CLEAR -->
-              <v-btn
-                color="grey"
-                variant="outlined"
-                prepend-icon="mdi-filter-remove"
-                @click="clearFilters"
-              >
+              <v-btn color="grey" variant="outlined" prepend-icon="mdi-filter-remove" @click="clearFilters">
                 Clear
               </v-btn>
               <v-spacer />
@@ -1289,27 +1297,18 @@ onMounted(async () => {
             </div>
 
             <!-- QUESTIONS -->
-            <draggable
-              :list="questions"
-              item-key="id"
-              :move="checkMove"
-              :group="{ name: 'questions', pull: 'clone', put: false }"
-              :clone="cloneQuestion"
-              sort="false"
-            >
+            <draggable :list="questions" item-key="id" :move="checkMove"
+              :group="{ name: 'questions', pull: 'clone', put: false }" :clone="cloneQuestion" sort="false">
               <template #item="{ element }">
-                <div
-                  class="question-card"
-                  :class="{
-                    'question-added-dark':
-                      isQuestionAdded(element.id) &&
-                      theme.global.current.value.dark,
+                <div class="question-card" :class="{
+                  'question-added-dark':
+                    isQuestionAdded(element.id) &&
+                    theme.global.current.value.dark,
 
-                    'question-added-light':
-                      isQuestionAdded(element.id) &&
-                      !theme.global.current.value.dark,
-                  }"
-                >
+                  'question-added-light':
+                    isQuestionAdded(element.id) &&
+                    !theme.global.current.value.dark,
+                }">
                   <div class="d-flex justify-space-between mb-3">
                     <div class="d-flex ga-2">
                       <v-chip size="small" color="primary" variant="tonal">
@@ -1319,14 +1318,13 @@ onMounted(async () => {
                       <v-chip size="small" color="success" variant="tonal">
                         {{ element.marks }} Marks
                       </v-chip>
+                      <v-chip size="small" color="warning" variant="tonal">
+                        {{ element.difficulty || element.difficulty_level }}
+                      </v-chip>
                     </div>
 
-                    <v-btn
-                      v-if="!isQuestionAdded(element.id)"
-                      color="primary"
-                      size="small"
-                      @click="addQuestion(element)"
-                    >
+                    <v-btn v-if="!isQuestionAdded(element.id)" color="primary" size="small"
+                      @click="handleAddQuestionClick(element)">
                       Add
                     </v-btn>
                   </div>
@@ -1342,12 +1340,11 @@ onMounted(async () => {
         <v-col cols="12" md="5" class="d-flex">
           <v-card class="flex-grow-1 rounded-xl sections-scroll" elevation="0">
             <div class="pa-4">
-              <PaperSections
-                v-model="paper.sections"
-                @replace-question="replaceQuestion"
-                @preview-question="openPreview"
-                @blueprint-refresh="refreshBlueprintStatus"
-              />
+              <PaperSections v-model="paper.sections" :can-accept-question="canAcceptQuestionForSection"
+                @replace-question="replaceQuestion" @preview-question="openPreview"
+                @blueprint-refresh="refreshBlueprintStatus" @remove-question="removeQuestion" @blueprint-invalid-drop="
+                  ui.showSnackbar('This question does not match the blueprint criteria for this section.', 'error')
+                  " />
             </div>
           </v-card>
         </v-col>
@@ -1379,19 +1376,12 @@ onMounted(async () => {
 
               <v-btn value="scheme"> Marking Scheme </v-btn>
             </v-btn-toggle>
-            <LivePaperPreview
-              :paper="paper"
-              :mode="previewMode"
-              @print="printPaper"
-            />
+            <LivePaperPreview :paper="paper" :mode="previewMode" @print="printPaper" />
           </v-card>
         </v-col>
       </v-row>
     </div>
-    <QuestionPreviewDrawer
-      v-model="previewDrawer"
-      :question="previewQuestion"
-    />
+    <QuestionPreviewDrawer v-model="previewDrawer" :question="previewQuestion" />
   </PageSkeleton>
 </template>
 
@@ -1401,12 +1391,14 @@ onMounted(async () => {
   border: 1px dashed rgba(76, 175, 80, 0.5) !important;
   position: relative;
 }
+
 .added-badge {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 1;
 }
+
 .question-added-light {
   background: rgba(0, 0, 0, 0.03);
   border: 1px dashed rgba(76, 175, 80, 0.5) !important;
@@ -1416,6 +1408,7 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.04);
   border: 1px dashed rgba(76, 175, 80, 0.5) !important;
 }
+
 .cursor-grab {
   cursor: grab;
 }
@@ -1423,6 +1416,7 @@ onMounted(async () => {
 .drag-handle {
   cursor: move;
 }
+
 .question-card {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;

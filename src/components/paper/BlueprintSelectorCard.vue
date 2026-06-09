@@ -14,39 +14,22 @@
 
     <v-row class="align-end">
       <v-col cols="12" :md="showGenerateButton ? 9 : 12">
-        <v-select
-          :model-value="modelValue"
-          :items="blueprints"
-          item-title="title"
-          item-value="id"
-          label="Select Blueprint"
-          variant="outlined"
-          density="comfortable"
-          hide-details
-          clearable
-          :disabled="disabled"
-          @update:model-value="$emit('update:modelValue', $event)"
-        />
+        <v-select :model-value="modelValue" :items="blueprints" item-title="title" item-value="id"
+          label="Select Blueprint" variant="outlined" density="comfortable" hide-details clearable :disabled="disabled"
+          @update:model-value="$emit('update:modelValue', $event)" />
       </v-col>
 
       <v-col v-if="showGenerateButton" cols="12" md="3">
-        <v-btn
-          block
-          color="primary"
-          size="large"
-          prepend-icon="mdi-auto-fix"
-          :loading="loading"
-          :disabled="!modelValue || hasInsufficientExactQuestions"
-          @click="$emit('generate')"
-        >
+        <v-btn block color="primary" size="large" prepend-icon="mdi-auto-fix" :loading="loading"
+          :disabled="!modelValue || hasInsufficientExactQuestions" @click="$emit('generate')">
           Generate
         </v-btn>
       </v-col>
     </v-row>
-
+   
     <v-card v-if="selectedBlueprint" class="mt-4 rounded-xl" variant="outlined">
       <v-card-text>
-        <div class="d-flex flex-wrap ga-2 mb-4">
+        <div class="d-flex align-center flex-wrap ga-2 mb-2">
           <v-chip color="primary" variant="tonal">
             {{ selectedBlueprint.title }}
           </v-chip>
@@ -62,14 +45,21 @@
           <v-chip v-if="selectedBlueprint.exam_name" variant="tonal">
             {{ selectedBlueprint.exam_name?.name }}
           </v-chip>
+          <v-spacer />
+          <v-switch
+  :model-value="moderateDifficultyMode"
+  color="warning"
+  true-icon="mdi-check"
+  density="compact"
+  hide-details
+  inset
+  class="moderate-switch"
+  label="Moderate Difficulty Mode"
+  @update:model-value="$emit('update:moderateDifficultyMode', $event)"
+/>
         </div>
 
-        <v-alert
-          v-if="hasInsufficientExactQuestions"
-          type="warning"
-          variant="tonal"
-          class="mb-4"
-        >
+        <v-alert v-if="hasInsufficientExactQuestions" type="warning" variant="tonal" class="mb-4">
           Some blueprint rows do not have enough exact matching questions. You
           may need to adjust Difficulty/Bloom Level or approve more questions.
         </v-alert>
@@ -101,10 +91,7 @@
           </thead>
 
           <tbody>
-            <template
-              v-for="section in selectedBlueprint.sections"
-              :key="section.id"
-            >
+            <template v-for="section in selectedBlueprint.sections" :key="section.id">
               <tr v-for="item in section.items || []" :key="item.id">
                 <td>{{ section.section_name }}</td>
                 <td>{{ item.question_type }}</td>
@@ -119,33 +106,23 @@
                   }}
                 </td>
                 <td>
-                  <v-chip
-                    size="small"
-                    :color="
-                      Number(item.available_questions || 0) >=
-                      Number(item.question_count || 0)
-                        ? 'success'
-                        : 'error'
-                    "
-                    variant="tonal"
-                  >
+                  <v-chip size="small" :color="Number(item.available_questions || 0) >=
+                    Number(item.question_count || 0)
+                    ? 'success'
+                    : 'error'
+                    " variant="tonal">
                     {{ item.available_questions || 0 }}
                   </v-chip>
                 </td>
                 <td>
-                  <v-chip
-                    size="small"
-                    :color="
-                      getCurrentRowCount(section.section_name, item) ===
+                  <v-chip size="small" :color="getCurrentRowCount(section.section_name, item) ===
+                    Number(item.question_count || 0)
+                    ? 'success'
+                    : getCurrentRowCount(section.section_name, item) >
                       Number(item.question_count || 0)
-                        ? 'success'
-                        : getCurrentRowCount(section.section_name, item) >
-                            Number(item.question_count || 0)
-                          ? 'error'
-                          : 'warning'
-                    "
-                    variant="tonal"
-                  >
+                      ? 'error'
+                      : 'warning'
+                    " variant="tonal">
                     {{ getCurrentRowCount(section.section_name, item) }}
                     /
                     {{ item.question_count }}
@@ -167,6 +144,11 @@ const props = defineProps({
   modelValue: {
     type: [Number, String, null],
     default: null,
+  },
+
+  moderateDifficultyMode: {
+    type: Boolean,
+    default: false,
   },
 
   currentSections: {
@@ -211,7 +193,11 @@ const props = defineProps({
   },
 });
 
-defineEmits(["update:modelValue", "generate"]);
+defineEmits([
+  "update:modelValue",
+  "update:moderateDifficultyMode",
+  "generate",
+]);
 
 const blueprintTotalQuestions = computed(() => {
   if (!props.selectedBlueprint?.sections?.length) return 0;
@@ -252,7 +238,7 @@ const blueprintTotalMarks = computed(() => {
         return (
           sum +
           Number(item.question_count || 0) *
-            Number(item.marks_per_question || 0)
+          Number(item.marks_per_question || 0)
         );
       }, 0)
     );
@@ -271,3 +257,9 @@ const hasInsufficientExactQuestions = computed(() => {
   });
 });
 </script>
+
+<style>
+.moderate-switch {
+  margin-top: -4px;
+}
+</style>

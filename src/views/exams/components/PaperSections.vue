@@ -9,6 +9,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  canAcceptQuestion: {
+    type: Function,
+    default: null,
+  },
 });
 
 const emit = defineEmits([
@@ -18,6 +22,8 @@ const emit = defineEmits([
   "remove-question",
   "preview-question",
   "blueprint-refresh",
+  "blueprint-invalid-drop",
+  "blueprint-invalid-drop",
 ]);
 
 const sections = computed({
@@ -89,39 +95,83 @@ const getSectionMarks = (section) => {
   return total;
 };
 
-const normalizeQuestion = (q) => ({
-  ...q,
-  type: q.type || q.question_type,
-  difficulty: q.difficulty || q.difficulty_level,
-  bloom_level: q.bloom_level || q.bloom,
-});
+const normalizeQuestion = (q = {}) => {
+  const type =
+    q.type ||
+    q.question_type?.slug ||
+    q.question_type?.question_type ||
+    q.question_type
 
-const onQuestionDropped = async (sectionIndex) => {
+  return {
+    ...q,
+    type,
+    question_type: type,
+    difficulty: q.difficulty || q.difficulty_level,
+    difficulty_level: q.difficulty || q.difficulty_level,
+    bloom_level: q.bloom_level || q.bloom,
+  }
+};
+
+const canMoveQuestionToSection = (section, evt) => {
+  const question = evt?.draggedContext?.element;
+
+  if (!question || !question.id) return false;
+
+  if (!props.canAcceptQuestion) return true;
+
+  const allowed = props.canAcceptQuestion(section, normalizeQuestion(question));
+
+  if (!allowed) {
+    emit("blueprint-invalid-drop");
+  }
+
+  return allowed;
+};
+
+const onQuestionDropped = async (sectionIndex, evt) => {
   await nextTick();
 
-  const updatedSections = sections.value.map((section, index) => {
-    if (index !== sectionIndex) return section;
+  const section = sections.value[sectionIndex];
+  if (!section) return;
 
-    const seen = new Set();
+  const newIndex = evt?.newIndex;
 
-    return {
-      ...section,
-      questions: section.questions
-        .map((q) => normalizeQuestion(q))
-        .filter((q) => {
-          if (!q || !q.id) return false;
-          if (seen.has(Number(q.id))) return false;
+  if (newIndex === undefined || newIndex === null) {
+    emit("blueprint-refresh");
+    return;
+  }
 
-          seen.add(Number(q.id));
-          return true;
-        }),
-    };
-  });
+  const droppedQuestion = section.questions[newIndex];
+  if (!droppedQuestion) {
+    emit("blueprint-refresh");
+    return;
+  }
 
-  emit("update:modelValue", updatedSections);
+  const normalizedQuestion = normalizeQuestion(droppedQuestion);
+
+  const sectionBeforeDrop = {
+    ...section,
+    questions: section.questions.filter((_, index) => index !== newIndex),
+  };
+
+  const allowed = props.canAcceptQuestion
+    ? props.canAcceptQuestion(sectionBeforeDrop, normalizedQuestion)
+    : true;
+
+  if (!allowed) {
+    section.questions.splice(newIndex, 1);
+
+    emit("update:modelValue", [...sections.value]);
+    emit("blueprint-invalid-drop");
+    emit("blueprint-refresh");
+    return;
+  }
+
+  section.questions.splice(newIndex, 1, normalizedQuestion);
+
+  emit("update:modelValue", [...sections.value]);
 
   await nextTick();
-
   emit("blueprint-refresh");
 };
 
@@ -149,12 +199,7 @@ onMounted(() => {
         <!-- SECTION HEADER -->
         <div class="d-flex justify-space-between align-center pa-4">
           <div class="d-flex ga-3 align-center">
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              @click="toggleSection(index)"
-            >
+            <v-btn icon variant="text" size="small" @click="toggleSection(index)">
               <v-icon>
                 {{
                   openSections[index] ? "mdi-chevron-up" : "mdi-chevron-down"
@@ -163,13 +208,8 @@ onMounted(() => {
             </v-btn>
 
             <!-- SECTION NAME -->
-            <v-text-field
-              v-model="section.name"
-              density="compact"
-              hide-details
-              label="Section Name"
-              style="min-width: 150px"
-            />
+            <v-text-field v-model="section.name" density="compact" hide-details label="Section Name"
+              style="min-width: 150px" />
 
             <!-- TOTAL -->
             <v-chip color="primary" variant="tonal">
@@ -179,12 +219,7 @@ onMounted(() => {
           </div>
 
           <!-- DELETE -->
-          <v-btn
-            icon="mdi-delete"
-            color="error"
-            variant="text"
-            @click="removeSection(index)"
-          />
+          <v-btn icon="mdi-delete" color="error" variant="text" @click="removeSection(index)" />
         </div>
 
         <v-divider />
@@ -193,12 +228,7 @@ onMounted(() => {
           <div v-show="openSections[index]">
             <!-- INSTRUCTIONS -->
             <div class="pa-4">
-              <v-textarea
-                v-model="section.instructions"
-                label="Section Instructions"
-                rows="2"
-                auto-grow
-              />
+              <v-textarea v-model="section.instructions" label="Section Instructions" rows="2" auto-grow />
             </div>
 
             <!-- QUESTIONS -->
@@ -213,15 +243,16 @@ onMounted(() => {
 
               <!-- QUESTION LIST -->
               <draggable
-                v-model="section.questions"
-                item-key="id"
-                handle=".drag-handle"
-                animation="200"
-                :group="{ name: 'questions', pull: true, put: true }"
-                @add="onQuestionDropped(index)"
-                @change="onQuestionDropped(index)"
-                @end="onQuestionDropped(index)"
-              >
+  v-model="section.questions"
+  item-key="id"
+  handle=".drag-handle"
+  animation="200"
+  :group="{ name: 'questions', pull: true, put: true }"
+  :move="(evt) => canMoveQuestionToSection(section, evt)"
+  @add="(evt) => onQuestionDropped(index, evt)"
+  @update="() => emit('blueprint-refresh')"
+  
+>
                 <template #item="{ element, index }">
                   <v-card class="mb-2" rounded="lg" variant="outlined">
                     <v-card-text>
@@ -237,6 +268,9 @@ onMounted(() => {
                         <v-chip class="ml-2" size="small" color="success">
                           {{ element?.type }}
                         </v-chip>
+                        <v-chip class="ml-2" size="small" color="warning">
+                          {{ element?.difficulty || element?.difficulty_level }}
+                        </v-chip>
 
                         <v-spacer />
 
@@ -246,47 +280,29 @@ onMounted(() => {
 
                         <v-tooltip text="Preview">
                           <template #activator="{ props }">
-                            <v-btn
-                              v-bind="props"
-                              icon="mdi-eye"
-                              size="small"
-                              variant="text"
-                              @click="$emit('preview-question', element)"
-                            />
+                            <v-btn v-bind="props" icon="mdi-eye" size="small" variant="text"
+                              @click="$emit('preview-question', element)" />
                           </template>
                         </v-tooltip>
 
                         <v-tooltip text="Replace Question">
                           <template #activator="{ props }">
-                            <v-btn
-                              v-bind="props"
-                              icon="mdi-refresh"
-                              size="small"
-                              variant="text"
-                              color="warning"
-                              @click="
-                                $emit('replace-question', {
-                                  question: element,
-                                  sectionIndex: sections.findIndex(
-                                    (s) => s === section,
-                                  ),
-                                  questionIndex: index,
-                                })
-                              "
-                            />
+                            <v-btn v-bind="props" icon="mdi-refresh" size="small" variant="text" color="warning" @click="
+                              $emit('replace-question', {
+                                question: element,
+                                sectionIndex: sections.findIndex(
+                                  (s) => s === section,
+                                ),
+                                questionIndex: index,
+                              })
+                              " />
                           </template>
                         </v-tooltip>
 
                         <v-tooltip text="Remove Question">
                           <template #activator="{ props }">
-                            <v-btn
-                              v-bind="props"
-                              icon="mdi-delete"
-                              size="small"
-                              variant="text"
-                              color="error"
-                              @click="removeQuestionFromSection(section, index)"
-                            />
+                            <v-btn v-bind="props" icon="mdi-delete" size="small" variant="text" color="error"
+                              @click="removeQuestionFromSection(section, index)" />
                           </template>
                         </v-tooltip>
                       </div>
@@ -422,6 +438,7 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+
   .four-column,
   .two-column {
     grid-template-columns: 1fr;
