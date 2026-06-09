@@ -120,13 +120,14 @@ const normalizeQuestion = (question = {}) => {
   }
 }
 
-const questionMatchesBlueprintItem = (question, item) => {
+const questionMatchesBlueprintItem = (question, item, options = {}) => {
   const q = normalizeQuestion(question);
+  const ignoreDifficulty = options.ignoreDifficulty ?? moderateDifficultyMode.value;
 
   return (
     item.question_type === q.type &&
     (
-      moderateDifficultyMode.value ||
+      ignoreDifficulty ||
       !item.difficulty ||
       item.difficulty === q.difficulty
     ) &&
@@ -207,16 +208,7 @@ const validateBlueprintStructure = () => {
   return blueprintErrors.value.length === 0;
 };
 
-const getQuestionBlueprintMarks = (section, question) => {
-  const blueprintItem = getMatchingBlueprintItem(section, question);
 
-  return safeNumber(
-    blueprintItem?.marks_per_question ??
-    question.marks ??
-    section.marks_per_question ??
-    0,
-  );
-};
 
 //BluePrint Section Ends
 
@@ -458,9 +450,12 @@ const canQuestionFitInSection = (section, question, ignoreQuestionId = null) => 
   if (!blueprintSection) return false;
 
   const blueprintItem = (blueprintSection.items || []).find((item) =>
-    questionMatchesBlueprintItem(question, item),
+    questionMatchesBlueprintItem(question, item, {
+      ignoreDifficulty: moderateDifficultyMode.value,
+    })
   );
 
+ 
   if (!blueprintItem) return false;
 
   const currentCount = section.questions.filter((existing) => {
@@ -739,17 +734,11 @@ const getMatchingBlueprintItem = (section, question) => {
 
   if (!blueprintSection) return null;
 
-  return (blueprintSection.items || []).find((item) => {
-    const type = question.type || question.question_type;
-    const difficulty = question.difficulty || question.difficulty_level;
-    const bloom = question.bloom_level || question.bloom;
-
-    return (
-      item.question_type === type &&
-      (!item.difficulty || item.difficulty === difficulty) &&
-      (!item.bloom_level || item.bloom_level === bloom)
-    );
-  });
+  return (blueprintSection.items || []).find((item) =>
+    questionMatchesBlueprintItem(question, item, {
+      ignoreDifficulty: moderateDifficultyMode.value,
+    })
+  );
 };
 
 const getQuestionMarks = (section, question) => {
@@ -1094,11 +1083,43 @@ const selectedSubject = computed(() => {
 });
 
 const blueprintCurrentSections = computed(() => {
-  return paper.value.sections.map((section) => ({
-    ...section,
-    questions: section.questions.map((q) => normalizeQuestion(q)),
-  }))
-})
+  return paper.value.sections.map((section) => {
+    const blueprintSection = getBlueprintSectionForPaperSection(section);
+
+    return {
+      ...section,
+      questions: section.questions.map((question) => {
+        const q = normalizeQuestion(question);
+
+        const matchedItem = (blueprintSection?.items || []).find((item) => {
+          return (
+            item.question_type === q.type &&
+            (
+              moderateDifficultyMode.value ||
+              !item.difficulty ||
+              item.difficulty === q.difficulty
+            ) &&
+            (!item.bloom_level || item.bloom_level === q.bloom_level)
+          );
+        });
+
+        return {
+          ...q,
+
+          // Important for BlueprintSelectorCard counter
+          difficulty:
+            moderateDifficultyMode.value && matchedItem?.difficulty
+              ? matchedItem.difficulty
+              : q.difficulty,
+
+          marks: matchedItem?.marks_per_question
+            ? Number(matchedItem.marks_per_question)
+            : q.marks,
+        };
+      }),
+    };
+  });
+});
 
 const blueprintRefreshKey = ref(0);
 
@@ -1108,17 +1129,7 @@ const refreshBlueprintStatus = () => {
   blueprintRefreshKey.value++;
 };
 
-const handleAddQuestionClick = (question) => {
-  if (!isBlueprintCompatible(question)) {
-    ui.showSnackbar(
-      "This question does not match the blueprint criteria for any available section.",
-      "error"
-    );
-    return;
-  }
 
-  addQuestion(question);
-};
 
 watch(
   () => paper.value.paper_blueprint_id,
