@@ -34,12 +34,12 @@ const generateSlug = () => {
 };
 
 const openSelectedPermissionGroups = () => {
-  const selectedIds = form.value.permissions || [];
+  const selectedSlugs = form.value.permissions || [];
 
   openedPermissionGroups.value = Object.entries(groupedPermissions.value)
     .filter(([groupName, permissions]) => {
       return permissions.some((permission) =>
-        selectedIds.includes(permission.id)
+        selectedSlugs.includes(permission.slug)
       );
     })
     .map(([groupName]) => groupName);
@@ -61,8 +61,8 @@ const fetchRole = async () => {
 
     form.value.name = role.name;
     form.value.slug = role.slug;
-    form.value.bypass_device_restriction = role.bypass_device_restriction;
-    form.value.permissions = role.permissions.map(p => p.id);
+    form.value.bypass_device_restriction = Boolean(role.bypass_device_restriction);
+    form.value.permissions = (role.permissions || []).map((p) => p.slug);
     openSelectedPermissionGroups();
   
   } finally {
@@ -105,40 +105,6 @@ const saveRole = async () => {
     saving.value = false;
   }
 };
-
-// const permissionGroups = computed(() => {
-//   const groups = {};
-
-//   permissions.value.forEach((permission) => {
-//     const group = permission.slug.split("_").pop();
-
-//     const groupNameMap = {
-//       dashboard: "Dashboard",
-//       analytics: "Analytics",
-//       teachers: "Teachers",
-//       questions: "Questions",
-//       bank: "Question Bank",
-//       types: "Question Types",
-//       blueprints: "Blueprints",
-//       papers: "Papers",
-//       exams: "Exams",
-//       students: "Students",
-//       notifications: "Notifications",
-//       roles: "Roles",
-//       permissions: "Permissions",
-//     };
-
-//     const label = groupNameMap[group] || "Others";
-
-//     if (!groups[label]) {
-//       groups[label] = [];
-//     }
-
-//     groups[label].push(permission);
-//   });
-
-//   return groups;
-// });
 
 const isPermissionSelected = (slug) => {
   return form.value.permissions.includes(slug);
@@ -264,7 +230,7 @@ onMounted(async () => {
         <div class="d-flex ga-2 align-center">
           <v-chip-group v-model="form.bypass_device_restriction" mandatory>
             <v-chip
-              :value=1
+              :value="true"
               color="success"
               prepend-icon="mdi-laptop"
               filter
@@ -273,7 +239,7 @@ onMounted(async () => {
             </v-chip>
 
             <v-chip
-              :value=0
+              :value="false"
               color="warning"
               prepend-icon="mdi-lock"
               filter
@@ -337,7 +303,7 @@ onMounted(async () => {
           <v-checkbox
             v-model="form.permissions"
             :label="permission.name"
-            :value="permission.id"
+            :value="permission.slug"
             density="compact"
             hide-details
           />
@@ -346,6 +312,10 @@ onMounted(async () => {
     </v-expansion-panel-text>
   </v-expansion-panel>
 </v-expansion-panels>
+
+      <div v-if="errors.permissions || Object.keys(errors).some((key) => key.startsWith('permissions.'))" class="text-error text-caption mt-2">
+        {{ errors.permissions?.[0] || Object.values(errors).flat()[0] }}
+      </div>
 
       <v-card-actions class="px-0 mt-4">
         <v-spacer />

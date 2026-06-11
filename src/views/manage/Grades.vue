@@ -9,26 +9,18 @@ const dialog = ref(false);
 const editMode = ref(false);
 const errors = ref({});
 const ui = useUIStore();
-const streams = [
-  "Preprimary",
-  "Primary",
-  "Junior",
-  "Senior",
-  "Science",
-  "Commerce",
-  "Humanities",
-];
+
 const form = ref({
   id: null,
   name: "",
-  stream: "",
 });
 
 const fetchGrades = async () => {
   loading.value = true;
+
   try {
     const res = await api.get("/grades");
-    grades.value = res.data;
+    grades.value = res.data.data || res.data;
   } catch (err) {
     ui.showSnackbar("Failed to fetch Grades", "error");
   } finally {
@@ -37,13 +29,23 @@ const fetchGrades = async () => {
 };
 
 const openAdd = () => {
-  form.value = { id: null, name: "", stream: "" };
+  form.value = {
+    id: null,
+    name: "",
+  };
+
+  errors.value = {};
   editMode.value = false;
   dialog.value = true;
 };
 
 const openEdit = (item) => {
-  form.value = { ...item };
+  form.value = {
+    id: item.id,
+    name: item.name,
+  };
+
+  errors.value = {};
   editMode.value = true;
   dialog.value = true;
 };
@@ -52,11 +54,15 @@ const save = async () => {
   errors.value = {};
 
   try {
+    const payload = {
+      name: form.value.name,
+    };
+
     if (editMode.value) {
-      await api.put(`/grades/${form.value.id}`, form.value);
+      await api.put(`/grades/${form.value.id}`, payload);
       ui.showSnackbar("Grade updated successfully");
     } else {
-      await api.post("/grades", form.value);
+      await api.post("/grades", payload);
       ui.showSnackbar("Grade added successfully");
     }
 
@@ -64,8 +70,9 @@ const save = async () => {
     fetchGrades();
   } catch (err) {
     if (err.response?.status === 422) {
-      
-      errors.value = err.response.data.errors;
+      errors.value = err.response.data.errors || {};
+    } else {
+      ui.showSnackbar("Failed to save grade", "error");
     }
   }
 };
@@ -73,28 +80,32 @@ const save = async () => {
 const deleteItem = async (id) => {
   const ok = await ui.confirmDialog(
     "Delete",
-    "Are you sure you want to delete this?",
+    "Are you sure you want to delete this grade?"
   );
 
   if (!ok) return;
 
-  await api.delete(`/grades/${id}`);
-  ui.showSnackbar("Deleted successfully");
-  fetchGrades();
+  try {
+    await api.delete(`/grades/${id}`);
+    ui.showSnackbar("Deleted successfully");
+    fetchGrades();
+  } catch (error) {
+    ui.showSnackbar("Failed to delete grade", "error");
+  }
 };
 
 const updateStatus = async (id) => {
-  const grade = grades.value.find((g) => g.id === id);
-  if (grade) {
+  try {
     await api.post(`/grade_status/${id}`);
     ui.showSnackbar("Status updated successfully");
     fetchGrades();
+  } catch (error) {
+    ui.showSnackbar("Failed to update status", "error");
   }
 };
 
 function getColor(val) {
-  if (val) return "success";
-  else return "error";
+  return val ? "success" : "error";
 }
 
 onMounted(fetchGrades);
@@ -105,21 +116,23 @@ onMounted(fetchGrades);
     <v-card class="pa-4">
       <div class="d-flex justify-space-between mb-3">
         <h3>Grades</h3>
-        <v-btn color="primary" @click="openAdd">Add Grade</v-btn>
+
+        <v-btn color="primary" @click="openAdd">
+          Add Grade
+        </v-btn>
       </div>
 
-      <v-data-table
+      <AppDataTable
         v-if="!loading"
         :headers="[
           { title: 'ID', key: 'id' },
           { title: 'Grade', key: 'name' },
-          { title: 'Stream', key: 'stream' },
           { title: 'Status', key: 'is_active' },
           { title: 'Actions', key: 'actions', align: 'end', sortable: false },
         ]"
         :items="grades"
       >
-        <template v-slot:item.is_active="{ item }">
+        <template #item.is_active="{ item }">
           <v-chip
             :border="`${getColor(item.is_active)} thin opacity-25`"
             :color="getColor(item.is_active)"
@@ -131,33 +144,33 @@ onMounted(fetchGrades);
                 : 'mdi-checkbox-blank-circle-outline'
             "
             @click="updateStatus(item.id)"
-          ></v-chip>
+          />
         </template>
 
-        <template v-slot:item.actions="{ item }">
+        <template #item.actions="{ item }">
           <div class="d-flex ga-2 justify-end">
             <v-icon
               color="medium-emphasis"
               icon="mdi-pencil"
               size="small"
               @click="openEdit(item)"
-            ></v-icon>
+            />
 
             <v-icon
               color="red"
               icon="mdi-delete"
               size="small"
               @click="deleteItem(item.id)"
-            ></v-icon>
+            />
           </div>
         </template>
-      </v-data-table>
+      </AppDataTable>
+
       <div v-else class="pa-4">
         <v-skeleton-loader type="table-heading, table-tbody, table-tfoot" />
       </div>
     </v-card>
 
-    <!-- Dialog -->
     <v-dialog v-model="dialog" max-width="400">
       <v-card class="pa-4">
         <h4 class="mb-3">
@@ -165,18 +178,21 @@ onMounted(fetchGrades);
         </h4>
 
         <v-text-field
-          label="Grade"
           v-model="form.name"
+          label="Grade"
+          placeholder="Example: Grade 1"
           :error-messages="errors.name"
         />
-        <v-select
-          label="Select Stream"
-          :items="streams"
-          v-model="form.stream"
-          :error-messages="errors.stream"
-        ></v-select>
 
-        <v-btn color="primary" @click="save"> Save </v-btn>
+        <div class="d-flex justify-end ga-2">
+          <v-btn variant="text" @click="dialog = false">
+            Cancel
+          </v-btn>
+
+          <v-btn color="primary" @click="save">
+            Save
+          </v-btn>
+        </div>
       </v-card>
     </v-dialog>
   </v-container>

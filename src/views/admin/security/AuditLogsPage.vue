@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
+import {formatDateTime} from "../../../utils/date"
 import api from "../../../plugins/api";
 import * as XLSX from "xlsx";
 
@@ -259,12 +260,12 @@ onMounted(async () => {
           </template>
           <template v-slot:opposite>
             <v-chip
-              color="blue"
+              :color="chipColor(log.action)"
               variant="tonal"
               size="small"
               prepend-icon="mdi-calendar-clock"
             >
-              {{ formatDate(log.created_at) }}
+              {{ formatDateTime(log.created_at) }}
            </v-chip>
           </template>
 

@@ -662,6 +662,7 @@ const savePaper = async () => {
 
     grade_id: paper.value.grade_id || filters.value.grade_id,
     subject_id: paper.value.subject_id || filters.value.subject_id,
+    moderate_difficulty_mode: moderateDifficultyMode.value,
 
     questions: paper.value.sections.flatMap((section) =>
       section.questions.map((q, index) => ({

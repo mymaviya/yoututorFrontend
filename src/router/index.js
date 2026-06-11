@@ -79,6 +79,16 @@ const routes = [
         meta: { title: "All Subjects" },
       },
       {
+        path: '/subject-templates',
+        name: 'subject-templates',
+        component: () => import('../views/exams/SubjectTemplates.vue'),
+        meta: {
+          title: 'Subject Templates',
+          requiresAuth: true,
+          permission: 'subjects.manage'
+        }
+      },
+      {
         path: "lessons",
         name: "lessons.index",
         component: () => import("../views/manage/Lessons.vue"),
@@ -228,6 +238,25 @@ const routes = [
         name: "question.types",
         component: () => import("../views/admin/QuestionTypes.vue"),
         meta: { title: "Question Types" },
+      },
+      {
+        path: "/question-type-templates",
+        name: "question-type-templates",
+        component: () => import("../views/exams/QuestionTypeTemplates.vue"),
+        meta: {
+          requiresAuth: true,
+          permission: "question-types.view",
+        },
+      },
+      {
+        path: "/blueprint-excel-import",
+        name: "blueprint.excel.import",
+        component: () => import("../views/exams/BlueprintExcelImport.vue"),
+        meta: {
+          title: "Blueprint Excel Import",
+          requiresAuth: true,
+          permission: "paper.blueprints",
+        },
       },
       {
         path: "paper-generator",

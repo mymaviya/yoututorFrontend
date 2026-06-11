@@ -117,7 +117,7 @@ onMounted(() => {
         <v-btn color="primary" @click="openAdd">Add Lesson</v-btn>
       </div>
 
-      <v-data-table
+      <AppDataTable
         v-if="!loading"
         :headers="[
           { title: 'ID', key: 'id' },
@@ -161,7 +161,7 @@ onMounted(() => {
             ></v-icon>
           </div>
         </template>
-      </v-data-table>
+      </AppDataTable>
       <div v-else class="pa-4">
         <v-skeleton-loader type="table-heading, table-tbody, table-tfoot" />
       </div>

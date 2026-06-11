@@ -11,12 +11,14 @@ import mathDirective from './directives/math'
 
 // Components
 import MathContent from './components/common/MathContent.vue'
+import AppDataTable from './components/common/AppDataTable.vue'
 
 const app = createApp(App)
 const pinia = createPinia()
 
 app.directive('math', mathDirective)
 app.component('MathContent', MathContent)
+app.component('AppDataTable', AppDataTable)
 app.use(pinia)
 app.use(vuetify)
 app.use(router)

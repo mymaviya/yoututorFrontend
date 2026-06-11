@@ -1,186 +1,381 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
 
-const loading = ref(false);
-const subjects = ref([]);
-const grades = ref([]);
-const dialog = ref(false);
-const editMode = ref(false);
-const errors = ref({});
 const ui = useUIStore();
 
-const form = ref({
-  id: null,
-  name: "",
+const loading = ref(false);
+const saving = ref(false);
+const dialog = ref(false);
+
+const grades = ref([]);
+const streams = ref([]);
+const subjects = ref([]);
+
+const filters = ref({
   grade_id: null,
+  stream_id: null,
+  search: "",
+});
+
+const form = ref({
+  grade_id: null,
+  stream_id: null,
+  subjects_text: "",
+});
+
+const formErrors = ref({});
+
+const headers = [
+  { title: "Class", key: "grade_label" },
+  { title: "Subjects", key: "subjects", sortable: false },
+  { title: "Actions", key: "actions", sortable: false, align: "end" },
+];
+
+const gradeLabel = (grade, stream = null) => {
+  if (!grade) return "-";
+  return stream ? `${grade.name} - ${stream.name}` : `${grade.name}`;
+};
+
+const isSeniorGrade = (gradeId) => {
+  const grade = grades.value.find((g) => Number(g.id) === Number(gradeId));
+  return ["11", "12"].includes(String(grade?.name));
+};
+
+const groupedSubjects = computed(() => {
+  const map = {};
+
+  subjects.value.forEach((subject) => {
+    const key = `${subject.grade_id || "no-grade"}_${subject.stream_id || "no-stream"}`;
+
+    if (!map[key]) {
+      map[key] = {
+        grade_id: subject.grade_id,
+        stream_id: subject.stream_id,
+        grade: subject.grade,
+        stream: subject.stream,
+        grade_label: gradeLabel(subject.grade, subject.stream),
+        subjects: [],
+      };
+    }
+
+    map[key].subjects.push(subject);
+  });
+
+  return Object.values(map).filter((group) => {
+    if (filters.value.grade_id && Number(group.grade_id) !== Number(filters.value.grade_id)) {
+      return false;
+    }
+
+    if (filters.value.stream_id && Number(group.stream_id) !== Number(filters.value.stream_id)) {
+      return false;
+    }
+
+    if (filters.value.search) {
+      const term = filters.value.search.toLowerCase();
+
+      return (
+        group.grade_label.toLowerCase().includes(term) ||
+        group.subjects.some((s) => s.name.toLowerCase().includes(term))
+      );
+    }
+
+    return true;
+  });
 });
 
 const fetchGrades = async () => {
-  grades.value = (await api.get('/grades')).data
-}
+  const res = await api.get("/grades");
+  grades.value = res.data.data || res.data;
+};
+
+const fetchStreams = async () => {
+  const res = await api.get("/streams");
+  streams.value = res.data.data || res.data;
+};
 
 const fetchSubjects = async () => {
   loading.value = true;
+
   try {
     const res = await api.get("/subjects");
-    subjects.value = res.data;
-  } catch (err) {
-    ui.showSnackbar("Failed to fetch Subjects", "error");
+    subjects.value = res.data.data || res.data;
+  } catch (error) {
+    ui.showSnackbar("Failed to load subjects", "error");
   } finally {
     loading.value = false;
   }
 };
 
-const openAdd = () => {
-  form.value = { id: null, name: "", grade_id: null };
-  editMode.value = false;
+const openEditGroup = (group = null) => {
+  formErrors.value = {};
+
+  if (group) {
+    form.value = {
+      grade_id: group.grade_id,
+      stream_id: group.stream_id,
+      subjects_text: group.subjects.map((s) => s.name).join(", "),
+    };
+  } else {
+    form.value = {
+      grade_id: null,
+      stream_id: null,
+      subjects_text: "",
+    };
+  }
+
   dialog.value = true;
 };
 
-const openEdit = (item) => {
-  form.value = { ...item };
-  editMode.value = true;
-  dialog.value = true;
-};
+const subjectNamesFromText = computed(() => {
+  return form.value.subjects_text
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+});
 
-const save = async () => {
-  errors.value = {};
+const saveGroupSubjects = async () => {
+  saving.value = true;
+  formErrors.value = {};
 
   try {
-    if (editMode.value) {
-      await api.put(`/subjects/${form.value.id}`, form.value);
-      ui.showSnackbar("Subject updated successfully");
-    } else {
-      await api.post("/subjects", form.value);
-      ui.showSnackbar("Subject added successfully");
+    if (!form.value.grade_id) {
+      formErrors.value.grade_id = ["Class is required"];
+      return;
     }
 
+    if (isSeniorGrade(form.value.grade_id) && !form.value.stream_id) {
+      formErrors.value.stream_id = ["Stream is required for Class 11 and 12"];
+      return;
+    }
+
+    if (!subjectNamesFromText.value.length) {
+      formErrors.value.subjects_text = ["Enter at least one subject"];
+      return;
+    }
+
+    const existingGroupSubjects = subjects.value.filter((subject) => {
+      return (
+        Number(subject.grade_id) === Number(form.value.grade_id) &&
+        Number(subject.stream_id || 0) === Number(form.value.stream_id || 0)
+      );
+    });
+
+    for (const name of subjectNamesFromText.value) {
+      const existing = existingGroupSubjects.find(
+        (s) => s.name.toLowerCase() === name.toLowerCase()
+      );
+
+      if (!existing) {
+        await api.post("/subjects", {
+          name,
+          grade_id: form.value.grade_id,
+          stream_id: form.value.stream_id || null,
+          is_active: true,
+        });
+      }
+    }
+
+    ui.showSnackbar("Subjects saved successfully", "success");
     dialog.value = false;
-    fetchSubjects();
-  } catch (err) {
-    if (err.response?.status === 422) {
-      errors.value = err.response.data.errors;
+    await fetchSubjects();
+  } catch (error) {
+    if (error.response?.status === 422) {
+      formErrors.value = error.response.data.errors || {};
+    } else {
+      ui.showSnackbar("Failed to save subjects", "error");
     }
+  } finally {
+    saving.value = false;
   }
 };
 
-const deleteItem = async (id) => {
-  const ok = await ui.confirmDialog(
-    "Delete",
-    "Are you sure you want to delete this?",
-  );
-
-  if (!ok) return;
-
-  await api.delete(`/subjects/${id}`);
-  ui.showSnackbar("Deleted successfully");
-  fetchSubjects();
-};
-
-const updateStatus = async (id) => {
-  const subject = subjects.value.find((s) => s.id === id);
-  if (subject) {
-    await api.post(`/subject_status/${id}`);
-    ui.showSnackbar("Status updated successfully");
-    fetchSubjects();
+const toggleStatus = async (subject) => {
+  try {
+    await api.patch(`/subjects/${subject.id}/status`);
+    subject.is_active = !subject.is_active;
+    ui.showSnackbar("Subject status updated", "success");
+  } catch (error) {
+    ui.showSnackbar("Failed to update status", "error");
   }
 };
 
-function getColor(val) {
-  if (val) return "success";
-  else return "error";
-}
+const clearFilters = () => {
+  filters.value = {
+    grade_id: null,
+    stream_id: null,
+    search: "",
+  };
+};
 
-onMounted(() => {
-  fetchSubjects()
-  fetchGrades()
-})
+onMounted(async () => {
+  await Promise.all([fetchGrades(), fetchStreams(), fetchSubjects()]);
+});
 </script>
 
 <template>
-  <v-container>
-    <v-card class="pa-4">
-      <div class="d-flex justify-space-between mb-3">
-        <h3>Subjects</h3>
-        <v-btn color="primary" @click="openAdd">Add Subject</v-btn>
+  <div>
+    <div class="d-flex justify-space-between align-center mb-6">
+      <div>
+        <h1 class="text-h4 font-weight-bold">Subjects</h1>
+        <p class="text-grey">Manage subjects class-wise and stream-wise</p>
       </div>
 
-      <v-data-table
-        v-if="!loading"
-        :headers="[
-          { title: 'ID', key: 'id' },
-          { title: 'Grade', key: 'grade.name' },
-          { title: 'Subject', key: 'name' },
-          { title: 'Status', key: 'is_active' },
-          { title: 'Actions', key: 'actions', align: 'end', sortable: false },
-        ]"
-        :items="subjects"
-      >
-        <template v-slot:item.is_active="{ item }">
-          <v-chip
-            :border="`${getColor(item.is_active)} thin opacity-25`"
-            :color="getColor(item.is_active)"
-            :text="item.is_active ? 'Active' : 'Inactive'"
-            size="x-small"
-            :prepend-icon="
-              item.is_active
-                ? 'mdi-checkbox-marked-circle-outline'
-                : 'mdi-checkbox-blank-circle-outline'
-            "
-            @click="updateStatus(item.id)"
-          ></v-chip>
-        </template>
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="openEditGroup()">
+        Add Subjects
+      </v-btn>
+    </div>
 
-        <template v-slot:item.actions="{ item }">
-          <div class="d-flex ga-2 justify-end">
-            <v-icon
-              color="medium-emphasis"
-              icon="mdi-pencil"
-              size="small"
-              @click="openEdit(item)"
-            ></v-icon>
+    <v-card class="pa-4 mb-4 rounded-xl" elevation="0">
+      <v-row>
+        <v-col cols="12" md="3">
+          <v-select
+            v-model="filters.grade_id"
+            :items="grades"
+            item-title="name"
+            item-value="id"
+            label="Filter by Class"
+            clearable
+          />
+        </v-col>
 
-            <v-icon
-              color="red"
-              icon="mdi-delete"
-              size="small"
-              @click="deleteItem(item.id)"
-            ></v-icon>
-          </div>
-        </template>
-      </v-data-table>
-      <div v-else class="pa-4">
-        <v-skeleton-loader type="table-heading, table-tbody, table-tfoot" />
-      </div>
+        <v-col cols="12" md="3">
+          <v-select
+            v-model="filters.stream_id"
+            :items="streams"
+            item-title="name"
+            item-value="id"
+            label="Filter by Stream"
+            clearable
+          />
+        </v-col>
+
+        <v-col cols="12" md="4">
+          <v-text-field
+            v-model="filters.search"
+            label="Search class or subject"
+            prepend-inner-icon="mdi-magnify"
+            clearable
+          />
+        </v-col>
+
+        <v-col cols="12" md="2">
+          <v-btn block variant="outlined" color="grey" @click="clearFilters">
+            Clear
+          </v-btn>
+        </v-col>
+      </v-row>
     </v-card>
 
-    <!-- Dialog -->
-    <v-dialog v-model="dialog" max-width="400">
-      <v-card class="pa-4">
-        <h4 class="mb-3">
-          {{ editMode ? "Edit Subject" : "Add Subject" }}
-        </h4>
+    <v-card class="rounded-xl" elevation="0">
+      <AppDataTable
+        :headers="headers"
+        :items="groupedSubjects"
+        :loading="loading"
+      >
+        <template #item.subjects="{ item }">
+          <div class="d-flex flex-wrap ga-2 py-2">
+            <v-chip
+              v-for="subject in item.subjects"
+              :key="subject.id"
+              size="small"
+              class="cursor-pointer"
+              :color="subject.is_active ? 'success' : 'error'"
+              variant="tonal"
+              :prepend-icon="
+                subject.is_active
+                  ? 'mdi-check-circle-outline'
+                  : 'mdi-close-circle-outline'
+              "
+              @click="toggleStatus(subject)"
+            >
+              {{ subject.name }}
+            </v-chip>
+          </div>
+        </template>
 
-        <v-select
-          label="Select Grade"
-          :items="grades"
-          item-title="name"
-          item-value="id"
-          v-model="form.grade_id"
-          :error-messages="errors.grade_id"
-        ></v-select>
+        <template #item.actions="{ item }">
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            color="primary"
+            @click="openEditGroup(item)"
+          />
+        </template>
+      </AppDataTable>
+    </v-card>
 
-        <v-text-field
-          label="Subject"
-          v-model="form.name"
-          :error-messages="errors.name"
-        />
-        
+    <v-dialog v-model="dialog" max-width="700">
+      <v-card class="rounded-xl">
+        <v-card-title class="font-weight-bold">
+          Add / Edit Class Subjects
+        </v-card-title>
 
-        <v-btn color="primary" @click="save"> Save </v-btn>
+        <v-card-text>
+          <v-row>
+            <v-col cols="12" md="6">
+              <v-select
+                v-model="form.grade_id"
+                :items="grades"
+                item-title="name"
+                item-value="id"
+                label="Class"
+                :error-messages="formErrors.grade_id"
+              />
+            </v-col>
+
+            <v-col cols="12" md="6">
+              <v-select
+                v-model="form.stream_id"
+                :items="streams"
+                item-title="name"
+                item-value="id"
+                label="Stream"
+                clearable
+                :disabled="!isSeniorGrade(form.grade_id)"
+                :error-messages="formErrors.stream_id"
+              />
+            </v-col>
+
+            <v-col cols="12">
+              <v-textarea
+                v-model="form.subjects_text"
+                label="Subjects"
+                rows="5"
+                auto-grow
+                hint="Enter subjects separated by comma or new line"
+                persistent-hint
+                :error-messages="formErrors.subjects_text"
+              />
+            </v-col>
+          </v-row>
+
+          <v-alert type="info" variant="tonal" class="mt-3">
+            Existing subjects will remain active. New names will be added.
+            Click subject chips in the table to make subjects active or inactive.
+          </v-alert>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+
+          <v-btn variant="text" @click="dialog = false">
+            Cancel
+          </v-btn>
+
+          <v-btn color="primary" :loading="saving" @click="saveGroupSubjects">
+            Save Subjects
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-container>
+  </div>
 </template>
+
+<style scoped>
+.cursor-pointer {
+  cursor: pointer;
+}
+</style>
