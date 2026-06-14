@@ -193,7 +193,7 @@ const saveGroupSubjects = async () => {
 
 const toggleStatus = async (subject) => {
   try {
-    await api.patch(`/subjects/${subject.id}/status`);
+    await api.post(`/subjects/${subject.id}/status`);
     subject.is_active = !subject.is_active;
     ui.showSnackbar("Subject status updated", "success");
   } catch (error) {

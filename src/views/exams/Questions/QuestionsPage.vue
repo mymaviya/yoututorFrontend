@@ -211,11 +211,7 @@ onMounted(() => {
         <p class="text-grey">Manage all questions for exams</p>
       </div>
 
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-plus"
-        @click="router.push('/questions/create')"
-      >
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="router.push('/questions/create')">
         Add Question
       </v-btn>
     </div>
@@ -225,130 +221,77 @@ onMounted(() => {
       <v-row>
         <!-- CLASS -->
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.grade_id"
-            :items="grades"
-            item-title="name"
-            item-value="id"
-            label="Grade"
-            clearable
-            variant="outlined"
-          />
+          <v-select v-model="filters.grade_id" :items="grades" item-title="name" item-value="id" label="Grade" clearable
+            variant="outlined" />
         </v-col>
 
         <!-- SUBJECT -->
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.subject_id"
-            :items="subjects"
-            item-title="name"
-            item-value="id"
-            label="Subject"
-            clearable
-            variant="outlined"
-          />
+          <v-select v-model="filters.subject_id" :items="subjects" item-title="name" item-value="id" label="Subject"
+            clearable variant="outlined" />
         </v-col>
 
         <!-- TYPE -->
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.type"
-            :items="questionTypes"
-            item-title="text"
-            item-value="value"
-            label="Type"
-            clearable
-            variant="outlined"
-          />
+          <v-select v-model="filters.type" :items="questionTypes" item-title="text" item-value="value" label="Type"
+            clearable variant="outlined" />
         </v-col>
 
         <!-- STATUS -->
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.status"
-            :items="['pending', 'approved', 'rejected']"
-            label="Status"
-            clearable
-            variant="outlined"
-          />
+          <v-select v-model="filters.status" :items="['pending', 'approved', 'rejected']" label="Status" clearable
+            variant="outlined" />
         </v-col>
 
         <!-- DIFFICULTY -->
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.difficulty"
-            :items="difficultyLevels"
-            item-title="text"
-            item-value="value"
-            label="Difficulty"
-            clearable
-            variant="outlined"
-          />
+          <v-select v-model="filters.difficulty" :items="difficultyLevels" item-title="text" item-value="value"
+            label="Difficulty" clearable variant="outlined" />
         </v-col>
 
         <!-- SEARCH -->
         <v-col cols="12" md="10">
-          <v-text-field
-            v-model="filters.search"
-            label="Search Question"
-            prepend-inner-icon="mdi-magnify"
-            clearable
-            variant="outlined"
-          />
+          <v-text-field v-model="filters.search" label="Search Question" prepend-inner-icon="mdi-magnify" clearable
+            variant="outlined" />
         </v-col>
       </v-row>
     </v-card>
 
     <!-- TABLE -->
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table-server
-        v-model:items-per-page="options.itemsPerPage"
-        v-model:page="options.page"
-        :headers="headers"
-        :items="questions"
-        :items-length="totalItems"
-        :loading="loading"
-        item-value="id"
-      >
+      <v-data-table-server v-model:items-per-page="options.itemsPerPage" v-model:page="options.page" :headers="headers"
+        :items="questions" :items-length="totalItems" :loading="loading" item-value="id">
         <template #item.question="{ item }">
           <div class="py-3 question-html">
-            <v-img
-              v-if="tableItem(item).question_image"
-              :src="tableItem(item).question_image"
-              width="100"
-              class="mb-2 rounded"
-            />
+            <v-img v-if="tableItem(item).question_image" :src="tableItem(item).question_image" width="100"
+              class="mb-2 rounded" />
 
             <!-- LANGUAGE QUESTIONS -->
             <template v-if="tableItem(item).languageItems?.length">
               <div class="font-weight-bold mb-2">
                 {{
-                  tableItem(item).question_type?.name || tableItem(item).type
+                  tableItem(item).type?.name ||
+                  tableItem(item).question_type?.name ||
+                  tableItem(item).question_type_name ||
+                tableItem(item).type?.slug ||
+                "-"
                 }}
               </div>
 
               <div class="d-flex flex-wrap ga-2">
-                <v-chip
-                  v-for="row in tableItem(item).languageItems"
-                  :key="row.id"
-                  color="deep-purple"
-                  variant="tonal"
-                  size="small"
-                >
+                <v-chip v-for="row in tableItem(item).languageItems" :key="row.id" color="deep-purple" variant="tonal"
+                  size="small">
                   {{ row.word }}
                 </v-chip>
               </div>
             </template>
-            
+
             <!-- NORMAL QUESTIONS -->
             <template v-else>
               <MathContent :html="tableItem(item).question" />
             </template>
 
-            <div
-              v-if="tableItem(item).rejection_reason"
-              class="text-caption text-error mt-1"
-            >
+            <div v-if="tableItem(item).rejection_reason" class="text-caption text-error mt-1">
               {{ tableItem(item).rejection_reason }}
             </div>
           </div>
@@ -356,38 +299,35 @@ onMounted(() => {
 
         <template #item.type="{ item }">
           <v-chip size="small" color="primary" variant="tonal">
-            {{ tableItem(item).type }}
+            {{
+              tableItem(item).type?.name ||
+              tableItem(item).question_type?.name ||
+              tableItem(item).question_type_name ||
+              tableItem(item).type?.slug ||
+              tableItem(item).question_type ||
+              "-"
+            }}
           </v-chip>
         </template>
 
         <template #item.difficulty="{ item }">
-          <v-chip
-            size="small"
-            :color="
-              tableItem(item).difficulty === 'easy'
-                ? 'success'
-                : tableItem(item).difficulty === 'medium'
-                  ? 'warning'
-                  : 'error'
-            "
-            variant="tonal"
-          >
+          <v-chip size="small" :color="tableItem(item).difficulty === 'easy'
+            ? 'success'
+            : tableItem(item).difficulty === 'medium'
+              ? 'warning'
+              : 'error'
+            " variant="tonal">
             {{ tableItem(item).difficulty }}
           </v-chip>
         </template>
 
         <template #item.status="{ item }">
-          <v-chip
-            size="small"
-            variant="tonal"
-            :color="
-              tableItem(item).status === 'approved'
-                ? 'success'
-                : tableItem(item).status === 'rejected'
-                  ? 'error'
-                  : 'warning'
-            "
-          >
+          <v-chip size="small" variant="tonal" :color="tableItem(item).status === 'approved'
+            ? 'success'
+            : tableItem(item).status === 'rejected'
+              ? 'error'
+              : 'warning'
+            ">
             <v-icon start size="16">
               {{
                 tableItem(item).status === "approved"
@@ -422,21 +362,10 @@ onMounted(() => {
 
         <template #item.actions="{ item }">
           <div class="d-flex">
-            <v-btn
-              icon="mdi-pencil"
-              size="small"
-              variant="text"
-              color="primary"
-              @click="editQuestion(tableItem(item).id)"
-            />
+            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary"
+              @click="editQuestion(tableItem(item).id)" />
 
-            <v-btn
-              icon="mdi-delete"
-              size="small"
-              variant="text"
-              color="error"
-              @click="openDelete(tableItem(item))"
-            />
+            <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="openDelete(tableItem(item))" />
           </div>
         </template>
 

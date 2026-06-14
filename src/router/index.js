@@ -13,6 +13,27 @@ const APP_NAME = "GoLearn";
 
 const routes = [
   {
+    path: '/',
+    component: () => import('../layouts/PublicLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'public.home',
+        component: () => import('../views/public/HomePage.vue')
+      },
+      {
+        path: 'pricing',
+        name: 'public.pricing',
+        component: () => import('../views/public/PricingPage.vue')
+      },
+      {
+        path: 'contact',
+        name: 'public.contact',
+        component: () => import('../views/public/ContactPage.vue')
+      }
+    ]
+  },
+  {
     path: "/",
     name: "root",
     redirect: () => {
@@ -86,6 +107,26 @@ const routes = [
           title: 'Subject Templates',
           requiresAuth: true,
           permission: 'subjects.manage'
+        }
+      },
+      {
+        path: '/lesson-import',
+        name: 'lesson.import',
+        component: () => import('../views/imports/LessonImport.vue'),
+        meta: {
+          title: 'Import Lessons',
+          requiresAuth: true,
+          permission: 'lessons.import'
+        }
+      },
+      {
+        path: '/question-import',
+        name: 'question.import',
+        component: () => import('../views/imports/QuestionImport.vue'),
+        meta: {
+          title: 'Import Questions',
+          requiresAuth: true,
+          permission: 'questions.import'
         }
       },
       {

@@ -24,6 +24,7 @@ const loader = useUiLoaderStore();
 const questions = ref([]);
 
 const assignedSubjects = ref([]);
+const examNames = ref([]);
 
 const route = useRoute();
 const router = useRouter();
@@ -51,6 +52,11 @@ const openPreview = (question) => {
   };
 
   previewDrawer.value = true;
+};
+
+const fetchExamNames = async () => {
+  const res = await api.get("/exam-names");
+  examNames.value = (res.data.data || res.data || []).filter((e) => e.is_active);
 };
 
 //BluePrint Section Starts
@@ -99,14 +105,6 @@ const onBlueprintChange = async (blueprintId, overwriteSections = true) => {
 };
 
 
-const getQuestionTypeValue = (question = {}) => {
-  if (typeof question.question_type === "object") {
-    return question.question_type?.slug || question.question_type?.question_type
-  }
-
-  return question.type || question.question_type
-}
-
 const normalizeQuestion = (question = {}) => {
   const type = getQuestionTypeValue(question)
 
@@ -120,19 +118,21 @@ const normalizeQuestion = (question = {}) => {
   }
 }
 
+const normalizeValue = (value) => String(value || "").trim().toLowerCase();
+
 const questionMatchesBlueprintItem = (question, item, options = {}) => {
   const q = normalizeQuestion(question);
   const ignoreDifficulty = options.ignoreDifficulty ?? moderateDifficultyMode.value;
 
-  return (
-    item.question_type === q.type &&
-    (
-      ignoreDifficulty ||
-      !item.difficulty ||
-      item.difficulty === q.difficulty
-    ) &&
-    (!item.bloom_level || item.bloom_level === q.bloom_level)
-  );
+  if (normalizeValue(item.question_type) !== normalizeValue(q.type)) {
+    return false;
+  }
+
+  if (!ignoreDifficulty && item.difficulty) {
+    return normalizeValue(item.difficulty) === normalizeValue(q.difficulty);
+  }
+
+  return true;
 };
 
 const getBlueprintSectionForPaperSection = (section) => {
@@ -164,6 +164,19 @@ const validateBlueprintStructure = () => {
       const matchingQuestions = paperSection.questions.filter((q) =>
         questionMatchesBlueprintItem(q, item)
       );
+
+      if (hasBloomRules(item)) {
+        item.bloom_levels.forEach((rule) => {
+          const actual = getCurrentBloomCount(paperSection, item, rule);
+          const required = Number(rule.calculated_count || 0);
+
+          if (actual !== required) {
+            blueprintErrors.value.push(
+              `${bpSection.section_name} ${item.question_type} ${rule.bloom_level}: required ${required}, current ${actual}`
+            );
+          }
+        });
+      }
 
       // DEBUG START
       console.log(
@@ -284,31 +297,36 @@ const replaceQuestion = async ({ sectionIndex, questionIndex, question }) => {
   }
 
   const usedIds = paper.value.sections.flatMap((section) =>
-    section.questions.map((q) => Number(q.id)),
+    section.questions.map((q) => Number(q.id))
   );
 
-  refreshBlueprintStatus();
-  recalculateSectionMarks(section);
-  validateBlueprintStructure();
+  const normalizedQuestion = normalizeQuestion(question);
 
   try {
-    const res = await api.get("/questions", {
-      params: {
-        for_paper: 1,
-        grade_id: filters.value.grade_id || paper.value.grade_id,
-        subject_id: filters.value.subject_id || paper.value.subject_id,
-        lesson_id: question.lesson_id,
-        type: question.type,
-        difficulty: question.difficulty,
-        status: "approved",
-      },
-    });
+    const params = {
+      for_paper: 1,
+      grade_id: filters.value.grade_id || paper.value.grade_id,
+      subject_id: filters.value.subject_id || paper.value.subject_id,
+      lesson_id: question.lesson_id,
+      type: normalizedQuestion.type,
+      status: "approved",
+    };
 
-    const available = (res.data.data || res.data).filter((q) => {
-      return (
-        Number(q.id) !== Number(question.id) && !usedIds.includes(Number(q.id))
-      );
-    });
+    // Important: apply difficulty only when Moderate Mode is OFF
+    if (!moderateDifficultyMode.value && normalizedQuestion.difficulty) {
+      params.difficulty = normalizedQuestion.difficulty;
+    }
+
+    const res = await api.get("/questions", { params });
+
+    const available = (res.data.data || res.data)
+      .map((q) => normalizeQuestion(q))
+      .filter((q) => {
+        if (Number(q.id) === Number(question.id)) return false;
+        if (usedIds.includes(Number(q.id))) return false;
+
+        return canQuestionFitInSection(section, q, question.id);
+      });
 
     if (!available.length) {
       ui.showSnackbar("No alternate question found", "warning");
@@ -318,9 +336,14 @@ const replaceQuestion = async ({ sectionIndex, questionIndex, question }) => {
     const replacement = {
       ...available[Math.floor(Math.random() * available.length)],
       marks: question.marks,
+      paper_marks: question.paper_marks || question.marks,
     };
 
     section.questions.splice(questionIndex, 1, replacement);
+
+    recalculateSectionMarks(section);
+    refreshBlueprintStatus();
+    validateBlueprintStructure();
 
     ui.showSnackbar("Question replaced successfully", "success");
   } catch (err) {
@@ -335,6 +358,7 @@ const saving = ref(false);
 
 const paper = ref({
   title: "",
+  exam_name_id: null,
   exam_type: "",
   duration: 60,
   instructions: "",
@@ -351,6 +375,39 @@ const subjects = ref([]);
 const lessons = ref([]);
 
 const selectedSection = ref(0);
+
+const fetchQuestionTypes = async () => {
+  if (!filters.value.grade_id || !filters.value.subject_id) {
+    questionTypes.value = [];
+    filters.value.type = null;
+    return;
+  }
+
+  try {
+    const res = await api.get("/question-types", {
+      params: {
+        grade_id: filters.value.grade_id,
+        stream_id: filters.value.stream_id || null,
+        subject_id: filters.value.subject_id,
+        active_only: 1,
+      },
+    });
+
+    const rows = res.data.data || res.data || [];
+
+    questionTypes.value = rows
+      .filter((row) => row.is_active)
+      .map((row) => ({
+        title: row.name,
+        value: row.slug,
+      }))
+      .filter((row) => row.title && row.value);
+  } catch (error) {
+    console.error(error);
+    questionTypes.value = [];
+    ui.showSnackbar("Failed to load question types", "error");
+  }
+};
 
 /* FETCH QUESTIONS */
 const fetchQuestions = async () => {
@@ -421,6 +478,8 @@ const fetchSubjects = async () => {
   });
 
   subjects.value = res.data.data || res.data;
+  questionTypes.value = [];
+  filters.value.type = null;
   fetchQuestions();
 };
 
@@ -440,7 +499,16 @@ const fetchLessons = async () => {
   });
 
   lessons.value = res.data.data || res.data;
+  await fetchQuestionTypes();
   fetchQuestions();
+};
+
+const onSubjectChange = async () => {
+  filters.value.lesson_id = null;
+  filters.value.type = null;
+  await fetchLessons();
+  await fetchQuestionTypes();
+  await fetchQuestions();
 };
 
 const canQuestionFitInSection = (section, question, ignoreQuestionId = null) => {
@@ -455,7 +523,6 @@ const canQuestionFitInSection = (section, question, ignoreQuestionId = null) => 
     })
   );
 
- 
   if (!blueprintItem) return false;
 
   const currentCount = section.questions.filter((existing) => {
@@ -466,10 +533,16 @@ const canQuestionFitInSection = (section, question, ignoreQuestionId = null) => 
       return false;
     }
 
-    return questionMatchesBlueprintItem(existing, blueprintItem);
+    return questionMatchesBlueprintItem(existing, blueprintItem, {
+      ignoreDifficulty: moderateDifficultyMode.value,
+    });
   }).length;
 
-  return currentCount < Number(blueprintItem.question_count || 0);
+  if (currentCount >= Number(blueprintItem.question_count || 0)) {
+    return false;
+  }
+
+  return canQuestionFitBloomRule(section, blueprintItem, normalizeQuestion(question), ignoreQuestionId);
 };
 
 const canAcceptQuestionForSection = (section, question) => {
@@ -578,67 +651,124 @@ const autoGenerate = async () => {
 };
 
 // Fetch Paper to Edit
+const getQuestionTypeValue = (question = {}) => {
+  if (typeof question.type === "object") {
+    return question.type?.slug || "";
+  }
+
+  if (typeof question.question_type === "object") {
+    return question.question_type?.slug || "";
+  }
+
+  return question.type || question.question_type || "";
+};
+
 const fetchPaperForEdit = async () => {
-  if (!isEditMode.value) return;
+  loading.value = true;
 
-  const res = await api.get(`/question-papers/${route.params.id}`);
-  const data = res.data;
+  try {
+    const res = await api.get(`/question-papers/${route.params.id}`);
 
-  const grouped = {};
+    const data = res.data.data || res.data;
+    filters.value.grade_id = data.grade_id;
+    filters.value.subject_id = data.subject_id;
+    filters.value.lesson_id = null;
 
-  data.questions.forEach((item) => {
-    const section = item.section || "Section A";
+    paper.value = {
+      id: data.id,
+      title: data.title || "",
+      exam_name_id: data.exam_name_id || null,
+      exam_type: data.examName?.name || data.exam_name?.name || data.exam_type || "",
+      duration: data.duration || data.duration_minutes || 60,
+      instructions: data.instructions || "",
+      grade_id: data.grade_id,
+      subject_id: data.subject_id,
+      paper_blueprint_id: data.paper_blueprint_id,
+      moderate_mode: !!data.moderate_mode,
+      sections: [],
+    };
 
-    if (!grouped[section]) {
-      grouped[section] = {
-        name: section,
-        instructions: item.instructions || "",
-        questions: [],
-      };
+    paper.value.grade = data.grade;
+    paper.value.subject = data.subject;
+
+    await loadSubjectsForEdit(data.grade_id);
+    await loadLessonsForEdit(data.subject_id);
+    await fetchBlueprints();
+
+    if (data.paper_blueprint_id) {
+      await onBlueprintChange(data.paper_blueprint_id, false);
+
+      if (
+        selectedBlueprint.value &&
+        !blueprints.value.some((bp) => Number(bp.id) === Number(selectedBlueprint.value.id))
+      ) {
+        blueprints.value.unshift(selectedBlueprint.value);
+      }
     }
 
-    grouped[section].questions.push({
-      ...item.question,
-      marks: item.marks,
+    await fetchQuestions();
+
+    const grouped = {};
+
+    (data.questions || []).forEach((item) => {
+      const sectionName = item.section || item.section_name || "Section A";
+      const q = item.question || {};
+
+      if (!grouped[sectionName]) {
+        grouped[sectionName] = {
+          name: sectionName,
+          instructions: item.instructions || "",
+          questions: [],
+        };
+      }
+
+      grouped[sectionName].questions.push({
+        ...q,
+        type: getQuestionTypeValue(q),
+        question_type: getQuestionTypeValue(q),
+        question_type_name: q.type?.name || "",
+        marks: Number(item.marks || q.marks || 0),
+        paper_item_id: item.id,
+        paper_marks: Number(item.marks || 0),
+        section: sectionName,
+        instructions: item.instructions || "",
+        sort_order: item.sort_order || 0,
+      });
     });
+
+    paper.value.sections = Object.values(grouped);
+
+    if (!paper.value.sections.length) {
+      paper.value.sections = [
+        {
+          name: "Section A",
+          instructions: "",
+          questions: [],
+        },
+      ];
+    }
+  } catch (error) {
+    console.error("Edit paper load error:", error);
+    ui.showSnackbar("Failed to load paper for edit", "error");
+  } finally {
+    loading.value = false;
+  }
+};
+
+const loadSubjectsForEdit = async (gradeId) => {
+  const res = await api.get("/subjects", {
+    params: { grade_id: gradeId },
   });
 
-  if (data.paper_blueprint_id) {
-    const res = await api.get(`/paper-blueprints/${data.paper_blueprint_id}`);
-    selectedBlueprint.value = res.data.data || res.data;
-  }
+  subjects.value = res.data.data || res.data;
+};
 
-  paper.value = {
-    id: data.id,
-    title: data.title,
-    exam_type: data.exam_type,
-    duration: data.duration,
-    instructions: data.instructions,
-    grade_id: data.grade_id,
-    subject_id: data.subject_id,
-    paper_blueprint_id: data.paper_blueprint_id,
+const loadLessonsForEdit = async (subjectId) => {
+  const res = await api.get("/lessons", {
+    params: { subject_id: subjectId },
+  });
 
-    grade: data.grade,
-    subject: data.subject,
-
-    sections: Object.values(grouped),
-  };
-
-  if (data.paper_blueprint_id) {
-    await onBlueprintChange(data.paper_blueprint_id, false);
-    validateBlueprintStructure();
-  }
-
-  filters.value.grade_id = data.grade_id;
-  filters.value.subject_id = data.subject_id;
-
-  await fetchBlueprints();
-  await fetchSubjects();
-
-  filters.value.subject_id = data.subject_id;
-
-  await fetchLessons();
-  await fetchQuestions();
+  lessons.value = res.data.data || res.data;
 };
 
 /* SAVE PAPER */
@@ -657,12 +787,17 @@ const savePaper = async () => {
     exam_type: paper.value.exam_type,
     duration: paper.value.duration,
     instructions: paper.value.instructions,
+    exam_name_id: paper.value.exam_name_id,
+    exam_type:
+      examNames.value.find((e) => Number(e.id) === Number(paper.value.exam_name_id))?.name ||
+      paper.value.exam_type ||
+      "",
     total_marks: totalMarks.value,
     paper_blueprint_id: paper.value.paper_blueprint_id,
 
     grade_id: paper.value.grade_id || filters.value.grade_id,
     subject_id: paper.value.subject_id || filters.value.subject_id,
-    moderate_difficulty_mode: moderateDifficultyMode.value,
+    moderate_mode: moderateDifficultyMode.value,
 
     questions: paper.value.sections.flatMap((section) =>
       section.questions.map((q, index) => ({
@@ -703,17 +838,7 @@ const recalculateAllMarks = () => {
   });
 };
 
-const questionTypes = [
-  { title: "MCQ", value: "mcq" },
-  { title: "Multiple MCQ", value: "multiple_mcq" },
-  { title: "True / False", value: "true_false" },
-  { title: "Fill in the Blank", value: "fill_blank" },
-  { title: "Short Answer", value: "short" },
-  { title: "Long Answer", value: "long" },
-  { title: "Match the Column", value: "match_column" },
-  { title: "Assertion Reason", value: "assertion_reason" },
-  { title: "Numerical", value: "numerical" },
-];
+const questionTypes = ref([]);
 
 const totalQuestions = computed(() => {
   let total = 0;
@@ -730,16 +855,73 @@ const safeNumber = (value, fallback = 0) => {
   return Number.isFinite(number) ? number : fallback;
 };
 
+const hasBloomRules = (item) => {
+  return Array.isArray(item?.bloom_levels) && item.bloom_levels.length > 0;
+};
+
+const getBloomRuleForQuestion = (item, question) => {
+  if (!hasBloomRules(item)) return null;
+
+  const qBloom = normalizeValue(question.bloom_level || question.bloom);
+
+  return item.bloom_levels.find(
+    (rule) => normalizeValue(rule.bloom_level) === qBloom
+  );
+};
+
+const getCurrentBloomCount = (section, item, rule, ignoreQuestionId = null) => {
+  return section.questions.filter((question) => {
+    if (
+      ignoreQuestionId !== null &&
+      Number(question.id) === Number(ignoreQuestionId)
+    ) {
+      return false;
+    }
+
+    return (
+      questionMatchesBlueprintItem(question, item, {
+        ignoreDifficulty: moderateDifficultyMode.value,
+      }) &&
+      normalizeValue(question.bloom_level || question.bloom) ===
+      normalizeValue(rule.bloom_level)
+    );
+  }).length;
+};
+
+const canQuestionFitBloomRule = (section, item, question, ignoreQuestionId = null) => {
+  if (!hasBloomRules(item)) return true;
+
+  const rule = getBloomRuleForQuestion(item, question);
+
+  if (!rule) return false;
+
+  const currentCount = getCurrentBloomCount(section, item, rule, ignoreQuestionId);
+
+  return currentCount < Number(rule.calculated_count || 0);
+};
+
 const getMatchingBlueprintItem = (section, question) => {
   const blueprintSection = getBlueprintSectionForPaperSection(section);
 
-  if (!blueprintSection) return null;
+  if (!blueprintSection?.items?.length) return null;
 
-  return (blueprintSection.items || []).find((item) =>
-    questionMatchesBlueprintItem(question, item, {
-      ignoreDifficulty: moderateDifficultyMode.value,
-    })
-  );
+  const q = normalizeQuestion(question);
+
+  return blueprintSection.items.find((item) => {
+    const typeMatch =
+      normalizeValue(item.question_type) === normalizeValue(q.type);
+
+    const difficultyMatch =
+      moderateDifficultyMode.value ||
+      !item.difficulty ||
+      normalizeValue(item.difficulty) === normalizeValue(q.difficulty);
+
+    return typeMatch && difficultyMatch;
+  }) || null;
+};
+
+const handleAddQuestionClick = (question) => {
+  addQuestion(question);
 };
 
 const getQuestionMarks = (section, question) => {
@@ -1130,6 +1312,18 @@ const refreshBlueprintStatus = () => {
   blueprintRefreshKey.value++;
 };
 
+const questionTypeName = (question = {}) => {
+  return (
+    question.type?.name ||
+    question.question_type?.name ||
+    question.question_type_name ||
+    question.type_name ||
+    question.type?.slug ||
+    question.question_type ||
+    "-"
+  );
+};
+
 
 
 watch(
@@ -1154,13 +1348,19 @@ onMounted(async () => {
   loading.startPage();
   pageReady.value = false;
 
+  await Promise.all([
+    fetchGrades(),
+    fetchExamNames(),
+  ]);
+
   try {
     if (isEditMode.value) {
       await fetchPaperForEdit();
+      await onSubjectChange();
     } else {
       await fetchQuestions();
     }
-    await Promise.all([fetchGrades()]);
+    
   } finally {
     pageReady.value = true;
     loading.stopPage();
@@ -1233,8 +1433,8 @@ onMounted(async () => {
           </v-col>
 
           <v-col cols="12" md="3">
-            <v-select v-model="paper.exam_type" :items="['Unit Test', 'Half Yearly', 'Final Exam']" label="Exam Type"
-              :error-messages="errors.exam_type" />
+            <v-select v-model="paper.exam_name_id" :items="examNames" item-title="name" item-value="id"
+              label="Exam Name" clearable :error-messages="errors.exam_name_id" />
           </v-col>
 
           <v-col cols="12" md="2">
@@ -1264,12 +1464,13 @@ onMounted(async () => {
             <v-row>
               <v-col cols="12" md="3">
                 <v-select v-model="filters.grade_id" :items="grades" item-title="name" item-value="id" label="Class"
-                  @update:model-value="fetchSubjects" :error-messages="errors.grade_id" />
+                  :disabled="isEditMode" @update:model-value="fetchSubjects" :error-messages="errors.grade_id" />
               </v-col>
 
               <v-col cols="12" md="3">
                 <v-select v-model="filters.subject_id" :items="subjects" item-title="name" item-value="id"
-                  label="Subject" @update:model-value="fetchLessons" :error-messages="errors.subject_id" />
+                  label="Subject" :disabled="isEditMode" @update:model-value="onSubjectChange"
+                  :error-messages="errors.subject_id" />
               </v-col>
 
               <v-col cols="12" md="3">
@@ -1309,42 +1510,44 @@ onMounted(async () => {
             </div>
 
             <!-- QUESTIONS -->
-            <draggable :list="questions" item-key="id" :move="checkMove"
-              :group="{ name: 'questions', pull: 'clone', put: false }" :clone="cloneQuestion" sort="false">
-              <template #item="{ element }">
-                <div class="question-card" :class="{
-                  'question-added-dark':
-                    isQuestionAdded(element.id) &&
-                    theme.global.current.value.dark,
+            <div class="question-bank-scroll">
+              <draggable :list="questions" item-key="id" :move="checkMove"
+                :group="{ name: 'questions', pull: 'clone', put: false }" :clone="cloneQuestion" sort="false">
+                <template #item="{ element }">
+                  <div class="question-card" :class="{
+                    'question-added-dark':
+                      isQuestionAdded(element.id) &&
+                      theme.global.current.value.dark,
 
-                  'question-added-light':
-                    isQuestionAdded(element.id) &&
-                    !theme.global.current.value.dark,
-                }">
-                  <div class="d-flex justify-space-between mb-3">
-                    <div class="d-flex ga-2">
-                      <v-chip size="small" color="primary" variant="tonal">
-                        {{ element.type }}
-                      </v-chip>
+                    'question-added-light':
+                      isQuestionAdded(element.id) &&
+                      !theme.global.current.value.dark,
+                  }">
+                    <div class="d-flex justify-space-between mb-3">
+                      <div class="d-flex ga-2">
+                        <v-chip size="small" color="primary" variant="tonal">
+                          {{ questionTypeName(element) }}
+                        </v-chip>
 
-                      <v-chip size="small" color="success" variant="tonal">
-                        {{ element.marks }} Marks
-                      </v-chip>
-                      <v-chip size="small" color="warning" variant="tonal">
-                        {{ element.difficulty || element.difficulty_level }}
-                      </v-chip>
+                        <v-chip size="small" color="success" variant="tonal">
+                          {{ element.marks }} Marks
+                        </v-chip>
+                        <v-chip size="small" color="warning" variant="tonal">
+                          {{ element.difficulty || element.difficulty_level }}
+                        </v-chip>
+                      </div>
+
+                      <v-btn v-if="!isQuestionAdded(element.id)" color="primary" size="small"
+                        @click="handleAddQuestionClick(element)">
+                        Add
+                      </v-btn>
                     </div>
 
-                    <v-btn v-if="!isQuestionAdded(element.id)" color="primary" size="small"
-                      @click="handleAddQuestionClick(element)">
-                      Add
-                    </v-btn>
+                    <MathContent class="question-html" :html="element.question" />
                   </div>
-
-                  <MathContent class="question-html" :html="element.question" />
-                </div>
-              </template>
-            </draggable>
+                </template>
+              </draggable>
+            </div>
           </v-card>
         </v-col>
 
@@ -1515,5 +1718,20 @@ onMounted(async () => {
 
 .v-theme--light .sticky-summary {
   background: rgba(255, 255, 255, 0.85);
+}
+
+.question-bank-scroll {
+  height: calc(100vh - 140px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.question-bank-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.question-bank-scroll::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 120, 0.5);
+  border-radius: 10px;
 }
 </style>

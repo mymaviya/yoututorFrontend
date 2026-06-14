@@ -14,7 +14,7 @@
 
     <v-row class="align-end">
       <v-col cols="12" :md="showGenerateButton ? 9 : 12">
-        <v-select :model-value="modelValue" :items="blueprints" item-title="title" item-value="id"
+        <v-select :model-value="modelValue" :items="blueprints" item-title="name" item-value="id"
           label="Select Blueprint" variant="outlined" density="comfortable" hide-details clearable :disabled="disabled"
           @update:model-value="$emit('update:modelValue', $event)" />
       </v-col>
@@ -26,12 +26,12 @@
         </v-btn>
       </v-col>
     </v-row>
-   
+
     <v-card v-if="selectedBlueprint" class="mt-4 rounded-xl" variant="outlined">
       <v-card-text>
         <div class="d-flex align-center flex-wrap ga-2 mb-2">
           <v-chip color="primary" variant="tonal">
-            {{ selectedBlueprint.title }}
+            {{ selectedBlueprint.name || selectedBlueprint.title }}
           </v-chip>
 
           <v-chip variant="tonal">
@@ -45,23 +45,16 @@
           <v-chip v-if="selectedBlueprint.exam_name" variant="tonal">
             {{ selectedBlueprint.exam_name?.name }}
           </v-chip>
+
           <v-spacer />
-          <v-switch
-  :model-value="moderateDifficultyMode"
-  color="warning"
-  true-icon="mdi-check"
-  density="compact"
-  hide-details
-  inset
-  class="moderate-switch"
-  label="Moderate Difficulty Mode"
-  @update:model-value="$emit('update:moderateDifficultyMode', $event)"
-/>
+
+          <v-switch :model-value="moderateDifficultyMode" color="warning" true-icon="mdi-check" density="compact"
+            hide-details inset class="moderate-switch" label="Moderate Mode"
+            @update:model-value="$emit('update:moderateDifficultyMode', $event)" />
         </div>
 
         <v-alert v-if="hasInsufficientExactQuestions" type="warning" variant="tonal" class="mb-4">
-          Some blueprint rows do not have enough exact matching questions. You
-          may need to adjust Difficulty/Bloom Level or approve more questions.
+          Some blueprint rows do not have enough matching approved questions.
         </v-alert>
 
         <v-alert v-else type="info" variant="tonal" class="mb-4">
@@ -69,10 +62,7 @@
           <strong>{{ blueprintTotalQuestions }}</strong>
           Questions |
           <strong>{{ blueprintTotalMarks }}</strong>
-          Marks | Approved Questions Available:
-          <strong>{{
-            selectedBlueprint.available_questions_total || 0
-          }}</strong>
+          Marks
         </v-alert>
 
         <v-table v-if="selectedBlueprint?.sections?.length" density="compact">
@@ -81,12 +71,12 @@
               <th>Section</th>
               <th>Question Type</th>
               <th>Difficulty</th>
-              <th>Bloom</th>
               <th>Qty</th>
               <th>Marks</th>
               <th>Total</th>
               <th>Available</th>
-              <th>status</th>
+              <th>Status</th>
+              <th>Bloom Status</th>
             </tr>
           </thead>
 
@@ -94,9 +84,11 @@
             <template v-for="section in selectedBlueprint.sections" :key="section.id">
               <tr v-for="item in section.items || []" :key="item.id">
                 <td>{{ section.section_name }}</td>
-                <td>{{ item.question_type }}</td>
-                <td>{{ item.difficulty || "-" }}</td>
-                <td>{{ item.bloom_level || "-" }}</td>
+                <td>{{ item.question_type_name || item.question_type }}</td>
+                <td>
+                  <span v-if="moderateDifficultyMode">Bypassed</span>
+                  <span v-else>{{ item.difficulty || '-' }}</span>
+                </td>
                 <td>{{ item.question_count }}</td>
                 <td>{{ item.marks_per_question }}</td>
                 <td>
@@ -106,26 +98,30 @@
                   }}
                 </td>
                 <td>
-                  <v-chip size="small" :color="Number(item.available_questions || 0) >=
-                    Number(item.question_count || 0)
-                    ? 'success'
-                    : 'error'
+                  <v-chip size="small" :color="getCurrentRowCount(section.section_name, item) >= Number(item.question_count || 0) ||
+                      Number(item.available_questions || 0) >= Number(item.question_count || 0)
+                      ? 'success'
+                      : 'error'
                     " variant="tonal">
                     {{ item.available_questions || 0 }}
                   </v-chip>
                 </td>
                 <td>
-                  <v-chip size="small" :color="getCurrentRowCount(section.section_name, item) ===
-                    Number(item.question_count || 0)
-                    ? 'success'
-                    : getCurrentRowCount(section.section_name, item) >
-                      Number(item.question_count || 0)
-                      ? 'error'
-                      : 'warning'
-                    " variant="tonal">
-                    {{ getCurrentRowCount(section.section_name, item) }}
-                    /
-                    {{ item.question_count }}
+                  <v-chip size="small" :color="getRowStatusColor(section.section_name, item)" variant="tonal">
+                    {{ getCurrentRowCount(section.section_name, item) }}/{{ item.question_count }}
+                  </v-chip>
+                </td>
+                <td>
+                  <div v-if="hasBloomRules(item)" class="d-flex flex-wrap ga-1">
+                    <v-chip v-for="rule in item.bloom_levels" :key="`${item.id}-${rule.bloom_level}`" size="small"
+                      :color="getBloomStatusColor(section.section_name, item, rule)" variant="tonal">
+                      {{ formatBloom(rule.bloom_level) }}
+                      {{ getCurrentBloomCount(section.section_name, item, rule) }}/{{ rule.calculated_count }}
+                    </v-chip>
+                  </div>
+
+                  <v-chip v-else size="small" variant="tonal">
+                    Not Applied
                   </v-chip>
                 </td>
               </tr>
@@ -188,8 +184,7 @@ const props = defineProps({
 
   subtitle: {
     type: String,
-    default:
-      "Select a blueprint to preview its pattern and generate paper automatically.",
+    default: "Select a blueprint to preview its pattern and generate paper automatically.",
   },
 });
 
@@ -199,49 +194,92 @@ defineEmits([
   "generate",
 ]);
 
-const blueprintTotalQuestions = computed(() => {
-  if (!props.selectedBlueprint?.sections?.length) return 0;
+const normalize = (value) => String(value || "").trim().toLowerCase();
 
-  return props.selectedBlueprint.sections.reduce((total, section) => {
-    return (
-      total +
-      (section.items || []).reduce((sum, item) => {
-        return sum + Number(item.question_count || 0);
-      }, 0)
-    );
-  }, 0);
-});
+const formatBloom = (value) => {
+  const label = String(value || "");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+const hasBloomRules = (item) => {
+  return Array.isArray(item?.bloom_levels) && item.bloom_levels.length > 0;
+};
+
+const questionMatchesItem = (question, item) => {
+  const qType = normalize(question.type || question.question_type);
+  const itemType = normalize(item.question_type);
+
+  if (qType !== itemType) return false;
+
+  if (!props.moderateDifficultyMode && item.difficulty) {
+    return normalize(question.difficulty || question.difficulty_level) === normalize(item.difficulty);
+  }
+
+  return true;
+};
+
+const getPaperSection = (sectionName) => {
+  return props.currentSections.find(
+    (section) => normalize(section.name) === normalize(sectionName)
+  );
+};
 
 const getCurrentRowCount = (sectionName, item) => {
-  const paperSection = props.currentSections.find(
-    (section) => section.name === sectionName,
-  );
+  const paperSection = getPaperSection(sectionName);
+
+  if (!paperSection) return 0;
+
+  return paperSection.questions.filter((q) => questionMatchesItem(q, item)).length;
+};
+
+const getRowStatusColor = (sectionName, item) => {
+  const current = getCurrentRowCount(sectionName, item);
+  const required = Number(item.question_count || 0);
+
+  if (current === required) return "success";
+  if (current > required) return "error";
+  return "warning";
+};
+
+const getCurrentBloomCount = (sectionName, item, rule) => {
+  const paperSection = getPaperSection(sectionName);
 
   if (!paperSection) return 0;
 
   return paperSection.questions.filter((q) => {
     return (
-      (q.type || q.question_type) === item.question_type &&
-      (!item.difficulty || q.difficulty === item.difficulty) &&
-      (!item.bloom_level || q.bloom_level === item.bloom_level)
+      questionMatchesItem(q, item) &&
+      normalize(q.bloom_level || q.bloom) === normalize(rule.bloom_level)
     );
   }).length;
 };
+
+const getBloomStatusColor = (sectionName, item, rule) => {
+  const current = getCurrentBloomCount(sectionName, item, rule);
+  const required = Number(rule.calculated_count || 0);
+
+  if (current === required) return "success";
+  if (current > required) return "error";
+  return "warning";
+};
+
+const blueprintTotalQuestions = computed(() => {
+  if (!props.selectedBlueprint?.sections?.length) return 0;
+
+  return props.selectedBlueprint.sections.reduce((total, section) => {
+    return total + (section.items || []).reduce((sum, item) => {
+      return sum + Number(item.question_count || 0);
+    }, 0);
+  }, 0);
+});
 
 const blueprintTotalMarks = computed(() => {
   if (!props.selectedBlueprint?.sections?.length) return 0;
 
   return props.selectedBlueprint.sections.reduce((total, section) => {
-    return (
-      total +
-      (section.items || []).reduce((sum, item) => {
-        return (
-          sum +
-          Number(item.question_count || 0) *
-          Number(item.marks_per_question || 0)
-        );
-      }, 0)
-    );
+    return total + (section.items || []).reduce((sum, item) => {
+      return sum + Number(item.question_count || 0) * Number(item.marks_per_question || 0);
+    }, 0);
   }, 0);
 });
 
@@ -250,15 +288,23 @@ const hasInsufficientExactQuestions = computed(() => {
 
   return props.selectedBlueprint.sections.some((section) => {
     return (section.items || []).some((item) => {
-      return (
-        Number(item.available_questions || 0) < Number(item.question_count || 0)
-      );
+      const required = Number(item.question_count || 0);
+
+      const current = getCurrentRowCount(section.section_name, item);
+
+      // If paper already has required questions, no warning
+      if (current >= required) {
+        return false;
+      }
+
+      // Only show warning before generation when available is actually less
+      return Number(item.available_questions || 0) < required;
     });
   });
 });
 </script>
 
-<style>
+<style scoped>
 .moderate-switch {
   margin-top: -4px;
 }

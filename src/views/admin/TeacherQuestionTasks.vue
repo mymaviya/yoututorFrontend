@@ -39,7 +39,7 @@ const headers = [
   { title: "Teacher", key: "teacher" },
   { title: "Grade", key: "grade.name" },
   { title: "Subject", key: "subject.name" },
-  { title: "Type", key: "question_type" },
+  { title: "Type", key: "question_type_name" },
   { title: "Difficulty", key: "difficulty" },
   { title: "Target", key: "target_count" },
   { title: "Created", key: "created_count" },
@@ -48,6 +48,19 @@ const headers = [
   { title: "Status", key: "status" },
   { title: "Actions", key: "actions", sortable: false },
 ];
+
+const bulkEditDialog = ref(false)
+const bulkEditForm = ref({
+  teacher_id: null,
+  grade_id: null,
+  stream_id: null,
+  subject_id: null,
+  lesson_id: null,
+  due_date: null,
+  question_type_ids: [],
+  target_count: null,
+})
+
 
 const fetchTasks = async () => {
   loading.value = true;
@@ -104,8 +117,21 @@ const selectAssignment = async (assignment) => {
 };
 
 const fetchTeachers = async () => {
-  const res = await api.get("/teachers");
-  teachers.value = res.data.data || res.data;
+  try {
+    const res = await api.get("/teachers");
+
+    const rows = res.data.data || res.data || [];
+
+    teachers.value = rows.map((teacher) => ({
+      ...teacher,
+      title: teacher.name,
+      value: teacher.id,
+      assignments: teacher.teacher_assignments || [],
+    }));
+  } catch (error) {
+    console.error(error);
+    ui.showSnackbar("Failed to load teachers", "error");
+  }
 };
 
 const fetchGrades = async () => {
@@ -187,7 +213,7 @@ const openEdit = async (task) => {
     (t) => Number(t.id) === Number(form.value.teacher_id),
   );
 
-  selectedAssignment.value = selectedTeacher.value?.assignments?.find(
+  selectedAssignment.value = selectedTeacher.value?.teacher_assignments?.find(
     (a) =>
       Number(a.grade_id) === Number(form.value.grade_id) &&
       Number(a.subject_id) === Number(form.value.subject_id),
@@ -332,23 +358,12 @@ onMounted(() => {
         Assign Task
       </v-btn>
     </div>
-    <v-alert
-      v-if="selectedTasks.length"
-      type="info"
-      variant="tonal"
-      class="mb-3"
-    >
+    <v-alert v-if="selectedTasks.length" type="info" variant="tonal" class="mb-3">
       <div class="d-flex justify-space-between align-center">
         <div>{{ selectedTasks.length }} task(s) selected</div>
 
         <div class="d-flex ga-2">
-          <v-btn
-            size="small"
-            color="error"
-            variant="tonal"
-            prepend-icon="mdi-delete"
-            @click="deleteSelectedTasks"
-          >
+          <v-btn size="small" color="error" variant="tonal" prepend-icon="mdi-delete" @click="deleteSelectedTasks">
             Delete
           </v-btn>
 
@@ -360,39 +375,28 @@ onMounted(() => {
     </v-alert>
 
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table
-        v-model="selectedTasks"
-        :headers="headers"
-        :items="tasks"
-        :loading="loading"
-        item-value="id"
-        show-select
-      >
+      <v-data-table v-model="selectedTasks" :headers="headers" :items="tasks" :loading="loading" item-value="id"
+        show-select>
         <template #item.teacher="{ item }">
           <div>
             <div class="font-weight-medium">
-              {{ item.teacher?.user?.name }}
+              {{ item.teacher?.name || item.teacher_name || '-' }}
             </div>
             <div class="text-caption text-grey">
-              {{ item.teacher?.user?.email }}
+              {{ item.teacher?.email || '-' }}
             </div>
           </div>
         </template>
 
         <template #item.question_type="{ item }">
           <v-chip size="small" color="primary" variant="tonal">
-            {{ item.question_type_data?.name || item.question_type }}
+            {{ item.question_type_name || item.question_type || '-' }}
           </v-chip>
         </template>
 
         <template #item.progress="{ item }">
           <div style="min-width: 140px">
-            <v-progress-linear
-              :model-value="item.progress"
-              height="8"
-              rounded
-              color="primary"
-            />
+            <v-progress-linear :model-value="item.progress" height="8" rounded color="primary" />
 
             <div class="text-caption mt-1">{{ item.progress }}%</div>
           </div>
@@ -403,31 +407,15 @@ onMounted(() => {
         </template>
 
         <template #item.status="{ item }">
-          <v-chip
-            :color="item.status === 'completed' ? 'success' : 'warning'"
-            variant="tonal"
-            size="small"
-          >
+          <v-chip :color="item.status === 'completed' ? 'success' : 'warning'" variant="tonal" size="small">
             {{ item.status }}
           </v-chip>
         </template>
 
         <template #item.actions="{ item }">
-          <v-btn
-            icon="mdi-pencil"
-            variant="text"
-            size="small"
-            color="primary"
-            @click="openEdit(item)"
-          />
+          <v-btn icon="mdi-pencil" variant="text" size="small" color="primary" @click="openEdit(item)" />
 
-          <v-btn
-            icon="mdi-delete"
-            variant="text"
-            size="small"
-            color="error"
-            @click="deleteTask(item)"
-          />
+          <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteTask(item)" />
         </template>
       </v-data-table>
     </v-card>
@@ -445,34 +433,20 @@ onMounted(() => {
         <v-card-text>
           <v-row>
             <v-col cols="12">
-              <v-select
-                v-model="form.teacher_id"
-                :items="teachers"
-                item-title="user.name"
-                item-value="id"
-                label="Teacher"
-                variant="outlined"
-                :error-messages="errors.teacher_id"
-                @update:model-value="onTeacherChange"
-              />
+              <v-select v-model="form.teacher_id" :items="teachers" item-title="title" item-value="value"
+                label="Teacher" variant="outlined" :error-messages="errors.teacher_id"
+                @update:model-value="onTeacherChange" />
               <div v-if="selectedTeacher" class="mb-4">
                 <div class="text-subtitle-2 font-weight-bold mb-2">
                   Assigned Grades & Subjects
                 </div>
 
                 <div class="d-flex flex-wrap ga-2">
-                  <v-chip
-                    v-for="assignment in selectedTeacher.assignments"
-                    :key="assignment.id"
-                    size="large"
-                    variant="tonal"
-                    :color="
-                      selectedAssignment?.id === assignment.id
-                        ? 'primary'
-                        : 'default'
-                    "
-                    @click="selectAssignment(assignment)"
-                  >
+                  <v-chip v-for="assignment in selectedTeacher.teacher_assignments" :key="assignment.id" size="large"
+                    variant="tonal" :color="selectedAssignment?.id === assignment.id
+                      ? 'primary'
+                      : 'default'
+                      " @click="selectAssignment(assignment)">
                     {{ assignment.grade?.name }} -
                     {{ assignment.subject?.name }}
                   </v-chip>
@@ -481,16 +455,8 @@ onMounted(() => {
             </v-col>
 
             <v-col cols="12" md="12">
-              <v-select
-                v-model="form.lesson_id"
-                :items="lessons"
-                item-title="title"
-                item-value="id"
-                label="Lesson"
-                variant="outlined"
-                :disabled="!form.subject_id"
-                :error-messages="errors.lesson_id"
-              />
+              <v-select v-model="form.lesson_id" :items="lessons" item-title="name" item-value="id" label="Lesson"
+                variant="outlined" :disabled="!form.subject_id" :error-messages="errors.lesson_id" />
             </v-col>
 
             <v-col cols="12">
@@ -507,26 +473,15 @@ onMounted(() => {
 
                   <div class="d-flex ga-2">
                     <!-- Select All -->
-                    <v-btn
-                      size="small"
-                      variant="outlined"
-                      color="primary"
-                      prepend-icon="mdi-check-all"
-                      @click="
-                        form.question_types = questionTypes.map((t) => t.slug)
-                      "
-                    >
+                    <v-btn size="small" variant="outlined" color="primary" prepend-icon="mdi-check-all" @click="
+                      form.question_types = questionTypes.map((t) => t.slug)
+                      ">
                       Select All
                     </v-btn>
 
                     <!-- Clear -->
-                    <v-btn
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      prepend-icon="mdi-delete-outline"
-                      @click="form.question_types = []"
-                    >
+                    <v-btn size="small" variant="outlined" color="error" prepend-icon="mdi-delete-outline"
+                      @click="form.question_types = []">
                       Clear
                     </v-btn>
                   </div>
@@ -534,70 +489,44 @@ onMounted(() => {
 
                 <!-- CHIPS -->
                 <div class="question-type-grid">
-                  <div
-                    v-for="type in questionTypes"
-                    :key="type.id"
-                    class="question-chip"
-                    :class="{
-                      selected: form.question_types.includes(type.slug),
-                    }"
-                    @click="
-                      form.question_types.includes(type.slug)
-                        ? (form.question_types = form.question_types.filter(
-                            (t) => t !== type.slug,
-                          ))
-                        : form.question_types.push(type.slug)
-                    "
-                  >
+                  <div v-for="type in questionTypes" :key="type.id" class="question-chip" :class="{
+                    selected: form.question_types.includes(type.slug),
+                  }" @click="
+                    form.question_types.includes(type.slug)
+                      ? (form.question_types = form.question_types.filter(
+                        (t) => t !== type.slug,
+                      ))
+                      : form.question_types.push(type.slug)
+                    ">
                     <div class="chip-label">
                       {{ type.name }}
                     </div>
 
-                    <v-icon
-                      v-if="form.question_types.includes(type.slug)"
-                      size="20"
-                      color="white"
-                    >
+                    <v-icon v-if="form.question_types.includes(type.slug)" size="20" color="white">
                       mdi-check-circle
                     </v-icon>
                   </div>
                 </div>
 
                 <!-- ERROR -->
-                <div
-                  v-if="errors.question_types"
-                  class="text-error text-caption mt-2"
-                >
+                <div v-if="errors.question_types" class="text-error text-caption mt-2">
                   {{ errors.question_types[0] }}
                 </div>
               </v-card>
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-select
-                v-model="form.difficulty"
-                :items="difficulties"
-                label="Difficulty"
-                :error-messages="errors.difficulty"
-              />
+              <v-select v-model="form.difficulty" :items="difficulties" label="Difficulty"
+                :error-messages="errors.difficulty" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.target_count"
-                type="number"
-                label="No. of Questions"
-                :error-messages="errors.target_count"
-              />
+              <v-text-field v-model="form.target_count" type="number" label="No. of Questions"
+                :error-messages="errors.target_count" />
             </v-col>
 
             <v-col cols="12">
-              <v-text-field
-                v-model="form.due_date"
-                type="date"
-                label="Due Date"
-                :error-messages="errors.due_date"
-              />
+              <v-text-field v-model="form.due_date" type="date" label="Due Date" :error-messages="errors.due_date" />
             </v-col>
           </v-row>
         </v-card-text>
@@ -618,29 +547,13 @@ onMounted(() => {
         <v-card-title> Bulk Edit Selected Tasks </v-card-title>
 
         <v-card-text>
-          <v-select
-            v-model="bulkForm.difficulty"
-            :items="difficulties"
-            label="Difficulty"
-            clearable
-            variant="outlined"
-          />
+          <v-select v-model="bulkForm.difficulty" :items="difficulties" label="Difficulty" clearable
+            variant="outlined" />
 
-          <v-text-field
-            v-model="bulkForm.target_count"
-            type="number"
-            label="No. of Questions"
-            clearable
-            variant="outlined"
-          />
+          <v-text-field v-model="bulkForm.target_count" type="number" label="No. of Questions" clearable
+            variant="outlined" />
 
-          <v-text-field
-            v-model="bulkForm.due_date"
-            type="date"
-            label="Due Date"
-            clearable
-            variant="outlined"
-          />
+          <v-text-field v-model="bulkForm.due_date" type="date" label="Due Date" clearable variant="outlined" />
         </v-card-text>
 
         <v-card-actions>

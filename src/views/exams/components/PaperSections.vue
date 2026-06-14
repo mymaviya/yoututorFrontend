@@ -97,19 +97,49 @@ const getSectionMarks = (section) => {
 
 const normalizeQuestion = (q = {}) => {
   const type =
-    q.type ||
+    q.type?.slug ||
     q.question_type?.slug ||
     q.question_type?.question_type ||
-    q.question_type
+    q.question_type ||
+    q.type ||
+    "";
+
+  const typeName =
+    q.type?.name ||
+    q.question_type?.name ||
+    q.question_type_name ||
+    q.type_name ||
+    type;
 
   return {
     ...q,
     type,
     question_type: type,
+    question_type_name: typeName,
     difficulty: q.difficulty || q.difficulty_level,
     difficulty_level: q.difficulty || q.difficulty_level,
     bloom_level: q.bloom_level || q.bloom,
+  };
+};
+
+const questionTypeName = (question = {}) => {
+  if (!question) return "-";
+
+  if (typeof question.type === "object") {
+    return question.type?.name || question.type?.slug || "-";
   }
+
+  if (typeof question.question_type === "object") {
+    return question.question_type?.name || question.question_type?.slug || "-";
+  }
+
+  return (
+    question.question_type_name ||
+    question.type_name ||
+    question.type ||
+    question.question_type ||
+    "-"
+  );
 };
 
 const canMoveQuestionToSection = (section, evt) => {
@@ -266,7 +296,7 @@ onMounted(() => {
                         </v-chip>
 
                         <v-chip class="ml-2" size="small" color="success">
-                          {{ element?.type }}
+                          {{ questionTypeName(element) }}
                         </v-chip>
                         <v-chip class="ml-2" size="small" color="warning">
                           {{ element?.difficulty || element?.difficulty_level }}

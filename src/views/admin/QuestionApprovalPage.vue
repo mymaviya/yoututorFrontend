@@ -171,6 +171,27 @@ const statusColor = (status) => {
   return "warning";
 };
 
+const questionTypeName = (question) => {
+  return (
+    question.type?.name ||
+    question.question_type?.name ||
+    question.question_type_name ||
+    question.type?.slug ||
+    question.question_type ||
+    "-"
+  );
+};
+
+const questionTypeSlug = (question) => {
+  return (
+    question.type?.slug ||
+    question.question_type?.slug ||
+    question.question_type ||
+    question.type ||
+    ""
+  );
+};
+
 onMounted(() => {
   fetchGrades();
   fetchQuestions();
@@ -198,81 +219,39 @@ onMounted(() => {
     <v-card class="pa-4 mb-6 rounded-xl" elevation="0">
       <v-row>
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.status"
-            :items="statusItems"
-            label="Status"
-            clearable
-            @update:model-value="fetchQuestions"
-          />
+          <v-select v-model="filters.status" :items="statusItems" label="Status" clearable
+            @update:model-value="fetchQuestions" />
         </v-col>
 
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.grade_id"
-            :items="grades"
-            item-title="name"
-            item-value="id"
-            label="Grade"
-            clearable
-            @update:model-value="fetchSubjects"
-          />
+          <v-select v-model="filters.grade_id" :items="grades" item-title="name" item-value="id" label="Grade" clearable
+            @update:model-value="fetchSubjects" />
         </v-col>
 
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.subject_id"
-            :items="subjects"
-            item-title="name"
-            item-value="id"
-            label="Subject"
-            clearable
-            :disabled="!filters.grade_id"
-          />
+          <v-select v-model="filters.subject_id" :items="subjects" item-title="name" item-value="id" label="Subject"
+            clearable :disabled="!filters.grade_id" />
         </v-col>
 
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.type"
-            :items="questionTypes"
-            label="Type"
-            clearable
-          />
+          <v-select v-model="filters.type" :items="questionTypes" label="Type" clearable />
         </v-col>
 
         <v-col cols="12" md="2">
-          <v-select
-            v-model="filters.difficulty"
-            :items="difficulties"
-            label="Difficulty"
-            clearable
-          />
+          <v-select v-model="filters.difficulty" :items="difficulties" label="Difficulty" clearable />
         </v-col>
 
         <v-col cols="12" md="2">
-          <v-text-field
-            v-model="filters.search"
-            label="Search"
-            prepend-inner-icon="mdi-magnify"
-            clearable
-          />
+          <v-text-field v-model="filters.search" label="Search" prepend-inner-icon="mdi-magnify" clearable />
         </v-col>
       </v-row>
 
       <div class="d-flex ga-2">
-        <v-btn
-          color="primary"
-          prepend-icon="mdi-filter"
-          @click="fetchQuestions"
-        >
+        <v-btn color="primary" prepend-icon="mdi-filter" @click="fetchQuestions">
           Apply
         </v-btn>
 
-        <v-btn
-          variant="outlined"
-          prepend-icon="mdi-filter-remove"
-          @click="clearFilters"
-        >
+        <v-btn variant="outlined" prepend-icon="mdi-filter-remove" @click="clearFilters">
           Clear
         </v-btn>
       </div>
@@ -280,34 +259,21 @@ onMounted(() => {
 
     <!-- TABLE -->
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table :headers="headers" :items="questions" :loading="loading">
+      <AppDataTable :headers="headers" :items="questions" :loading="loading">
         <!-- QUESTION -->
         <template #item.question="{ item }">
           <div class="py-3 question-preview">
             <MathContent class="question-html" :html="item.question" />
 
-            <v-img
-              v-if="item.question_image"
-              :src="item.question_image"
-              max-width="120"
-              class="rounded mt-2"
-            />
+            <v-img v-if="item.question_image" :src="item.question_image" max-width="120" class="rounded mt-2" />
 
-            <v-chip
-              v-if="item.type === 'match_column' && item.match_pairs?.length"
-              size="small"
-              color="primary"
-              variant="tonal"
-            >
+            <v-chip v-if="item.type === 'match_column' && item.match_pairs?.length" size="small" color="primary"
+              variant="tonal">
               {{ item.match_pairs.length }} match rows
             </v-chip>
 
-            <v-chip
-              v-if="item.type === 'word_meaning' && item.language_items?.length"
-              size="small"
-              color="primary"
-              variant="tonal"
-            >
+            <v-chip v-if="item.type === 'word_meaning' && item.language_items?.length" size="small" color="primary"
+              variant="tonal">
               {{ item.language_items.length }} Word items
             </v-chip>
           </div>
@@ -329,34 +295,25 @@ onMounted(() => {
         <!-- TYPE -->
         <template #item.type="{ item }">
           <v-chip size="small" color="primary" variant="tonal">
-            {{ item.type }}
+            {{ questionTypeName(item) }}
           </v-chip>
         </template>
 
         <!-- DIFFICULTY -->
         <template #item.difficulty="{ item }">
-          <v-chip
-            size="small"
-            :color="
-              item.difficulty === 'easy'
-                ? 'success'
-                : item.difficulty === 'medium'
-                  ? 'warning'
-                  : 'error'
-            "
-            variant="tonal"
-          >
+          <v-chip size="small" :color="item.difficulty === 'easy'
+              ? 'success'
+              : item.difficulty === 'medium'
+                ? 'warning'
+                : 'error'
+            " variant="tonal">
             {{ item.difficulty }}
           </v-chip>
         </template>
 
         <!-- STATUS -->
         <template #item.status="{ item }">
-          <v-chip
-            size="small"
-            :color="statusColor(item.status)"
-            variant="tonal"
-          >
+          <v-chip size="small" :color="statusColor(item.status)" variant="tonal">
             {{ item.status }}
           </v-chip>
         </template>
@@ -364,36 +321,16 @@ onMounted(() => {
         <!-- ACTIONS -->
         <template #item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn
-              icon="mdi-eye"
-              size="small"
-              variant="text"
-              color="info"
-              @click="openPreview(item)"
-            />
+            <v-btn icon="mdi-eye" size="small" variant="text" color="info" @click="openPreview(item)" />
 
-            <v-btn
-              v-if="item.status !== 'approved'"
-              icon="mdi-check-circle"
-              size="small"
-              variant="text"
-              color="success"
-              :loading="approving"
-              @click="approveQuestion(item)"
-            />
+            <v-btn v-if="item.status !== 'approved'" icon="mdi-check-circle" size="small" variant="text" color="success"
+              :loading="approving" @click="approveQuestion(item)" />
 
-            <v-btn
-              v-if="item.status !== 'rejected'"
-              icon="mdi-close-circle"
-              size="small"
-              variant="text"
-              color="error"
-              :loading="approving"
-              @click="openReject(item)"
-            />
+            <v-btn v-if="item.status !== 'rejected'" icon="mdi-close-circle" size="small" variant="text" color="error"
+              :loading="approving" @click="openReject(item)" />
           </div>
         </template>
-      </v-data-table>
+      </AppDataTable>
     </v-card>
 
     <!-- PREVIEW DIALOG -->
@@ -402,11 +339,7 @@ onMounted(() => {
         <v-card-title class="d-flex justify-space-between align-center">
           Question Preview
 
-          <v-btn
-            icon="mdi-close"
-            variant="text"
-            @click="previewDialog = false"
-          />
+          <v-btn icon="mdi-close" variant="text" @click="previewDialog = false" />
         </v-card-title>
 
         <v-divider />
@@ -422,41 +355,27 @@ onMounted(() => {
             </v-chip>
 
             <v-chip variant="tonal">
-              {{ selectedQuestion.type }}
+              {{ questionTypeName(selectedQuestion) }}
             </v-chip>
 
-            <v-chip
-              :color="statusColor(selectedQuestion.status)"
-              variant="tonal"
-            >
+            <v-chip :color="statusColor(selectedQuestion.status)" variant="tonal">
               {{ selectedQuestion.status }}
             </v-chip>
           </div>
 
-          <MathContent
-            v-if="
-              !['word_meaning', 'difficult_words', 'make_sentence'].includes(
-                selectedQuestion.type,
-              )
-            "
-            class="preview-question-html mb-4"
-            :html="selectedQuestion.question"
-          />
+          <MathContent v-if="
+            !['word_meaning', 'difficult_words', 'make_sentence'].includes(
+              selectedQuestion.type,
+            )
+          " class="preview-question-html mb-4" :html="selectedQuestion.question" />
 
-          <v-img
-            v-if="selectedQuestion.question_image"
-            :src="selectedQuestion.question_image"
-            max-width="300"
-            class="rounded mb-4"
-          />
+          <v-img v-if="selectedQuestion.question_image" :src="selectedQuestion.question_image" max-width="300"
+            class="rounded mb-4" />
 
-          <div
-            v-if="
-              selectedQuestion.type === 'match_column' &&
-              selectedQuestion.match_pairs?.length
-            "
-            class="mt-4"
-          >
+          <div v-if="
+            questionTypeSlug(selectedQuestion) === 'match_column' &&
+            selectedQuestion.match_pairs?.length
+          " class="mt-4">
             <v-table density="comfortable">
               <thead>
                 <tr>
@@ -466,10 +385,7 @@ onMounted(() => {
               </thead>
 
               <tbody>
-                <tr
-                  v-for="(pair, index) in selectedQuestion.match_pairs"
-                  :key="pair.id || index"
-                >
+                <tr v-for="(pair, index) in selectedQuestion.match_pairs" :key="pair.id || index">
                   <td>{{ index + 1 }}. {{ pair.left_text }}</td>
                   <td>
                     {{ String.fromCharCode(65 + index) }}. {{ pair.right_text }}
@@ -480,14 +396,10 @@ onMounted(() => {
           </div>
 
           <!-- LANGUAGE QUESTIONS -->
-          <div
-            v-if="
-              ['word_meaning', 'difficult_words', 'make_sentence'].includes(
-                selectedQuestion.type,
-              ) && selectedQuestion.language_items?.length
-            "
-            class="mt-4"
-          >
+          <div v-if="
+            ['word_meaning', 'difficult_words', 'make_sentence'].includes(questionTypeSlug(selectedQuestion))
+             && selectedQuestion.language_items?.length
+          " class="mt-4">
             <v-table density="comfortable">
               <thead>
                 <tr>
@@ -506,10 +418,7 @@ onMounted(() => {
               </thead>
 
               <tbody>
-                <tr
-                  v-for="(item, index) in selectedQuestion.language_items"
-                  :key="item.id || index"
-                >
+                <tr v-for="(item, index) in selectedQuestion.language_items" :key="item.id || index">
                   <td>{{ index + 1 }}</td>
 
                   <td class="font-weight-medium">
@@ -532,10 +441,7 @@ onMounted(() => {
             <div class="text-subtitle-1 font-weight-bold mb-2">Options</div>
 
             <v-list>
-              <v-list-item
-                v-for="(option, index) in selectedQuestion.options"
-                :key="option.id || index"
-              >
+              <v-list-item v-for="(option, index) in selectedQuestion.options" :key="option.id || index">
                 <template #prepend>
                   <v-avatar size="30" color="primary" variant="tonal">
                     {{ String.fromCharCode(65 + index) }}
@@ -553,12 +459,7 @@ onMounted(() => {
             </v-list>
           </div>
 
-          <v-alert
-            v-if="selectedQuestion.rejection_reason"
-            type="error"
-            variant="tonal"
-            class="mt-4"
-          >
+          <v-alert v-if="selectedQuestion.rejection_reason" type="error" variant="tonal" class="mt-4">
             {{ selectedQuestion.rejection_reason }}
           </v-alert>
         </v-card-text>
@@ -566,20 +467,13 @@ onMounted(() => {
         <v-card-actions>
           <v-spacer />
 
-          <v-btn
-            v-if="permission.can('approve.questions') && selectedQuestion?.status !== 'approved'"
-            color="success"
-            @click="approveQuestion(selectedQuestion)"
-          >
+          <v-btn v-if="permission.can('approve.questions') && selectedQuestion?.status !== 'approved'" color="success"
+            @click="approveQuestion(selectedQuestion)">
             Approve
           </v-btn>
 
-          <v-btn
-            v-if="permission.can('approve.questions') && selectedQuestion?.status !== 'rejected'"
-            color="error"
-            variant="tonal"
-            @click="openReject(selectedQuestion)"
-          >
+          <v-btn v-if="permission.can('approve.questions') && selectedQuestion?.status !== 'rejected'" color="error"
+            variant="tonal" @click="openReject(selectedQuestion)">
             Reject
           </v-btn>
         </v-card-actions>
@@ -592,12 +486,7 @@ onMounted(() => {
         <v-card-title> Reject Question </v-card-title>
 
         <v-card-text>
-          <v-textarea
-            v-model="rejectionReason"
-            label="Rejection Reason"
-            rows="4"
-            auto-grow
-          />
+          <v-textarea v-model="rejectionReason" label="Rejection Reason" rows="4" auto-grow />
         </v-card-text>
 
         <v-card-actions>

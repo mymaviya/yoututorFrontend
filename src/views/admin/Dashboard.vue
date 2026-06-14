@@ -49,7 +49,7 @@
                 {{ card.title }}
               </div>
 
-              <div class="text-h4 font-weight-bold mt-2">
+              <div class="text-h4 font-weight-bold mt-2 counter-number">
                 {{ card.value }}
               </div>
 
@@ -96,21 +96,21 @@
             <v-col cols="12" sm="4">
               <div class="mini-box success-box">
                 <div class="text-caption">Approved</div>
-                <strong>{{ dashboard.stats?.approved_questions || 0 }}</strong>
+                <strong class="counter-number">{{ questionStats.approved }}</strong>
               </div>
             </v-col>
 
             <v-col cols="12" sm="4">
               <div class="mini-box warning-box">
                 <div class="text-caption">Pending</div>
-                <strong>{{ dashboard.stats?.pending_questions || 0 }}</strong>
+                <strong class="counter-number">{{ questionStats.pending }}</strong>
               </div>
             </v-col>
 
             <v-col cols="12" sm="4">
               <div class="mini-box error-box">
                 <div class="text-caption">Rejected</div>
-                <strong>{{ dashboard.stats?.rejected_questions || 0 }}</strong>
+                <strong class="counter-number">{{ questionStats.rejected }}</strong>
               </div>
             </v-col>
           </v-row>
@@ -139,20 +139,20 @@
 
           <div class="paper-count-row">
             <span>Total Papers</span>
-            <strong>{{ dashboard.stats?.question_papers || 0 }}</strong>
+            <strong class="counter-number">{{ counterValue("papers", dashboard.summary?.papers || 0) }}</strong>
           </div>
 
           <div class="paper-count-row">
             <span>Published</span>
             <v-chip color="success" variant="tonal" size="small">
-              {{ dashboard.stats?.published_papers || 0 }}
+              {{ counterValue("published_papers", dashboard.summary?.published_papers || 0) }}
             </v-chip>
           </div>
 
           <div class="paper-count-row">
             <span>Draft</span>
             <v-chip color="warning" variant="tonal" size="small">
-              {{ dashboard.stats?.draft_papers || 0 }}
+              {{ counterValue("draft_papers", dashboard.summary?.draft_papers || 0) }}
             </v-chip>
           </div>
         </v-card>
@@ -282,7 +282,7 @@
 
           <v-list density="compact">
             <v-list-item
-              v-for="p in dashboard.exam_portions?.recent || []"
+              v-for="p in dashboard.recent_exam_portions || []"
               :key="p.id"
               class="rounded-lg mb-2 activity-item"
             >
@@ -364,15 +364,15 @@
               </div>
             </td>
 
-            <td>{{ teacher.assignments_count }}</td>
-            <td>{{ teacher.questions_count }}</td>
-            <td>{{ teacher.papers_count }}</td>
+            <td>{{ counterValue(`teacher_assignments_${teacher.teacher_id}`, teacher.assignments_count || 0) }}</td>
+            <td>{{ counterValue(`teacher_questions_${teacher.teacher_id}`, teacher.questions_count || 0) }}</td>
+            <td>{{ counterValue(`teacher_papers_${teacher.teacher_id}`, teacher.papers_count || 0) }}</td>
             <td style="width: 220px">
               <v-progress-linear
                 height="8"
                 rounded
                 color="primary"
-                :model-value="teacherProgressPercent(teacher)"
+                :model-value="counterValue(`teacher_progress_${teacher.teacher_id}`, teacherProgressPercent(teacher))"
               />
             </td>
           </tr>
@@ -383,20 +383,21 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
 
 const ui = useUIStore();
 
 const loading = ref(false);
-
+const animatedCounters = ref({});
 const dashboard = ref({
-  stats: {},
-  exam_portions: {},
+  summary: {},
+  analytics: {},
   recent_questions: [],
   recent_papers: [],
   teacher_progress: [],
+  recent_exam_portions: [],
 });
 
 const fetchDashboard = async () => {
@@ -415,12 +416,72 @@ const fetchDashboard = async () => {
   }
 };
 
+const animateValue = (key, target) => {
+  target = Number(target || 0);
+
+  const start = Number(animatedCounters.value[key] || 0);
+  const duration = 1600; // little slow counter animation
+  const startTime = performance.now();
+
+  const step = (now) => {
+    const rawProgress = Math.min((now - startTime) / duration, 1);
+    const progress = 1 - Math.pow(1 - rawProgress, 3);
+    const value = Math.round(start + (target - start) * progress);
+
+    animatedCounters.value[key] = value;
+
+    if (rawProgress < 1) {
+      requestAnimationFrame(step);
+    }
+  };
+
+  requestAnimationFrame(step);
+};
+
+const counterValue = (key, fallback = 0) => {
+  return animatedCounters.value[key] ?? fallback ?? 0;
+};
+
+watch(
+  dashboard,
+  (data) => {
+    const summary = data?.summary || {};
+
+    animateValue("teachers", summary.teachers);
+    animateValue("questions", summary.questions);
+    animateValue("papers", summary.papers);
+    animateValue("exam_portions", summary.exam_portions);
+    animateValue("approved_questions", summary.approved_questions);
+    animateValue("pending_questions", summary.pending_questions);
+    animateValue("published_papers", summary.published_papers);
+    animateValue("draft_papers", summary.draft_papers);
+
+    (data?.analytics?.question_status || []).forEach((item) => {
+      animateValue(`question_status_${item.status}`, item.total);
+    });
+
+    (data?.analytics?.exam_portion_status || []).forEach((item) => {
+      animateValue(`exam_portion_${item.status}`, item.total);
+    });
+
+    (data?.teacher_progress || []).forEach((teacher) => {
+      animateValue(`teacher_assignments_${teacher.teacher_id}`, teacher.assignments_count);
+      animateValue(`teacher_questions_${teacher.teacher_id}`, teacher.questions_count);
+      animateValue(`teacher_papers_${teacher.teacher_id}`, teacher.papers_count);
+      animateValue(`teacher_progress_${teacher.teacher_id}`, teacherProgressPercent(teacher));
+    });
+
+    animateValue("approval_percentage", getApprovalPercentage(summary));
+  },
+  { deep: true }
+);
+
 onMounted(fetchDashboard);
 
 const statCards = computed(() => [
   {
     title: "Teachers",
-    value: dashboard.value.stats?.teachers || 0,
+    value: counterValue("teachers", dashboard.value.summary?.teachers || 0),
     subtitle: "Active teaching staff",
     icon: "mdi-account-school",
     color: "primary",
@@ -428,7 +489,7 @@ const statCards = computed(() => [
   },
   {
     title: "Questions",
-    value: dashboard.value.stats?.questions || 0,
+    value: counterValue("questions", dashboard.value.summary?.questions || 0),
     subtitle: "Total question bank",
     icon: "mdi-help-circle",
     color: "success",
@@ -436,7 +497,7 @@ const statCards = computed(() => [
   },
   {
     title: "Question Papers",
-    value: dashboard.value.stats?.question_papers || 0,
+    value: counterValue("papers", dashboard.value.summary?.papers || 0),
     subtitle: "Created papers",
     icon: "mdi-file-document",
     color: "warning",
@@ -444,7 +505,7 @@ const statCards = computed(() => [
   },
   {
     title: "Exam Portions",
-    value: dashboard.value.exam_portions?.total || 0,
+    value: counterValue("exam_portions", dashboard.value.summary?.exam_portions || 0),
     subtitle: "Assigned syllabus tasks",
     icon: "mdi-book-open-page-variant",
     color: "error",
@@ -455,38 +516,77 @@ const statCards = computed(() => [
 const examPortionCards = computed(() => [
   {
     title: "Assigned",
-    value: dashboard.value.exam_portions?.assigned || 0,
+    value: examPortionStats.value.assigned,
     icon: "mdi-clipboard-text-clock",
     color: "primary",
   },
   {
     title: "Submitted",
-    value: dashboard.value.exam_portions?.submitted || 0,
+    value: examPortionStats.value.submitted,
     icon: "mdi-send-check",
     color: "warning",
   },
   {
     title: "Approved",
-    value: dashboard.value.exam_portions?.approved || 0,
+    value: examPortionStats.value.approved,
     icon: "mdi-check-decagram",
     color: "success",
   },
   {
     title: "Rejected",
-    value: dashboard.value.exam_portions?.rejected || 0,
+    value: examPortionStats.value.rejected,
     icon: "mdi-close-circle",
     color: "error",
   },
 ]);
 
-const approvalPercentage = computed(() => {
-  const total = Number(dashboard.value.stats?.questions || 0);
-  const approved = Number(dashboard.value.stats?.approved_questions || 0);
+const questionStats = computed(() => {
+  const stats = {
+    approved: 0,
+    pending: 0,
+    rejected: 0,
+  };
+
+  (dashboard.value.analytics?.question_status || []).forEach((item) => {
+    stats[item.status] = counterValue(
+      `question_status_${item.status}`,
+      Number(item.total || 0)
+    );
+  });
+
+  return stats;
+});
+
+const examPortionStats = computed(() => {
+  const stats = {
+    assigned: 0,
+    submitted: 0,
+    approved: 0,
+    rejected: 0,
+  };
+
+  (dashboard.value.analytics?.exam_portion_status || []).forEach((item) => {
+    stats[item.status] = counterValue(
+      `exam_portion_${item.status}`,
+      Number(item.total || 0)
+    );
+  });
+
+  return stats;
+});
+
+const getApprovalPercentage = (summary = {}) => {
+  const total = Number(summary?.questions || 0);
+  const approved = Number(summary?.approved_questions || 0);
 
   if (!total) return 0;
 
   return Math.round((approved / total) * 100);
-});
+};
+
+const approvalPercentage = computed(() =>
+  counterValue("approval_percentage", getApprovalPercentage(dashboard.value.summary))
+);
 
 const statusColor = (status) => {
   if (status === "approved") return "success";
@@ -569,5 +669,8 @@ const teacherProgressPercent = (teacher) => {
 
 .activity-item {
   background: rgba(var(--v-theme-surface-variant), 0.35);
+}
+.counter-number {
+  font-variant-numeric: tabular-nums;
 }
 </style>

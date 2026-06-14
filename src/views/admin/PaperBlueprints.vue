@@ -40,7 +40,7 @@ const openCopy = async (item) => {
     grade_id: null,
     subject_id: null,
     exam_name_id: item.exam_name_id || item.exam_name?.id || null,
-    title: `${item.title} Copy`,
+    name: `${item.name} Copy`,
   };
 
   subjects.value = [];
@@ -80,7 +80,7 @@ const generateCopyBlueprintTitle = () => {
 
   if (!grade || !subject || !exam) return;
 
-  copyForm.value.title = `${grade.name} ${exam.name} ${subject.name} Paper`;
+  copyForm.value.name = `${grade.name} ${exam.name} ${subject.name} Paper`;
 };
 
 const checkDuplicateCopyBlueprint = () => {
@@ -88,9 +88,9 @@ const checkDuplicateCopyBlueprint = () => {
     (bp) =>
       Number(bp.grade_id || bp.grade?.id) === Number(copyForm.value.grade_id) &&
       Number(bp.subject_id || bp.subject?.id) ===
-        Number(copyForm.value.subject_id) &&
+      Number(copyForm.value.subject_id) &&
       Number(bp.exam_name_id || bp.exam_name?.id) ===
-        Number(copyForm.value.exam_name_id),
+      Number(copyForm.value.exam_name_id),
   );
 };
 
@@ -188,7 +188,7 @@ const bloomLevels = [
 ];
 
 const headers = [
-  { title: "Title", key: "title" },
+  { title: "Title", key: "name" },
   { title: "Grade", key: "grade.name" },
   { title: "Subject", key: "subject.name" },
   { title: "Exam", key: "exam_name.name" },
@@ -202,9 +202,11 @@ const createSectionItem = (overrides = {}) => ({
   id: overrides.id,
   question_type: overrides.question_type || "mcq",
   difficulty: overrides.difficulty || "easy",
-  bloom_level: overrides.bloom_level || "remember",
   question_count: Number(overrides.question_count || 1),
   marks_per_question: Number(overrides.marks_per_question || 1),
+  bloom_levels: Array.isArray(overrides.bloom_levels)
+    ? overrides.bloom_levels
+    : [],
 });
 
 const generateBlueprintTitle = () => {
@@ -225,7 +227,7 @@ const generateBlueprintTitle = () => {
 
   if (!grade || !subject || !exam) return;
 
-  form.value.title = `${grade.name} ${exam.name} ${subject.name} Paper`;
+  form.value.name = `${grade.name} ${exam.name} ${subject.name} Paper`;
 };
 
 const getSectionItems = (section) => {
@@ -388,7 +390,7 @@ const openAdd = () => {
     grade_id: null,
     subject_id: null,
     exam_name_id: null,
-    title: "",
+    name: "",
     is_active: true,
     use_bloom_distribution: false,
     bloom_levels: [
@@ -416,19 +418,19 @@ const openEdit = async (item) => {
     grade_id: item.grade_id,
     subject_id: item.subject_id,
     exam_name_id: item.exam_name_id,
-    title: item.title,
+    name: item.name,
     is_active: Boolean(item.is_active),
     use_bloom_distribution: item.bloom_levels?.length > 0,
     bloom_levels: item.bloom_levels?.length
       ? item.bloom_levels
       : [
-          { bloom_level: "remember", percentage: 20 },
-          { bloom_level: "understand", percentage: 30 },
-          { bloom_level: "apply", percentage: 30 },
-          { bloom_level: "analyze", percentage: 20 },
-          { bloom_level: "evaluate", percentage: 0 },
-          { bloom_level: "create", percentage: 0 },
-        ],
+        { bloom_level: "remember", percentage: 20 },
+        { bloom_level: "understand", percentage: 30 },
+        { bloom_level: "apply", percentage: 30 },
+        { bloom_level: "analyze", percentage: 20 },
+        { bloom_level: "evaluate", percentage: 0 },
+        { bloom_level: "create", percentage: 0 },
+      ],
     sections: item.sections?.length
       ? item.sections.map((section, index) => normalizeSection(section, index))
       : [],
@@ -460,12 +462,21 @@ const saveBlueprint = async () => {
       ...form.value,
       total_questions: totalQuestions.value,
       total_marks: totalMarks.value,
-      sections: form.value.sections.map((section, index) =>
-        normalizeSection(section, index),
-      ),
-      bloom_levels: form.value.use_bloom_distribution
-        ? form.value.bloom_levels
-        : [],
+      sections: form.value.sections.map((section, index) => {
+        const normalizedSection = normalizeSection(section, index);
+
+        normalizedSection.items = normalizedSection.items.map((item) => ({
+          ...item,
+          bloom_levels: form.value.use_bloom_distribution
+            ? form.value.bloom_levels.map((bloom) => ({
+              bloom_level: bloom.bloom_level,
+              percentage: Number(bloom.percentage || 0),
+            }))
+            : [],
+        }));
+
+        return normalizedSection;
+      }),
     };
 
     if (editMode.value) {
@@ -572,42 +583,18 @@ onMounted(() => {
     <v-card class="pa-4 mb-6 rounded-xl" elevation="0">
       <v-row>
         <v-col cols="12" md="3">
-          <v-select
-            v-model="filters.grade_id"
-            :items="grades"
-            item-title="name"
-            item-value="id"
-            label="Grade"
-            clearable
-            variant="outlined"
-            @update:model-value="fetchSubjects"
-          />
+          <v-select v-model="filters.grade_id" :items="grades" item-title="name" item-value="id" label="Grade" clearable
+            variant="outlined" @update:model-value="fetchSubjects" />
         </v-col>
 
         <v-col cols="12" md="3">
-          <v-select
-            v-model="filters.subject_id"
-            :items="subjects"
-            item-title="name"
-            item-value="id"
-            label="Subject"
-            variant="outlined"
-            :disabled="!filters.grade_id"
-            :error-messages="errors.subject_id"
-          />
+          <v-select v-model="filters.subject_id" :items="subjects" item-title="name" item-value="id" label="Subject"
+            variant="outlined" :disabled="!filters.grade_id" :error-messages="errors.subject_id" />
         </v-col>
 
         <v-col cols="12" md="3">
-          <v-select
-            v-model="filters.exam_name_id"
-            :items="examNames"
-            item-title="name"
-            item-value="id"
-            label="Exam"
-            clearable
-            variant="outlined"
-            :error-messages="errors.exam_name_id"
-          />
+          <v-select v-model="filters.exam_name_id" :items="examNames" item-title="name" item-value="id" label="Exam"
+            clearable variant="outlined" :error-messages="errors.exam_name_id" />
         </v-col>
 
         <v-col cols="12" md="3" class="d-flex align-center ga-2">
@@ -619,23 +606,17 @@ onMounted(() => {
     </v-card>
 
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table :headers="headers" :items="blueprints" :loading="loading">
-        <template #item.title="{ item }">
+      <AppDataTable :headers="headers" :items="blueprints" :loading="loading">
+        <template #item.name="{ item }">
           <div class="d-flex align-center ga-2">
             <span class="font-weight-medium">
-              {{ item.title }}
+              {{ item.name }}
             </span>
 
             <v-tooltip location="top">
               <template #activator="{ props }">
-                <v-chip
-                  v-bind="props"
-                  v-if="item.bloom_levels?.length"
-                  size="x-small"
-                  color="deep-purple"
-                  variant="flat"
-                  prepend-icon="mdi-brain"
-                >
+                <v-chip v-bind="props" v-if="item.bloom_levels?.length" size="x-small" color="deep-purple"
+                  variant="flat" prepend-icon="mdi-brain">
                   Bloom
                 </v-chip>
               </template>
@@ -646,11 +627,7 @@ onMounted(() => {
         </template>
 
         <template #item.is_active="{ item }">
-          <v-chip
-            size="small"
-            variant="tonal"
-            :color="item.is_active ? 'success' : 'error'"
-          >
+          <v-chip size="small" variant="tonal" :color="item.is_active ? 'success' : 'error'">
             {{ item.is_active ? "Active" : "Inactive" }}
           </v-chip>
         </template>
@@ -665,48 +642,19 @@ onMounted(() => {
 
         <template #item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn
-              icon="mdi-eye"
-              size="small"
-              variant="text"
-              color="info"
-              @click="openPreview(item)"
-            />
+            <v-btn icon="mdi-eye" size="small" variant="text" color="info" @click="openPreview(item)" />
 
-            <v-btn
-              icon="mdi-content-copy"
-              size="small"
-              variant="text"
-              color="secondary"
-              @click="openCopy(item)"
-            />
+            <v-btn icon="mdi-content-copy" size="small" variant="text" color="secondary" @click="openCopy(item)" />
 
-            <v-btn
-              icon="mdi-pencil"
-              size="small"
-              variant="text"
-              color="primary"
-              @click="openEdit(item)"
-            />
+            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
 
-            <v-btn
-              :icon="item.is_active ? 'mdi-eye-off' : 'mdi-eye'"
-              size="small"
-              variant="text"
-              :color="item.is_active ? 'warning' : 'success'"
-              @click="toggleStatus(item)"
-            />
+            <v-btn :icon="item.is_active ? 'mdi-eye-off' : 'mdi-eye'" size="small" variant="text"
+              :color="item.is_active ? 'warning' : 'success'" @click="toggleStatus(item)" />
 
-            <v-btn
-              icon="mdi-delete"
-              size="small"
-              variant="text"
-              color="error"
-              @click="deleteBlueprint(item)"
-            />
+            <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteBlueprint(item)" />
           </div>
         </template>
-      </v-data-table>
+      </AppDataTable>
     </v-card>
 
     <v-dialog v-model="dialog" max-width="1100" persistent>
@@ -722,62 +670,29 @@ onMounted(() => {
         <v-card-text>
           <v-row>
             <v-col cols="12" md="3">
-              <v-select
-                v-model="form.grade_id"
-                :items="grades"
-                item-title="name"
-                item-value="id"
-                label="Grade"
-                variant="outlined"
-                :error-messages="errors.grade_id"
-                @update:model-value="fetchSubjects"
-              />
+              <v-select v-model="form.grade_id" :items="grades" item-title="name" item-value="id" label="Grade"
+                variant="outlined" :error-messages="errors.grade_id" @update:model-value="fetchSubjects" />
             </v-col>
 
             <v-col cols="12" md="3">
-              <v-select
-                v-model="form.subject_id"
-                :items="subjects"
-                item-title="name"
-                item-value="id"
-                label="Subject"
-                variant="outlined"
-                :disabled="!form.grade_id"
-                :error-messages="errors.subject_id"
-                @update:model-value="onSubjectChange"
-              />
+              <v-select v-model="form.subject_id" :items="subjects" item-title="name" item-value="id" label="Subject"
+                variant="outlined" :disabled="!form.grade_id" :error-messages="errors.subject_id"
+                @update:model-value="onSubjectChange" />
             </v-col>
 
             <v-col cols="12" md="3">
-              <v-select
-                v-model="form.exam_name_id"
-                :items="examNames"
-                item-title="name"
-                item-value="id"
-                label="Exam Name"
-                variant="outlined"
-                clearable
-                :error-messages="errors.exam_name_id"
-                @update:model-value="generateBlueprintTitle"
-              />
+              <v-select v-model="form.exam_name_id" :items="examNames" item-title="name" item-value="id"
+                label="Exam Name" variant="outlined" clearable :error-messages="errors.exam_name_id"
+                @update:model-value="generateBlueprintTitle" />
             </v-col>
 
             <v-col cols="12" md="3">
-              <v-switch
-                v-model="form.is_active"
-                label="Active"
-                color="success"
-              />
+              <v-switch v-model="form.is_active" label="Active" color="success" />
             </v-col>
 
             <v-col cols="12">
-              <v-text-field
-                v-model="form.title"
-                label="Blueprint Title"
-                variant="outlined"
-                placeholder="Class 10 Science Half Yearly Blueprint"
-                :error-messages="errors.title"
-              />
+              <v-text-field v-model="form.name" label="Blueprint Title" variant="outlined"
+                placeholder="Class 10 Science Half Yearly Blueprint" :error-messages="errors.name" />
             </v-col>
           </v-row>
 
@@ -788,11 +703,7 @@ onMounted(() => {
             <strong>{{ totalMarks }}</strong>
           </v-alert>
 
-          <v-switch
-            v-model="form.use_bloom_distribution"
-            color="primary"
-            label="Use Bloom Taxonomy Distribution"
-          />
+          <v-switch v-model="form.use_bloom_distribution" color="primary" label="Use Bloom Taxonomy Distribution" />
 
           <v-expand-transition>
             <div v-if="form.use_bloom_distribution">
@@ -809,28 +720,16 @@ onMounted(() => {
                     </div>
                   </div>
 
-                  <v-chip
-                    :color="totalBloomPercentage === 100 ? 'success' : 'error'"
-                    variant="tonal"
-                  >
+                  <v-chip :color="totalBloomPercentage === 100 ? 'success' : 'error'" variant="tonal">
                     Total: {{ totalBloomPercentage }}%
                   </v-chip>
                 </div>
 
                 <v-row>
-                  <v-col
-                    v-for="item in form.bloom_levels"
-                    :key="item.bloom_level"
-                    cols="12"
-                    md="6"
-                  >
+                  <v-col v-for="item in form.bloom_levels" :key="item.bloom_level" cols="12" md="6">
                     <v-card class="pa-3 rounded-lg" variant="tonal">
-                      <div
-                        class="d-flex justify-space-between align-center mb-2"
-                      >
-                        <div
-                          class="text-subtitle-2 font-weight-bold text-capitalize"
-                        >
+                      <div class="d-flex justify-space-between align-center mb-2">
+                        <div class="text-subtitle-2 font-weight-bold text-capitalize">
                           {{ item.bloom_level }}
                         </div>
 
@@ -839,35 +738,15 @@ onMounted(() => {
                         </v-chip>
                       </div>
 
-                      <v-slider
-                        v-model="item.percentage"
-                        min="0"
-                        max="100"
-                        step="5"
-                        thumb-label
-                        color="primary"
-                      />
+                      <v-slider v-model="item.percentage" min="0" max="100" step="5" thumb-label color="primary" />
 
-                      <v-text-field
-                        v-model.number="item.percentage"
-                        type="number"
-                        min="0"
-                        max="100"
-                        suffix="%"
-                        density="compact"
-                        variant="outlined"
-                        hide-details
-                      />
+                      <v-text-field v-model.number="item.percentage" type="number" min="0" max="100" suffix="%"
+                        density="compact" variant="outlined" hide-details />
                     </v-card>
                   </v-col>
                 </v-row>
 
-                <v-alert
-                  v-if="totalBloomPercentage !== 100"
-                  type="warning"
-                  variant="tonal"
-                  class="mt-4"
-                >
+                <v-alert v-if="totalBloomPercentage !== 100" type="warning" variant="tonal" class="mt-4">
                   Bloom level total must be exactly 100%.
                 </v-alert>
               </v-card>
@@ -878,107 +757,46 @@ onMounted(() => {
             <div class="text-h6 font-weight-bold">Sections</div>
           </div>
 
-          <v-card
-            v-for="(section, sectionIndex) in form.sections"
-            :key="sectionIndex"
-            class="pa-4 mb-4 rounded-xl"
-            variant="outlined"
-          >
+          <v-card v-for="(section, sectionIndex) in form.sections" :key="sectionIndex" class="pa-4 mb-4 rounded-xl"
+            variant="outlined">
             <div class="d-flex justify-space-between align-center mb-3">
-              <v-text-field
-                v-model="section.section_name"
-                label="Section Name"
-                variant="outlined"
-                style="max-width: 250px"
-              />
+              <v-text-field v-model="section.section_name" label="Section Name" variant="outlined"
+                style="max-width: 250px" />
 
-              <v-btn
-                icon="mdi-delete"
-                color="error"
-                variant="text"
-                :disabled="form.sections.length === 1"
-                @click="removeSection(sectionIndex)"
-              />
+              <v-btn icon="mdi-delete" color="error" variant="text" :disabled="form.sections.length === 1"
+                @click="removeSection(sectionIndex)" />
             </div>
 
-            <v-textarea
-              v-model="section.instructions"
-              label="Section Instructions"
-              rows="2"
-              auto-grow
-              variant="outlined"
-              class="mb-4"
-            />
+            <v-textarea v-model="section.instructions" label="Section Instructions" rows="2" auto-grow
+              variant="outlined" class="mb-4" />
 
-            <v-card
-              v-for="(item, itemIndex) in section.items"
-              :key="itemIndex"
-              class="pa-3 mb-3 rounded-lg"
-              variant="tonal"
-            >
+            <v-card v-for="(item, itemIndex) in section.items" :key="itemIndex" class="pa-3 mb-3 rounded-lg"
+              variant="tonal">
               <div class="d-flex justify-space-between align-center mb-2">
                 <strong>Question Type {{ itemIndex + 1 }}</strong>
 
-                <v-btn
-                  icon="mdi-delete"
-                  size="small"
-                  color="error"
-                  variant="text"
-                  :disabled="section.items.length === 1"
-                  @click="section.items.splice(itemIndex, 1)"
-                />
+                <v-btn icon="mdi-delete" size="small" color="error" variant="text"
+                  :disabled="section.items.length === 1" @click="section.items.splice(itemIndex, 1)" />
               </div>
 
               <v-row>
                 <v-col cols="12" md="3">
-                  <v-select
-                    v-model="item.question_type"
-                    :items="questionTypes"
-                    item-title="name"
-                    item-value="slug"
-                    label="Question Type"
-                    variant="outlined"
-                    :loading="questionTypeLoading"
-                    :disabled="!form.grade_id || !form.subject_id"
-                  />
+                  <v-select v-model="item.question_type" :items="questionTypes" item-title="name" item-value="slug"
+                    label="Question Type" variant="outlined" :loading="questionTypeLoading"
+                    :disabled="!form.grade_id || !form.subject_id" />
                 </v-col>
 
                 <v-col cols="12" md="2">
-                  <v-select
-                    v-model="item.difficulty"
-                    :items="difficulties"
-                    label="Difficulty"
-                    clearable
-                    variant="outlined"
-                  />
+                  <v-select v-model="item.difficulty" :items="difficulties" label="Difficulty" clearable
+                    variant="outlined" />
                 </v-col>
 
                 <v-col cols="12" md="2">
-                  <v-select
-                    v-model="item.bloom_level"
-                    :items="bloomLevels"
-                    label="Bloom"
-                    clearable
-                    variant="outlined"
-                  />
+                  <v-text-field v-model="item.question_count" type="number" label="Qty" variant="outlined" />
                 </v-col>
 
                 <v-col cols="12" md="2">
-                  <v-text-field
-                    v-model="item.question_count"
-                    type="number"
-                    label="Qty"
-                    variant="outlined"
-                  />
-                </v-col>
-
-                <v-col cols="12" md="2">
-                  <v-text-field
-                    v-model="item.marks_per_question"
-                    type="number"
-                    label="Marks"
-                    variant="outlined"
-                  />
+                  <v-text-field v-model="item.marks_per_question" type="number" label="Marks" variant="outlined" />
                 </v-col>
 
                 <v-col cols="12" md="1">
@@ -993,23 +811,13 @@ onMounted(() => {
               </v-row>
             </v-card>
 
-            <v-btn
-              color="primary"
-              variant="text"
-              prepend-icon="mdi-plus"
-              @click="addSectionItem(section)"
-            >
+            <v-btn color="primary" variant="text" prepend-icon="mdi-plus" @click="addSectionItem(section)">
               Add Question Type
             </v-btn>
           </v-card>
 
           <div class="text-center">
-            <v-btn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-plus"
-              @click="addSection"
-            >
+            <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus" @click="addSection">
               Add Section
             </v-btn>
           </div>
@@ -1027,16 +835,12 @@ onMounted(() => {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="previewDialog" max-width="900">
+    <v-dialog v-model="previewDialog" max-width="1200">
       <v-card class="rounded-xl">
         <v-card-title class="d-flex justify-space-between align-center">
           Blueprint Preview
 
-          <v-btn
-            icon="mdi-close"
-            variant="text"
-            @click="previewDialog = false"
-          />
+          <v-btn icon="mdi-close" variant="text" @click="previewDialog = false" />
         </v-card-title>
 
         <v-divider />
@@ -1053,54 +857,28 @@ onMounted(() => {
 
         <v-card-text>
           <v-alert type="info" variant="tonal" class="mb-4">
-            Copying: <strong>{{ copySource?.title }}</strong>
+            Copying: <strong>{{ copySource?.name }}</strong>
           </v-alert>
 
           <v-row>
             <v-col cols="12" md="6">
-              <v-select
-                v-model="copyForm.grade_id"
-                :items="grades"
-                item-title="name"
-                item-value="id"
-                label="New Grade"
-                variant="outlined"
-                @update:model-value="fetchCopySubjects"
-              />
+              <v-select v-model="copyForm.grade_id" :items="grades" item-title="name" item-value="id" label="New Grade"
+                variant="outlined" @update:model-value="fetchCopySubjects" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-select
-                v-model="copyForm.subject_id"
-                :items="copySubjects"
-                item-title="name"
-                item-value="id"
-                label="New Subject"
-                variant="outlined"
-                :disabled="!copyForm.grade_id"
-                @update:model-value="generateCopyBlueprintTitle"
-              />
+              <v-select v-model="copyForm.subject_id" :items="copySubjects" item-title="name" item-value="id"
+                label="New Subject" variant="outlined" :disabled="!copyForm.grade_id"
+                @update:model-value="generateCopyBlueprintTitle" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-select
-                v-model="copyForm.exam_name_id"
-                :items="examNames"
-                item-title="name"
-                item-value="id"
-                label="Exam"
-                clearable
-                variant="outlined"
-                @update:model-value="generateCopyBlueprintTitle"
-              />
+              <v-select v-model="copyForm.exam_name_id" :items="examNames" item-title="name" item-value="id"
+                label="Exam" clearable variant="outlined" @update:model-value="generateCopyBlueprintTitle" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="copyForm.title"
-                label="New Blueprint Title"
-                variant="outlined"
-              />
+              <v-text-field v-model="copyForm.name" label="New Blueprint Title" variant="outlined" />
             </v-col>
           </v-row>
         </v-card-text>

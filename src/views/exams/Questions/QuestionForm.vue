@@ -97,9 +97,14 @@ const fetchSubjects = async () => {
   }
 
   if (assignedSubjects.value.length) {
-    subjects.value = assignedSubjects.value.filter(
-      (s) => Number(s.grade_id) === Number(form.value.grade_id),
-    );
+    subjects.value = assignedSubjects.value
+      .filter((s) => Number(s.grade_id) === Number(form.value.grade_id))
+      .map((s) => ({
+        id: s.id || s.subject_id || s.subject?.id,
+        name: s.name || s.subject?.name,
+        grade_id: s.grade_id,
+        stream_id: s.stream_id || null,
+      }));
 
     return;
   }
@@ -267,33 +272,34 @@ const fetchQuestionForEdit = async () => {
   form.value.lesson_id = q.lesson_id;
 
   Object.assign(form.value, {
-    id: q.id,
-    type: q.type,
-    difficulty: q.difficulty,
-    bloom_level: q.bloom_level,
-    marks: q.marks,
-    question: q.question,
-    answer: q.answer || "",
-    explanation: q.explanation || "",
-    question_image: null,
-    old_question_image: q.question_image,
+  id: q.id,
+  type: q.type?.slug || q.question_type || q.type || null,
+  difficulty: q.difficulty,
+  bloom_level: q.bloom_level,
+  marks: q.marks,
+  question: q.question,
+  answer: q.answer || "",
+  explanation: q.explanation || "",
+  question_image: null,
+  old_question_image: q.question_image,
 
-    options: q.options?.length
-      ? q.options.map((opt) => ({
-          id: opt.id,
-          option_text: opt.option_text || "",
-          option_image: null,
-          old_option_image: opt.option_image,
-          is_correct: Boolean(opt.is_correct),
-        }))
-      : defaultOptions(),
+  options: q.options?.length
+    ? q.options.map((opt, index) => ({
+        id: opt.id,
+        option_text: opt.option_text || "",
+        option_image: null,
+        old_option_image: opt.option_image,
+        is_correct: Boolean(opt.is_correct),
+        sort_order: opt.sort_order || index + 1,
+      }))
+    : defaultOptions(),
 
     matches: q.match_pairs?.length
       ? q.match_pairs.map((pair) => ({
-          id: pair.id,
-          left: pair.left_text || "",
-          right: pair.right_text || "",
-        }))
+        id: pair.id,
+        left: pair.left_text || "",
+        right: pair.right_text || "",
+      }))
       : defaultMatchRows(),
   });
 
@@ -577,6 +583,19 @@ const suggestBloomLevel = async () => {
   }
 };
 
+const subjectTitle = (subject) => {
+  if (!subject) return "-";
+  return subject.name || subject.subject?.name || "-";
+};
+
+const selectedTypeSlug = computed(() => {
+  return selectedQuestionType.value?.slug || form.value.type || ''
+})
+
+const showOptions = computed(() => {
+  return selectedQuestionType.value?.has_options || selectedTypeSlug.value === 'mcq' || selectedTypeSlug.value === 'true_false'
+})
+
 watch(
   () => form.value.type,
   () => {
@@ -659,38 +678,23 @@ onMounted(async () => {
 <template>
   <v-card v-if="!pageLoading" class="pa-6 rounded-xl">
     <!-- HEADER -->
-    <v-alert
-      v-if="taskInfo?.status === 'completed'"
-      type="success"
-      variant="tonal"
-      class="mb-4"
-    >
+    <v-alert v-if="taskInfo?.status === 'completed'" type="success" variant="tonal" class="mb-4">
       This task is already completed. You cannot add more questions.
     </v-alert>
-    <v-card
-      v-if="taskInfo"
-      class="mb-4 rounded-xl"
-      elevation="0"
-      :color="
-        taskInfo.status === 'completed'
-          ? 'success'
-          : taskInfo.status === 'in_progress'
-            ? 'info'
-            : 'warning'
-      "
-      variant="tonal"
-    >
+    <v-card v-if="taskInfo" class="mb-4 rounded-xl" elevation="0" :color="taskInfo.status === 'completed'
+        ? 'success'
+        : taskInfo.status === 'in_progress'
+          ? 'info'
+          : 'warning'
+      " variant="tonal">
       <v-card-text class="d-flex align-center justify-space-between">
         <div class="d-flex align-center ga-3">
-          <v-avatar
-            :color="
-              taskInfo.status === 'completed'
-                ? 'success'
-                : taskInfo.status === 'in_progress'
-                  ? 'info'
-                  : 'warning'
-            "
-          >
+          <v-avatar :color="taskInfo.status === 'completed'
+              ? 'success'
+              : taskInfo.status === 'in_progress'
+                ? 'info'
+                : 'warning'
+            ">
             <v-icon color="white">
               {{
                 taskInfo.status === "completed"
@@ -722,16 +726,12 @@ onMounted(async () => {
           </div>
         </div>
 
-        <v-chip
-          size="large"
-          :color="
-            taskInfo.status === 'completed'
-              ? 'success'
-              : taskInfo.status === 'in_progress'
-                ? 'info'
-                : 'warning'
-          "
-        >
+        <v-chip size="large" :color="taskInfo.status === 'completed'
+            ? 'success'
+            : taskInfo.status === 'in_progress'
+              ? 'info'
+              : 'warning'
+          ">
           {{ taskInfo.progress }}%
         </v-chip>
       </v-card-text>
@@ -748,12 +748,7 @@ onMounted(async () => {
         </p>
       </div>
 
-      <v-btn
-        color="primary"
-        :disabled="taskInfo?.status === 'completed'"
-        size="large"
-        @click="save"
-      >
+      <v-btn color="primary" :disabled="taskInfo?.status === 'completed'" size="large" @click="save">
         {{ isEditMode ? "Update Question" : "Save Question" }}
       </v-btn>
     </div>
@@ -778,99 +773,47 @@ onMounted(async () => {
         <strong>{{ taskInfo.remaining_count }}</strong>
       </div>
 
-      <v-progress-linear
-        :model-value="taskInfo.progress"
-        height="8"
-        rounded
-        color="primary"
-        class="mt-3"
-      />
+      <v-progress-linear :model-value="taskInfo.progress" height="8" rounded color="primary" class="mt-3" />
     </v-alert>
 
     <!-- BASIC INFO -->
     <v-row>
       <v-col cols="12" md="4">
-        <v-select
-          v-model="form.grade_id"
-          :items="grades"
-          item-title="name"
-          item-value="id"
-          label="Grade"
-          :error-messages="errors.grade_id"
-          :disabled="taskInfo?.status === 'completed'"
-        />
+        <v-select v-model="form.grade_id" :items="grades" item-title="name" item-value="id" label="Grade"
+          :error-messages="errors.grade_id" :disabled="taskInfo?.status === 'completed'" />
       </v-col>
 
       <v-col cols="12" md="4">
-        <v-select
-          v-model="form.subject_id"
-          :items="subjects"
-          item-title="name"
-          item-value="id"
-          label="Subject"
-          :disabled="!form.grade_id"
-          :error-messages="errors.subject_id"
-        />
+        <v-select v-model="form.subject_id" :items="subjects" :item-title="subjectTitle" item-value="id" label="Subject"
+          :disabled="!form.grade_id" :error-messages="errors.subject_id" />
       </v-col>
 
       <v-col cols="12" md="4">
-        <v-select
-          v-model="form.lesson_id"
-          :items="lessons"
-          item-title="title"
-          item-value="id"
-          label="Lesson"
-          :disabled="!form.subject_id"
-          :error-messages="errors.lesson_id"
-        />
+        <v-select v-model="form.lesson_id" :items="lessons" item-title="name" item-value="id" label="Lesson"
+          :disabled="!form.subject_id" :error-messages="errors.lesson_id" />
       </v-col>
     </v-row>
 
     <!-- QUESTION CONFIG -->
     <v-row>
       <v-col cols="12" md="3">
-        <v-select
-          v-model="form.type"
-          :items="questionTypes"
-          item-title="name"
-          item-value="slug"
-          label="Question Type"
-          :error-messages="errors.type"
-        />
+        <v-select v-model="form.type" :items="questionTypes" item-title="name" item-value="slug" label="Question Type"
+          :error-messages="errors.type" />
       </v-col>
 
       <v-col cols="12" md="3">
-        <v-select
-          v-model="form.difficulty"
-          :items="difficultyLevels"
-          item-title="text"
-          item-value="value"
-          label="Difficulty"
-          :error-messages="errors.difficulty"
-          :disabled="taskInfo?.status === 'completed'"
-        />
+        <v-select v-model="form.difficulty" :items="difficultyLevels" item-title="text" item-value="value"
+          label="Difficulty" :error-messages="errors.difficulty" :disabled="taskInfo?.status === 'completed'" />
       </v-col>
 
       <v-col cols="12" md="3">
-        <v-select
-          v-model="form.bloom_level"
-          :items="bloomLevels"
-          item-title="text"
-          item-value="value"
-          label="Bloom Level"
-          :error-messages="errors.bloom_level"
-          :disabled="taskInfo?.status === 'completed'"
-        />
+        <v-select v-model="form.bloom_level" :items="bloomLevels" item-title="text" item-value="value"
+          label="Bloom Level" :error-messages="errors.bloom_level" :disabled="taskInfo?.status === 'completed'" />
       </v-col>
 
       <v-col cols="12" md="3">
-        <v-text-field
-          v-model="form.marks"
-          type="number"
-          label="Marks"
-          :error-messages="errors.marks"
-          :disabled="taskInfo?.status === 'completed'"
-        />
+        <v-text-field v-model="form.marks" type="number" label="Marks" :error-messages="errors.marks"
+          :disabled="taskInfo?.status === 'completed'" />
       </v-col>
     </v-row>
 
@@ -887,118 +830,67 @@ onMounted(async () => {
         <div class="text-subtitle-1 font-weight-bold mb-2">
           Question
           <v-space></v-space>
-          <v-btn
-            color="primary"
-            variant="tonal"
-            prepend-icon="mdi-creation"
-            :loading="aiLoading"
-            @click="suggestBloomLevel"
-          >
+          <v-btn color="primary" variant="tonal" prepend-icon="mdi-creation" :loading="aiLoading"
+            @click="suggestBloomLevel">
             Suggest Bloom
           </v-btn>
         </div>
 
         <AppEditor v-model="form.question" />
 
-        <v-file-input
-          v-model="form.question_image"
-          class="mt-4"
-          label="Question Image"
-          accept="image/*"
-          :disabled="taskInfo?.status === 'completed'"
-        />
-        <v-img
-          v-if="form.old_question_image"
-          :src="form.old_question_image"
-          width="140"
-          class="mt-2 rounded"
-          :disabled="taskInfo?.status === 'completed'"
-        />
+        <v-file-input v-model="form.question_image" class="mt-4" label="Question Image" accept="image/*"
+          :disabled="taskInfo?.status === 'completed'" />
+        <v-img v-if="form.old_question_image" :src="form.old_question_image" width="140" class="mt-2 rounded"
+          :disabled="taskInfo?.status === 'completed'" />
       </v-card>
     </template>
 
     <!-- Language content-based question types (like word meaning, make sentence)  -->
-    <v-card
-      v-if="isLanguageContent"
-      class="pa-4 rounded-xl mb-4"
-      variant="outlined"
-    >
+    <v-card v-if="isLanguageContent" class="pa-4 rounded-xl mb-4" variant="outlined">
       <div class="d-flex justify-space-between align-center mb-4">
         <div class="text-h6 font-weight-bold text-capitalize">
           {{ form.type.replaceAll("_", " ") }} Items
         </div>
 
-        <v-btn
-          color="primary"
-          variant="tonal"
-          prepend-icon="mdi-plus"
-          @click="form.content_items.push(blankContentItem())"
-        >
+        <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus"
+          @click="form.content_items.push(blankContentItem())">
           Add Row
         </v-btn>
       </div>
 
-      <v-row
-        v-for="(item, index) in form.content_items"
-        :key="index"
-        class="align-center"
-      >
+      <v-row v-for="(item, index) in form.content_items" :key="index" class="align-center">
         <v-col cols="12" md="5">
           <v-text-field v-model="item.word" label="Word" variant="outlined" />
         </v-col>
 
         <v-col v-if="form.type === 'word_meaning'" cols="12" md="5">
-          <v-text-field
-            v-model="item.meaning"
-            label="Meaning"
-            variant="outlined"
-          />
+          <v-text-field v-model="item.meaning" label="Meaning" variant="outlined" />
         </v-col>
 
         <v-col v-if="form.type === 'make_sentence'" cols="12" md="5">
-          <v-text-field
-            v-model="item.sentence"
-            label="Sentence"
-            variant="outlined"
-          />
+          <v-text-field v-model="item.sentence" label="Sentence" variant="outlined" />
         </v-col>
 
         <v-col cols="12" md="2">
-          <v-btn
-            icon="mdi-delete"
-            color="error"
-            variant="text"
-            :disabled="form.content_items.length === 1"
-            @click="form.content_items.splice(index, 1)"
-          />
+          <v-btn icon="mdi-delete" color="error" variant="text" :disabled="form.content_items.length === 1"
+            @click="form.content_items.splice(index, 1)" />
         </v-col>
       </v-row>
     </v-card>
 
     <!-- MCQ OPTIONS -->
     <div v-if="['mcq', 'multiple_mcq'].includes(form.type)">
-      <v-btn
-        color="primary"
-        variant="tonal"
-        prepend-icon="mdi-plus"
-        class="mt-3"
-        @click="
-          form.options.push({
-            option_text: '',
-            option_image: null,
-            is_correct: false,
-          })
-        "
-      >
+      <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus" class="mt-3" @click="
+        form.options.push({
+          option_text: '',
+          option_image: null,
+          is_correct: false,
+        })
+        ">
         Add Option
       </v-btn>
       <v-row>
-        <v-col
-          v-for="(option, index) in form.options"
-          :key="index"
-          cols="12"
-          md="6"
-        >
+        <v-col v-for="(option, index) in form.options" :key="index" cols="12" md="6">
           <v-card class="pa-4 rounded-xl option-card" elevation="0">
             <div class="d-flex align-center justify-space-between mb-3">
               <div class="d-flex align-center ga-2">
@@ -1009,42 +901,18 @@ onMounted(async () => {
                 <span class="font-weight-bold"> Option {{ index + 1 }} </span>
               </div>
               <v-spacer></v-spacer>
-              <v-checkbox
-                v-model="option.is_correct"
-                density="compact"
-                hide-details
-                color="success"
-                :label="form.type === 'mcq' ? 'Correct' : 'Select'"
-                @update:model-value="
+              <v-checkbox v-model="option.is_correct" density="compact" hide-details color="success"
+                :label="form.type === 'mcq' ? 'Correct' : 'Select'" @update:model-value="
                   form.type === 'mcq' ? makeSingleCorrect(index) : null
-                "
-              />
-              <v-btn
-                icon="mdi-delete"
-                color="error"
-                variant="text"
-                size="small"
-                @click="form.options.splice(index, 1)"
-              />
+                  " />
+              <v-btn icon="mdi-delete" color="error" variant="text" size="small"
+                @click="form.options.splice(index, 1)" />
             </div>
 
-            <v-textarea
-              v-model="option.option_text"
-              label="Option Text"
-              rows="2"
-              auto-grow
-              variant="outlined"
-            />
+            <v-textarea v-model="option.option_text" label="Option Text" rows="2" auto-grow variant="outlined" />
 
-            <v-file-input
-              v-model="option.option_image"
-              label="Option Image"
-              prepend-icon=""
-              prepend-inner-icon="mdi-image"
-              variant="outlined"
-              density="comfortable"
-              accept="image/*"
-            />
+            <v-file-input v-model="option.option_image" label="Option Image" prepend-icon=""
+              prepend-inner-icon="mdi-image" variant="outlined" density="comfortable" accept="image/*" />
           </v-card>
         </v-col>
       </v-row>
@@ -1056,71 +924,39 @@ onMounted(async () => {
 
       <v-row v-for="(row, index) in form.matches" :key="index" class="mb-2">
         <v-col cols="12" md="5">
-          <v-text-field
-            v-model="row.left"
-            :label="`Column A Question ${index + 1}`"
-            variant="outlined"
-          />
+          <v-text-field v-model="row.left" :label="`Column A Question ${index + 1}`" variant="outlined" />
         </v-col>
 
         <v-col cols="12" md="5">
-          <v-text-field
-            v-model="row.right"
-            :label="`Correct Answer ${index + 1}`"
-            variant="outlined"
-          />
+          <v-text-field v-model="row.right" :label="`Correct Answer ${index + 1}`" variant="outlined" />
         </v-col>
 
         <v-col cols="12" md="2" class="d-flex align-center">
-          <v-btn
-            icon="mdi-delete"
-            color="error"
-            variant="text"
-            @click="form.matches.splice(index, 1)"
-          />
+          <v-btn icon="mdi-delete" color="error" variant="text" @click="form.matches.splice(index, 1)" />
         </v-col>
       </v-row>
 
-      <v-btn
-        color="primary"
-        variant="tonal"
-        prepend-icon="mdi-plus"
-        @click="form.matches.push({ left: '', right: '' })"
-      >
+      <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus"
+        @click="form.matches.push({ left: '', right: '' })">
         Add Row
       </v-btn>
     </v-card>
 
     <!-- ANSWER -->
-    <v-card
-      v-if="!isLanguageContent && !isMatchColumn"
-      class="pa-4 mb-6"
-      variant="outlined"
-    >
+    <v-card v-if="!isLanguageContent && !isMatchColumn" class="pa-4 mb-6" variant="outlined">
       <div class="text-subtitle-1 font-weight-bold mb-2">Answer</div>
 
       <AppEditor v-model="form.answer" />
     </v-card>
 
     <!-- EXPLANATION -->
-    <v-card
-      v-if="!isLanguageContent && !isMatchColumn"
-      class="pa-4"
-      variant="outlined"
-    >
+    <v-card v-if="!isLanguageContent && !isMatchColumn" class="pa-4" variant="outlined">
       <div class="text-subtitle-1 font-weight-bold mb-2">Explanation</div>
 
-      <AppEditor
-        v-model="form.explanation"
-        :disabled="taskInfo?.status === 'completed'"
-      />
+      <AppEditor v-model="form.explanation" :disabled="taskInfo?.status === 'completed'" />
     </v-card>
   </v-card>
-  <div
-    v-if="pageLoading"
-    class="d-flex justify-center align-center"
-    style="height: 70vh"
-  >
+  <div v-if="pageLoading" class="d-flex justify-center align-center" style="height: 70vh">
     <v-progress-circular indeterminate size="60" color="primary" />
   </div>
 </template>

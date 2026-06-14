@@ -34,7 +34,6 @@ const headers = [
   { title: "Grade", key: "grade.name" },
   { title: "Subject", key: "subject.name" },
   { title: "Question Type", key: "name" },
-  { title: "Slug", key: "slug" },
   { title: "Status", key: "is_active" },
   { title: "Actions", key: "actions", sortable: false },
 ];

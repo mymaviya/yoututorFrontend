@@ -32,11 +32,10 @@ const form = ref({
 })
 
 const headers = [
-  { title: 'Name', key: 'user.name' },
-  { title: 'Email', key: 'user.email' },
+  { title: 'Name', key: 'name' },
+  { title: 'Email', key: 'email' },
   { title: 'Contact', key: 'contact' },
-  { title: 'Designation', key: 'designation' },
-  { title: 'Assignments', key: 'assignments' },
+  { title: 'Assignments', key: 'teacher_assignments' },
   { title: 'Status', key: 'is_active' },
   { title: 'Actions', key: 'actions', sortable: false }
 ]
@@ -104,26 +103,26 @@ const openEdit = async (teacher) => {
 
   form.value = {
     id: teacher.id,
-    name: teacher.user?.name || '',
-    email: teacher.user?.email || '',
+    name: teacher.name || '',
+    email: teacher.email || '',
     contact: teacher.contact || '',
     qualification: teacher.qualification || '',
     designation: teacher.designation || '',
     is_active: Boolean(teacher.is_active),
 
-    assignments: teacher.assignments?.length
-      ? teacher.assignments.map(item => ({
-          grade_id: item.grade_id,
-          subject_id: item.subject_id,
-          subjects: []
-        }))
+    assignments: teacher.teacher_assignments?.length
+      ? teacher.teacher_assignments.map(item => ({
+        grade_id: item.grade_id,
+        subject_id: item.subject_id,
+        subjects: []
+      }))
       : [
-          {
-            grade_id: null,
-            subject_id: null,
-            subjects: []
-          }
-        ]
+        {
+          grade_id: null,
+          subject_id: null,
+          subjects: []
+        }
+      ]
   }
 
   dialog.value = true
@@ -204,7 +203,7 @@ const saveTeacher = async () => {
 const deleteTeacher = async (teacher) => {
   const ok = await ui.confirmDialog(
     'Delete Teacher',
-    `Are you sure you want to delete ${teacher.user?.name}?`
+    `Are you sure you want to delete ${teacher.name}?`
   )
 
   if (!ok) return
@@ -235,33 +234,17 @@ onMounted(() => {
         </p>
       </div>
 
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-account-plus"
-        @click="openAdd"
-      >
-        Add Teacher
+      <v-btn color="primary" prepend-icon="mdi-account-plus" @click="openAdd">
+        Add Teacher & Assign Subjects
       </v-btn>
     </div>
 
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table
-        :headers="headers"
-        :items="teachers"
-        :loading="loading"
-      >
+      <appDataTable :headers="headers" :items="teachers" :loading="loading">
         <template #item.assignments="{ item }">
-          <div
-            v-if="item.assignments?.length"
-            class="d-flex flex-wrap ga-1"
-          >
-            <v-chip
-              v-for="assignment in item.assignments"
-              :key="`${assignment.grade_id}-${assignment.subject_id}`"
-              size="small"
-              color="primary"
-              variant="tonal"
-            >
+          <div v-if="item.assignments?.length" class="d-flex flex-wrap ga-1">
+            <v-chip v-for="assignment in item.assignments" :key="`${assignment.grade_id}-${assignment.subject_id}`"
+              size="small" color="primary" variant="tonal">
               {{ assignment.grade?.name || 'Grade' }}
               -
               {{ assignment.subject?.name || 'Subject' }}
@@ -273,115 +256,82 @@ onMounted(() => {
           </span>
         </template>
 
+        <template #item.teacher_assignments="{ item }">
+          <div v-if="item.teacher_assignments?.length" class="d-flex flex-wrap ga-1">
+            <v-chip v-for="assignment in item.teacher_assignments" :key="assignment.id" size="small" color="primary"
+              variant="tonal">
+              {{ assignment.grade?.name || 'Grade' }}
+              <span v-if="assignment.stream?.name">
+                - {{ assignment.stream.name }}
+              </span>
+              -
+              {{ assignment.subject?.name || 'Subject' }}
+            </v-chip>
+          </div>
+
+          <span v-else class="text-grey">
+            No assignments
+          </span>
+        </template>
+
         <template #item.is_active="{ item }">
-          <v-chip
-            :color="item.is_active ? 'success' : 'error'"
-            variant="tonal"
-            size="small"
-          >
+          <v-chip :color="item.is_active ? 'success' : 'error'" variant="tonal" size="small">
             {{ item.is_active ? 'Active' : 'Inactive' }}
           </v-chip>
         </template>
 
         <template #item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn
-              icon="mdi-pencil"
-              size="small"
-              variant="text"
-              color="primary"
-              @click="openEdit(item)"
-            />
+            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
 
-            <v-btn
-              icon="mdi-delete"
-              size="small"
-              variant="text"
-              color="error"
-              @click="deleteTeacher(item)"
-            />
+            <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteTeacher(item)" />
           </div>
         </template>
-      </v-data-table>
+      </appDataTable>
     </v-card>
 
-    <v-dialog
-      v-model="dialog"
-      max-width="900"
-      persistent
-    >
+    <v-dialog v-model="dialog" max-width="900" persistent>
       <v-card class="rounded-xl">
         <v-card-title class="d-flex justify-space-between align-center">
           <span>
             {{ editMode ? 'Edit Teacher' : 'Add Teacher' }}
           </span>
 
-          <v-btn
-            icon="mdi-close"
-            variant="text"
-            @click="dialog = false"
-          />
+          <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
         </v-card-title>
 
         <v-divider />
 
         <v-card-text>
-          <v-alert
-            v-if="!editMode"
-            type="info"
-            variant="tonal"
-            class="mb-4"
-          >
-            Default password will be generated automatically using first 4 characters of name and first 6 digits of mobile number.
+          <v-alert v-if="!editMode" type="info" variant="tonal" class="mb-4">
+            Default password will be generated automatically using first 4 characters of name and first 6 digits of
+            mobile
+            number.
           </v-alert>
 
           <v-row>
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.name"
-                label="Full Name"
-                :error-messages="errors.name"
-              />
+              <v-text-field v-model="form.name" label="Full Name" :error-messages="errors.name" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.email"
-                label="Email"
-                :error-messages="errors.email"
-              />
+              <v-text-field v-model="form.email" label="Email" :error-messages="errors.email" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.contact"
-                label="Mobile Number"
-                :error-messages="errors.contact"
-              />
+              <v-text-field v-model="form.contact" label="Mobile Number" :error-messages="errors.contact" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.qualification"
-                label="Qualification"
-                :error-messages="errors.qualification"
-              />
+              <v-text-field v-model="form.qualification" label="Qualification" :error-messages="errors.qualification" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.designation"
-                label="Designation"
-                :error-messages="errors.designation"
-              />
+              <v-text-field v-model="form.designation" label="Designation" :error-messages="errors.designation" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-switch
-                v-model="form.is_active"
-                label="Active Teacher"
-                color="success"
-              />
+              <v-switch v-model="form.is_active" label="Active Teacher" color="success" />
             </v-col>
           </v-row>
 
@@ -398,58 +348,28 @@ onMounted(() => {
               </div>
             </div>
 
-            <v-btn
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-plus"
-              @click="addAssignment"
-            >
+            <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus" @click="addAssignment">
               Add Assignment
             </v-btn>
           </div>
 
-          <v-card
-            v-for="(assignment, index) in form.assignments"
-            :key="index"
-            class="pa-4 mb-3 rounded-lg"
-            variant="outlined"
-          >
+          <v-card v-for="(assignment, index) in form.assignments" :key="index" class="pa-4 mb-3 rounded-lg"
+            variant="outlined">
             <v-row>
               <v-col cols="12" md="5">
-                <v-select
-                  v-model="assignment.grade_id"
-                  :items="grades"
-                  item-title="name"
-                  item-value="id"
-                  label="Grade"
+                <v-select v-model="assignment.grade_id" :items="grades" item-title="name" item-value="id" label="Grade"
                   :error-messages="errors[`assignments.${index}.grade_id`]"
-                  @update:model-value="fetchSubjectsByGrade(index)"
-                />
+                  @update:model-value="fetchSubjectsByGrade(index)" />
               </v-col>
 
               <v-col cols="12" md="5">
-                <v-select
-                  v-model="assignment.subject_id"
-                  :items="assignment.subjects"
-                  item-title="name"
-                  item-value="id"
-                  label="Subject"
-                  :disabled="!assignment.grade_id"
-                  :error-messages="errors[`assignments.${index}.subject_id`]"
-                />
+                <v-select v-model="assignment.subject_id" :items="assignment.subjects" item-title="name" item-value="id"
+                  label="Subject" :disabled="!assignment.grade_id"
+                  :error-messages="errors[`assignments.${index}.subject_id`]" />
               </v-col>
 
-              <v-col
-                cols="12"
-                md="2"
-                class="d-flex align-center"
-              >
-                <v-btn
-                  icon="mdi-delete"
-                  color="error"
-                  variant="text"
-                  @click="removeAssignment(index)"
-                />
+              <v-col cols="12" md="2" class="d-flex align-center">
+                <v-btn icon="mdi-delete" color="error" variant="text" @click="removeAssignment(index)" />
               </v-col>
             </v-row>
           </v-card>
@@ -458,18 +378,11 @@ onMounted(() => {
         <v-card-actions class="pa-4">
           <v-spacer />
 
-          <v-btn
-            variant="text"
-            @click="dialog = false"
-          >
+          <v-btn variant="text" @click="dialog = false">
             Cancel
           </v-btn>
 
-          <v-btn
-            color="primary"
-            :loading="saving"
-            @click="saveTeacher"
-          >
+          <v-btn color="primary" :loading="saving" @click="saveTeacher">
             {{ editMode ? 'Update Teacher' : 'Save Teacher' }}
           </v-btn>
         </v-card-actions>

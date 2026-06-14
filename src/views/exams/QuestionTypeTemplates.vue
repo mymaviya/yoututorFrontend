@@ -44,18 +44,46 @@ const headers = [
 ];
 
 const subjectOptions = computed(() => {
+  if (!applyForm.value.grade_ids?.length) {
+    return [];
+  }
+
+  const selectedGradeIds = applyForm.value.grade_ids.map(Number);
+  const selectedStreamId = applyForm.value.stream_id
+    ? Number(applyForm.value.stream_id)
+    : null;
+
   return subjects.value.filter((subject) => {
-    if (!applyForm.value.grade_ids?.length) return true;
+    if (!subject.is_active) return false;
 
-    const gradeMatch = applyForm.value.grade_ids.includes(subject.grade_id);
+    if (!selectedGradeIds.includes(Number(subject.grade_id))) {
+      return false;
+    }
 
-    const streamMatch =
-      !applyForm.value.stream_id ||
-      Number(subject.stream_id) === Number(applyForm.value.stream_id);
+    if (selectedStreamId) {
+      return (
+        subject.stream_id === null ||
+        Number(subject.stream_id) === selectedStreamId
+      );
+    }
 
-    return gradeMatch && streamMatch;
+    return true;
   });
 });
+
+const subjectTitle = (subject) => {
+  if (!subject) return "-";
+
+  const gradeName = subject.grade?.name || "";
+  const streamName = subject.stream?.name || "";
+  const subjectName = subject.name || "";
+
+  if (streamName) {
+    return `${gradeName} - ${streamName} - ${subjectName}`;
+  }
+
+  return gradeName ? `${gradeName} - ${subjectName}` : subjectName;
+};
 
 const fetchTemplates = async () => {
   loading.value = true;
@@ -153,7 +181,7 @@ const saveTemplate = async () => {
   }
 };
 
-const openApply = (template) => {
+const openApply = async (template) => {
   selectedTemplate.value = template;
 
   applyForm.value = {
@@ -163,8 +191,23 @@ const openApply = (template) => {
   };
 
   formErrors.value = {};
+
+  if (!subjects.value.length) {
+    await fetchSubjects();
+  }
+
   applyDialog.value = true;
 };
+
+const removeSelectedSubject = (id) => {
+  applyForm.value.subject_ids = applyForm.value.subject_ids.filter(
+    (subjectId) => Number(subjectId) !== Number(id)
+  );
+};
+
+watch(subjectOptions, (value) => {
+  console.log("Subject Options:", value);
+});
 
 watch(
   () => [applyForm.value.grade_ids, applyForm.value.stream_id],
@@ -230,7 +273,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <v-container>
+  <div>
     <div class="d-flex justify-space-between align-center mb-6">
       <div>
         <h1 class="text-h4 font-weight-bold">Question Type Templates</h1>
@@ -257,24 +300,15 @@ onMounted(async () => {
 
         <template #item.question_types="{ item }">
           <div class="d-flex flex-wrap ga-2 py-2">
-            <v-chip
-              v-for="templateItem in item.items"
-              :key="templateItem.id"
-              size="small"
-              color="primary"
-              variant="tonal"
-            >
+            <v-chip v-for="templateItem in item.items" :key="templateItem.id" size="small" color="primary"
+              variant="tonal">
               {{ templateItem.question_type?.name || "Question Type" }}
             </v-chip>
           </div>
         </template>
 
         <template #item.is_active="{ item }">
-          <v-chip
-            size="small"
-            :color="item.is_active ? 'success' : 'error'"
-            variant="tonal"
-          >
+          <v-chip size="small" :color="item.is_active ? 'success' : 'error'" variant="tonal">
             {{ item.is_active ? "Active" : "Inactive" }}
           </v-chip>
         </template>
@@ -283,40 +317,22 @@ onMounted(async () => {
           <div class="d-flex justify-end ga-1">
             <v-tooltip text="Apply Template">
               <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  icon="mdi-playlist-plus"
-                  size="small"
-                  color="success"
-                  variant="text"
-                  @click="openApply(item)"
-                />
+                <v-btn v-bind="props" icon="mdi-playlist-plus" size="small" color="success" variant="text"
+                  @click="openApply(item)" />
               </template>
             </v-tooltip>
 
             <v-tooltip text="Edit">
               <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  icon="mdi-pencil"
-                  size="small"
-                  color="primary"
-                  variant="text"
-                  @click="openEdit(item)"
-                />
+                <v-btn v-bind="props" icon="mdi-pencil" size="small" color="primary" variant="text"
+                  @click="openEdit(item)" />
               </template>
             </v-tooltip>
 
             <v-tooltip text="Delete">
               <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  icon="mdi-delete"
-                  size="small"
-                  color="error"
-                  variant="text"
-                  @click="deleteTemplate(item)"
-                />
+                <v-btn v-bind="props" icon="mdi-delete" size="small" color="error" variant="text"
+                  @click="deleteTemplate(item)" />
               </template>
             </v-tooltip>
           </div>
@@ -333,47 +349,24 @@ onMounted(async () => {
         <v-card-text>
           <v-row>
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.name"
-                label="Template Name"
-                placeholder="Example: Primary Question Pattern"
-                :error-messages="formErrors.name"
-              />
+              <v-text-field v-model="form.name" label="Template Name" placeholder="Example: Primary Question Pattern"
+                :error-messages="formErrors.name" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.category"
-                label="Category"
-                placeholder="Example: Primary / Board / Science"
-                :error-messages="formErrors.category"
-              />
+              <v-text-field v-model="form.category" label="Category" placeholder="Example: Primary / Board / Science"
+                :error-messages="formErrors.category" />
             </v-col>
 
             <v-col cols="12">
-              <v-select
-                v-model="form.question_type_master_ids"
-                :items="questionTypeMasters"
-                item-title="name"
-                item-value="id"
-                label="Question Types"
-                multiple
-                chips
-                closable-chips
-                :error-messages="
-                  formErrors.question_type_master_ids ||
+              <v-autocomplete v-model="form.question_type_master_ids" :items="questionTypeMasters" item-title="name"
+                item-value="id" label="Question Types" multiple chips closable-chips :error-messages="formErrors.question_type_master_ids ||
                   formErrors['question_type_master_ids.0']
-                "
-              />
+                  " />
             </v-col>
 
             <v-col cols="12">
-              <v-switch
-                v-model="form.is_active"
-                label="Active"
-                color="success"
-                hide-details
-              />
+              <v-switch v-model="form.is_active" label="Active" color="success" hide-details />
             </v-col>
           </v-row>
 
@@ -409,82 +402,41 @@ onMounted(async () => {
               <div class="text-subtitle-2 mb-2">Question Types</div>
 
               <div class="d-flex flex-wrap ga-2 mb-4">
-                <v-chip
-                  v-for="templateItem in selectedTemplate?.items || []"
-                  :key="templateItem.id"
-                  size="small"
-                  color="primary"
-                  variant="tonal"
-                >
+                <v-chip v-for="templateItem in selectedTemplate?.items || []" :key="templateItem.id" size="small"
+                  color="primary" variant="tonal">
                   {{ templateItem.question_type?.name }}
                 </v-chip>
               </div>
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-select
-                v-model="applyForm.grade_ids"
-                :items="grades"
-                item-title="name"
-                item-value="id"
-                label="Apply to Grades"
-                multiple
-                chips
-                closable-chips
-                :error-messages="formErrors.grade_ids || formErrors['grade_ids.0']"
-              />
+              <v-select v-model="applyForm.grade_ids" :items="grades" item-title="name" item-value="id"
+                label="Apply to Grades" multiple chips closable-chips
+                :error-messages="formErrors.grade_ids || formErrors['grade_ids.0']" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-select
-                v-model="applyForm.stream_id"
-                :items="streams"
-                item-title="name"
-                item-value="id"
-                label="Stream"
-                clearable
-                hint="Leave empty for Grade 1–10. Select Science/Commerce/Humanities for Grade 11–12."
-                persistent-hint
-                :error-messages="formErrors.stream_id"
-              />
+              <v-select v-model="applyForm.stream_id" :items="streams" item-title="name" item-value="id" label="Stream"
+                clearable hint="Leave empty for Grade 1–10. Select Science/Commerce/Humanities for Grade 11–12."
+                persistent-hint :error-messages="formErrors.stream_id" />
             </v-col>
 
             <v-col cols="12">
-              <v-select
-                v-model="applyForm.subject_ids"
-                :items="subjectOptions"
-                item-title="name"
-                item-value="id"
-                label="Apply to Subjects"
-                multiple
-                chips
-                closable-chips
+              <v-autocomplete v-model="applyForm.subject_ids" :items="subjectOptions" :item-title="subjectTitle"
+                item-value="id" label="Apply to Subjects" multiple chips closable-chips variant="outlined"
                 :disabled="!applyForm.grade_ids.length"
-                :error-messages="
-                  formErrors.subject_ids || formErrors['subject_ids.0']
-                "
-              >
-                <template #item="{ props, item }">
-                  <v-list-item v-bind="props">
-                    <template #subtitle>
-                      {{ item.raw.grade?.name }}
-                      <span v-if="item.raw.stream">
-                        - {{ item.raw.stream.name }}
-                      </span>
-                    </template>
-                  </v-list-item>
-                </template>
-
+                :error-messages="formErrors.subject_ids || formErrors['subject_ids.0']">
                 <template #selection="{ item, index }">
-                  <v-chip v-if="index < 4" size="small">
-                    {{ item.raw.name }}
+                  <v-chip v-if="index < 3" size="small" closable
+                    @click:close="removeSelectedSubject(item.raw?.id ?? item.value)">
+                    {{ subjectTitle(item.raw) }}
                   </v-chip>
 
-                  <span v-if="index === 4" class="text-grey text-caption">
-                    +{{ applyForm.subject_ids.length - 4 }} more
+                  <span v-if="index === 3" class="text-grey text-caption">
+                    +{{ applyForm.subject_ids.length - 3 }} more
                   </span>
                 </template>
-              </v-select>
+              </v-autocomplete>
             </v-col>
           </v-row>
 
@@ -507,5 +459,5 @@ onMounted(async () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </v-container>
+  </div>
 </template>

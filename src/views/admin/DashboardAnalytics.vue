@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import api from "../../plugins/api";
 import { Bar, Doughnut } from "vue-chartjs";
 import ChartDataLabels from "chartjs-plugin-datalabels";
@@ -15,7 +15,39 @@ import {
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, ChartDataLabels);
 
-const dashboard = ref({ stats: {}, analytics: {} });
+const dashboard = ref({
+  summary: {},
+  analytics: {},
+  teacher_progress: [],
+});
+
+const animatedCounters = ref({});
+
+const animateValue = (key, target) => {
+  target = Number(target || 0);
+
+  const start = Number(animatedCounters.value[key] || 0);
+  const duration = 1600; // little slow counter animation
+  const startTime = performance.now();
+
+  const step = (now) => {
+    const rawProgress = Math.min((now - startTime) / duration, 1);
+    const progress = 1 - Math.pow(1 - rawProgress, 3);
+    const value = Math.round(start + (target - start) * progress);
+
+    animatedCounters.value[key] = value;
+
+    if (rawProgress < 1) {
+      requestAnimationFrame(step);
+    }
+  };
+
+  requestAnimationFrame(step);
+};
+
+const counterValue = (key, fallback = 0) => {
+  return animatedCounters.value[key] ?? fallback ?? 0;
+};
 
 const fetchDashboard = async () => {
   const res = await api.get("/dashboard");
@@ -23,6 +55,48 @@ const fetchDashboard = async () => {
 };
 
 onMounted(fetchDashboard);
+
+watch(
+  dashboard,
+  (data) => {
+    const summary = data?.summary || {};
+
+    animateValue("total_questions", summary.questions);
+    animateValue("approved_questions", summary.approved_questions);
+    animateValue("pending_questions", summary.pending_questions);
+    animateValue("exam_portions", summary.exam_portions);
+
+    (data?.analytics?.question_status || []).forEach((item) => {
+      animateValue(`question_status_${item.status}`, item.total);
+    });
+
+    (data?.analytics?.exam_portion_status || []).forEach((item) => {
+      animateValue(`exam_portion_${item.status}`, item.total);
+    });
+
+    const bloomItems = data?.analytics?.bloom_levels || [];
+    const bloomTotal = bloomItems.reduce((sum, item) => sum + Number(item.total || 0), 0);
+
+    bloomItems.forEach((item) => {
+      const level = item.bloom_level || "unknown";
+      const total = Number(item.total || 0);
+      const percent = bloomTotal ? Math.round((total / bloomTotal) * 100) : 0;
+
+      animateValue(`bloom_total_${level}`, total);
+      animateValue(`bloom_percent_${level}`, percent);
+    });
+
+    (data?.analytics?.teacher_performance || []).forEach((teacher, index) => {
+      const key = teacher.id || teacher.teacher_id || teacher.name || index;
+      animateValue(`teacher_questions_${key}`, teacher.questions_count);
+      animateValue(`teacher_approved_${key}`, teacher.approved_questions);
+      animateValue(`teacher_portions_${key}`, teacher.exam_portions_submitted);
+      animateValue(`teacher_approval_${key}`, getApprovalPercent(teacher));
+      animateValue(`teacher_score_${key}`, getPerformanceScore(teacher));
+    });
+  },
+  { deep: true }
+);
 
 const colors = {
   approved: "#16A34A",
@@ -195,25 +269,25 @@ const teacherQuestionsChart = computed(() => {
 const kpiCards = computed(() => [
   {
     title: "Total Questions",
-    value: dashboard.value.stats?.questions || 0,
+    value: counterValue("total_questions", dashboard.value.summary?.questions || 0),
     icon: "mdi-help-circle",
     gradient: "linear-gradient(135deg,#2563EB,#60A5FA)",
   },
   {
     title: "Approved",
-    value: dashboard.value.stats?.approved_questions || 0,
+    value: counterValue("approved_questions", dashboard.value.summary?.approved_questions || 0),
     icon: "mdi-check-decagram",
     gradient: "linear-gradient(135deg,#16A34A,#86EFAC)",
   },
   {
     title: "Pending",
-    value: dashboard.value.stats?.pending_questions || 0,
+    value: counterValue("pending_questions", dashboard.value.summary?.pending_questions || 0),
     icon: "mdi-clock-alert",
     gradient: "linear-gradient(135deg,#F59E0B,#FDE68A)",
   },
   {
     title: "Exam Portions",
-    value: dashboard.value.exam_portions?.total || 0,
+    value: counterValue("exam_portions", dashboard.value.summary?.exam_portions || 0),
     icon: "mdi-book-open-page-variant",
     gradient: "linear-gradient(135deg,#7C3AED,#C4B5FD)",
   },
@@ -223,29 +297,54 @@ const bloomHealth = computed(() => {
   const items = dashboard.value.analytics?.bloom_levels || [];
   const total = items.reduce((sum, i) => sum + Number(i.total || 0), 0);
 
-  return items.map((item, index) => ({
-    name: formatBloom(item.bloom_level),
-    total: Number(item.total || 0),
-    percent: total ? Math.round((Number(item.total || 0) / total) * 100) : 0,
-    color: bloomColors[index % bloomColors.length],
-  }));
+  return items.map((item, index) => {
+    const level = item.bloom_level || "unknown";
+    const rawTotal = Number(item.total || 0);
+    const rawPercent = total ? Math.round((rawTotal / total) * 100) : 0;
+
+    return {
+      key: level,
+      name: formatBloom(level),
+      total: counterValue(`bloom_total_${level}`, rawTotal),
+      percent: counterValue(`bloom_percent_${level}`, rawPercent),
+      color: bloomColors[index % bloomColors.length],
+    };
+  });
 });
 
 const teacherPerformance = computed(() =>
   dashboard.value.analytics?.teacher_performance || []
 );
 
-const approvalPercent = (teacher) => {
+const teacherKey = (teacher, index = 0) =>
+  teacher.id || teacher.teacher_id || teacher.name || index;
+
+const getApprovalPercent = (teacher) => {
   const total = Number(teacher.questions_count || 0);
   const approved = Number(teacher.approved_questions || 0);
   return total ? Math.round((approved / total) * 100) : 0;
 };
 
-const performanceScore = (teacher) => {
+const approvalPercent = (teacher, index = 0) =>
+  counterValue(`teacher_approval_${teacherKey(teacher, index)}`, getApprovalPercent(teacher));
+
+const getPerformanceScore = (teacher) => {
   const approved = Number(teacher.approved_questions || 0);
   const portions = Number(teacher.exam_portions_submitted || 0);
   return approved * 2 + portions * 5;
 };
+
+const performanceScore = (teacher, index = 0) =>
+  counterValue(`teacher_score_${teacherKey(teacher, index)}`, getPerformanceScore(teacher));
+
+const teacherQuestionCount = (teacher, index = 0) =>
+  counterValue(`teacher_questions_${teacherKey(teacher, index)}`, teacher.questions_count || 0);
+
+const teacherApprovedCount = (teacher, index = 0) =>
+  counterValue(`teacher_approved_${teacherKey(teacher, index)}`, teacher.approved_questions || 0);
+
+const teacherPortionCount = (teacher, index = 0) =>
+  counterValue(`teacher_portions_${teacherKey(teacher, index)}`, teacher.exam_portions_submitted || 0);
 </script>
 
 <template>
@@ -273,7 +372,7 @@ const performanceScore = (teacher) => {
           <div class="d-flex justify-space-between align-center">
             <div>
               <div class="text-caption">{{ card.title }}</div>
-              <div class="text-h4 font-weight-bold mt-2">{{ card.value }}</div>
+              <div class="text-h4 font-weight-bold mt-2 counter-number">{{ card.value }}</div>
             </div>
 
             <v-avatar size="50" color="white" variant="tonal">
@@ -362,7 +461,7 @@ const performanceScore = (teacher) => {
           <div v-for="item in bloomHealth" :key="item.name" class="mb-4">
             <div class="d-flex justify-space-between mb-1">
               <span class="text-body-2 font-weight-medium">{{ item.name }}</span>
-              <strong>{{ item.percent }}%</strong>
+              <strong class="counter-number">{{ item.percent }}%</strong>
             </div>
 
             <v-progress-linear
@@ -401,24 +500,24 @@ const performanceScore = (teacher) => {
             </td>
 
             <td class="font-weight-medium">{{ teacher.name || "-" }}</td>
-            <td>{{ teacher.questions_count || 0 }}</td>
-            <td>{{ teacher.approved_questions || 0 }}</td>
+            <td>{{ teacherQuestionCount(teacher, index) }}</td>
+            <td>{{ teacherApprovedCount(teacher, index) }}</td>
 
             <td>
               <v-chip
                 size="small"
-                :color="approvalPercent(teacher) >= 70 ? 'success' : 'warning'"
+                :color="approvalPercent(teacher, index) >= 70 ? 'success' : 'warning'"
                 variant="tonal"
               >
-                {{ approvalPercent(teacher) }}%
+                {{ approvalPercent(teacher, index) }}%
               </v-chip>
             </td>
 
-            <td>{{ teacher.exam_portions_submitted || 0 }}</td>
+            <td>{{ teacherPortionCount(teacher, index) }}</td>
 
             <td>
               <v-chip size="small" color="purple" variant="tonal">
-                {{ performanceScore(teacher) }}
+                {{ performanceScore(teacher, index) }}
               </v-chip>
             </td>
           </tr>
@@ -462,5 +561,9 @@ const performanceScore = (teacher) => {
 .bar-chart-box {
   height: 360px;
   position: relative;
+}
+
+.counter-number {
+  font-variant-numeric: tabular-nums;
 }
 </style>

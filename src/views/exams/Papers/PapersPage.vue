@@ -17,7 +17,7 @@ const headers = [
   { title: "Exam Type", key: "exam_type" },
   { title: "Grade", key: "grade.name" },
   { title: "Subject", key: "subject.name" },
-  { title: "Duration", key: "duration" },
+  { title: "Duration", key: "duration_minutes" },
   { title: "Marks", key: "total_marks" },
   { title: "Status", key: "status" },
   { title: "Actions", key: "actions", sortable: false },
@@ -133,8 +133,11 @@ onMounted(fetchPapers);
     </div>
 
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table :headers="headers" :items="papers" :loading="loading">
-        <template #item.duration="{ item }"> {{ item.duration }} min </template>
+      <appDataTable :headers="headers" :items="papers" :loading="loading">
+        <template #item.exam_type="{ item }"> {{ item.exam_name?.name || item.examName?.name || item.exam_type || '-' }} </template>
+
+
+        <template #item.duration_minutes="{ item }"> {{ item.duration_minutes }} min </template>
 
         <template #item.total_marks="{ item }">
           <v-chip color="primary" variant="tonal">
@@ -271,7 +274,7 @@ onMounted(fetchPapers);
             </v-tooltip>
           </div>
         </template>
-      </v-data-table>
+      </appDataTable>
     </v-card>
   </div>
 </template>

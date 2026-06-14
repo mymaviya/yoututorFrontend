@@ -64,27 +64,30 @@ const toggleTheme = () => {
 
 const fetchNotifications = async () => {
   if (!auth.token) return;
-  
-    try {
-    const res = await api.get("/notifications", {
-      params: { unread_only: 1 },
-    });
 
-    notifications.value = res.data.data || res.data;
+  try {
+    const res = await api.get("/notifications");
+
+    notifications.value = Array.isArray(res.data)
+      ? res.data
+      : res.data.data || [];
   } catch (error) {
     if (error.response?.status === 401) return;
     console.error(error);
   }
-
-  notifications.value = res.data.data || res.data;
 };
 
 const fetchUnreadCount = async () => {
+  if (!auth.token) return;
+
   try {
     const res = await api.get("/notifications/unread-count");
 
-    unreadCount.value = res.data.count || 0;
+    unreadCount.value = Number(res.data.count || 0);
+
+    console.log("Notification auth user:", res.data.auth_user);
   } catch (err) {
+    if (err.response?.status === 401) return;
     console.log(err);
   }
 };
@@ -92,11 +95,16 @@ const fetchUnreadCount = async () => {
 const openNotification = async (notification) => {
   try {
     if (!notification.is_read) {
-      await api.post(`/notifications/${notification.id}/read`);
+      if (notification.ids?.length) {
+        await api.post("/notifications/group-read", {
+          ids: notification.ids,
+        });
+      } else {
+        await api.post(`/notifications/${notification.id}/read`);
+      }
 
       notification.is_read = true;
-
-      unreadCount.value--;
+      unreadCount.value = Math.max(0, unreadCount.value - Number(notification.count || 1));
     }
 
     if (notification.url) {
