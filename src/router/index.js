@@ -30,6 +30,71 @@ const routes = [
         path: 'contact',
         name: 'public.contact',
         component: () => import('../views/public/ContactPage.vue')
+      },
+      {
+        path: '/subscription-expired',
+        name: 'subscription.expired',
+        component: () => import('../views/errors/SubscriptionExpired.vue'),
+        meta: {
+          public: true
+        }
+      },
+      {
+        path: '/about',
+        name: 'public.about',
+        component: () => import('../views/public/AboutPage.vue'),
+        meta: { public: true }
+      },
+      {
+        path: '/terms-and-conditions',
+        name: 'public.terms',
+        component: () => import('../views/public/TermsPage.vue'),
+        meta: { public: true }
+      },
+      {
+        path: '/privacy-policy',
+        name: 'public.privacy',
+        component: () => import('../views/public/PrivacyPolicyPage.vue'),
+        meta: { public: true }
+      },
+      {
+        path: '/refund-policy',
+        name: 'public.refund',
+        component: () => import('../views/public/RefundPolicyPage.vue'),
+        meta: { public: true }
+      },
+      {
+        path: '/shipping-policy',
+        name: 'public.shipping',
+        component: () => import('../views/public/ShippingPolicyPage.vue'),
+        meta: { public: true }
+      },
+      {
+        path: '/checkout',
+        name: 'public.checkout',
+        component: () => import('../views/public/CheckoutPage.vue'),
+        meta: {
+          public: true,
+          title: 'Checkout'
+        }
+      },
+      {
+        path: '/subscription-success',
+        name: 'subscription.success',
+        component: () => import('../views/public/SubscriptionSuccessPage.vue'),
+        meta: {
+          public: true,
+          title: 'Subscription Success'
+        }
+      },
+      {
+        path: '/subscription-failed',
+        name: 'subscription.failed',
+        component: () => import('../views/public/SubscriptionFailedPage.vue'),
+        meta: {
+          public: true,
+          title: 'Payment Failed'
+        }
       }
     ]
   },
@@ -272,7 +337,7 @@ const routes = [
         path: "paper-blueprints",
         name: "paper.blueprints",
         component: () => import("../views/admin/PaperBlueprints.vue"),
-        meta: { title: "Paper Blueprints" },
+        meta: { title: "Paper Blueprints", permission: "paper.blueprints" },
       },
       {
         path: "question-types",
@@ -286,7 +351,7 @@ const routes = [
         component: () => import("../views/exams/QuestionTypeTemplates.vue"),
         meta: {
           requiresAuth: true,
-          permission: "question-types.view",
+          permission: "question.types.view",
         },
       },
       {
@@ -296,7 +361,7 @@ const routes = [
         meta: {
           title: "Blueprint Excel Import",
           requiresAuth: true,
-          permission: "paper.blueprints",
+          permission: "blueprint.import",
         },
       },
       {
@@ -394,7 +459,7 @@ const routes = [
         component: () => import("../views/admin/sidebar/SidebarMenusPage.vue"),
         meta: {
           title: "Sidebar Menus",
-          permission: "manage_permissions",
+          permission: "manage.permissions",
         },
       },
       {
@@ -403,7 +468,7 @@ const routes = [
         component: () => import("../views/admin/security/AppRoutesPage.vue"),
         meta: {
           title: "App Routes",
-          permission: "manage_permissions",
+          permission: "manage.permissions",
         },
       },
       {
@@ -416,6 +481,77 @@ const routes = [
           allowPasswordChange: true,
         },
       },
+      {
+        path: '/admin/demo-enquiries',
+        name: 'admin.demo.enquiries',
+        component: () => import('../views/admin/DemoEnquiries.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'demo.enquiries.view',
+          title: 'Demo Enquiries'
+        }
+      },
+      {
+        path: '/admin/subscriptions',
+        name: 'admin.subscriptions',
+        component: () => import('../views/admin/SubscriptionManagement.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'subscriptions.view',
+          title: 'Subscriptions'
+        }
+      },
+      {
+        path: '/admin/subscription-plans',
+        name: 'admin.subscription.plans',
+        component: () => import('../views/admin/SubscriptionPlans.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'subscription.plans.manage',
+          title: 'Subscription Plans'
+        }
+      },
+      {
+        path: '/admin/payment-transactions',
+        name: 'admin.payment.transactions',
+        component: () => import('../views/admin/PaymentTransactions.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'payments.view',
+          title: 'Payment Transactions'
+        }
+      },
+      {
+        path: '/admin/license-keys',
+        name: 'admin.license.keys',
+        component: () => import('../views/admin/LicenseKeys.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'licenses.view',
+          title: 'License Keys'
+        }
+      },
+      {
+        path: '/admin/settings',
+        name: 'admin.settings',
+        component: () => import('../views/admin/Settings.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'settings.manage',
+          title: 'Website Settings'
+        }
+      },
+      {
+        path: '/admin/saas-dashboard',
+        name: 'admin.saas.dashboard',
+        component: () => import('../views/admin/SaasDashboard.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'saas.dashboard',
+          title: 'SaaS Dashboard'
+        }
+      }
+
     ],
   },
   {

@@ -12,7 +12,7 @@ const ui = useUIStore()
       </v-card-title>
 
       <v-card-text>
-        {{ ui.confirm.message }}
+        <div class="text-body-1" v-html="ui.confirm.message" />
       </v-card-text>
 
       <v-card-actions class="justify-end">

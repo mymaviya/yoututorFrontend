@@ -6,6 +6,7 @@ import api from "../plugins/api";
 import { useAuthStore } from "../stores/auth";
 import { useAppStore } from "../stores/app";
 import AppSidebar from "../components/AppSidebar.vue";
+import SubscriptionWarning from '../components/subscription/SubscriptionWarning.vue'
 import { useUIStore } from "../stores/snackBar";
 
 
@@ -343,6 +344,8 @@ onBeforeUnmount(() => {
 
   <v-main class="main-bg">
     <v-container fluid class="pa-6">
+      <SubscriptionWarning />
+
       <router-view />
     </v-container>
   </v-main>

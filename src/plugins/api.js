@@ -88,4 +88,30 @@ api.interceptors.response.use(
   }
 )
 
+api.interceptors.response.use(
+  (response) => {
+    const ui = useUIStore()
+
+    if (!isSilentRequest(response.config)) {
+      ui.stopLoading()
+    }
+
+    return response
+  },
+  (error) => {
+    const ui = useUIStore()
+
+    if (!isSilentRequest(error.config || {})) {
+      ui.stopLoading()
+    }
+
+    if (error.response?.status === 403 && error.response?.data?.subscription_expired) {
+      window.location.href = '/subscription-expired'
+      return Promise.reject(error)
+    }
+
+    return Promise.reject(error)
+  }
+)
+
 export default api
