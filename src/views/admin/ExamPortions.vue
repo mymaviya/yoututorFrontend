@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import api from "../../plugins/api";
 import { useUIStore } from "../../stores/snackBar";
 import { formatDate } from "../../utils/date";
@@ -20,7 +20,6 @@ const saving = ref(false);
 const rejecting = ref(false);
 
 const errors = ref({});
-const selectedTeacher = ref(null);
 const selectedAssignment = ref(null);
 const selectedPortion = ref(null);
 const rejectionReason = ref("");
@@ -67,10 +66,27 @@ const fetchPortions = async () => {
   }
 };
 
+const getList = (res) => {
+  if (Array.isArray(res.data?.data?.data)) return res.data.data.data
+  if (Array.isArray(res.data?.data)) return res.data.data
+  if (Array.isArray(res.data)) return res.data
+  return []
+}
+
+const normalizeTeacher = (teacher) => {
+  return {
+    ...teacher,
+    teacher_name: teacher.name || teacher.email || 'Unknown Teacher',
+    assignments: Array.isArray(teacher.teacher_assignments)
+      ? teacher.teacher_assignments
+      : [],
+  }
+}
+
 const fetchTeachers = async () => {
-  const res = await api.get("/teachers");
-  teachers.value = res.data.data || res.data;
-};
+  const res = await api.get('/teachers')
+  teachers.value = getList(res).map(normalizeTeacher)
+}
 
 const getDefaultForm = () => ({
   id: null,
@@ -92,7 +108,6 @@ const resetForm = () => {
 const openAdd = () => {
   editMode.value = false;
   errors.value = {};
-  selectedTeacher.value = null;
   selectedAssignment.value = null;
 
   form.value = {
@@ -113,7 +128,11 @@ const openEdit = (portion) => {
 
   form.value = {
     id: portion.id,
-    teacher_id: portion.teacher?.id,
+    teacher_id:
+      portion.teacher_id ||
+      portion.teacher?.id ||
+      portion.teacher?.user?.id ||
+      null,
     grade_id: portion.grade?.id,
     subject_id: portion.subject?.id,
     exam_name_ids: [
@@ -121,10 +140,6 @@ const openEdit = (portion) => {
     ].filter(Boolean),
     due_date: portion.due_date,
   };
-
-  selectedTeacher.value = teachers.value.find(
-    (t) => Number(t.id) === Number(form.value.teacher_id),
-  );
 
   selectedAssignment.value = selectedTeacher.value?.assignments?.find(
     (a) =>
@@ -136,21 +151,18 @@ const openEdit = (portion) => {
 };
 
 const onTeacherChange = () => {
-  selectedTeacher.value = teachers.value.find(
-    (t) => Number(t.id) === Number(form.value.teacher_id),
-  );
-
-  selectedAssignment.value = null;
-  form.value.grade_id = null;
-  form.value.subject_id = null;
-};
+  selectedAssignment.value = null
+  form.value.grade_id = null
+  form.value.subject_id = null
+}
 
 const selectAssignment = (assignment) => {
-  selectedAssignment.value = assignment;
+  selectedAssignment.value = assignment
 
-  form.value.grade_id = assignment.grade_id;
-  form.value.subject_id = assignment.subject_id;
-};
+  form.value.grade_id = Number(assignment.grade_id)
+  form.value.subject_id = Number(assignment.subject_id)
+  form.value.stream_id = assignment.stream_id ? Number(assignment.stream_id) : null
+}
 
 const savePortion = async () => {
   saving.value = true;
@@ -287,6 +299,12 @@ const clearFilters = () => {
   fetchPortions();
 };
 
+const selectedTeacher = computed(() => {
+  return teachers.value.find(
+    t => Number(t.id) === Number(form.value.teacher_id)
+  )
+})
+
 onMounted(() => {
   fetchTeachers();
   fetchExamNames();
@@ -315,35 +333,17 @@ onMounted(() => {
     <v-card class="pa-4 mb-6 rounded-xl" elevation="0">
       <v-row>
         <v-col cols="12" md="4">
-          <v-select
-            v-model="filters.teacher_id"
-            :items="teachers"
-            item-title="user.name"
-            item-value="id"
-            label="Teacher"
-            clearable
-            variant="outlined"
-            @update:model-value="fetchPortions"
-          />
+          <v-select v-model="filters.teacher_id" :items="teachers" item-title="teacher_name" item-value="id"
+            label="Teacher" clearable variant="outlined" @update:model-value="fetchPortions" />
         </v-col>
 
         <v-col cols="12" md="4">
-          <v-select
-            v-model="filters.status"
-            :items="statusItems"
-            label="Status"
-            clearable
-            variant="outlined"
-            @update:model-value="fetchPortions"
-          />
+          <v-select v-model="filters.status" :items="statusItems" label="Status" clearable variant="outlined"
+            @update:model-value="fetchPortions" />
         </v-col>
 
         <v-col cols="12" md="4" class="d-flex align-center ga-2">
-          <v-btn
-            variant="outlined"
-            prepend-icon="mdi-filter-remove"
-            @click="clearFilters"
-          >
+          <v-btn variant="outlined" prepend-icon="mdi-filter-remove" @click="clearFilters">
             Clear
           </v-btn>
         </v-col>
@@ -352,15 +352,25 @@ onMounted(() => {
 
     <!-- TABLE -->
     <v-card class="rounded-xl" elevation="0">
-      <v-data-table :headers="headers" :items="portions" :loading="loading">
+      <appDataTable :headers="headers" :items="portions" :loading="loading">
         <template #item.teacher="{ item }">
           <div>
             <div class="font-weight-medium">
-              {{ item.teacher?.user?.name || "-" }}
+              {{
+                item.teacher?.name ||
+                item.teacher_name ||
+                item.teacher?.user?.name ||
+                "-"
+              }}
             </div>
 
             <div class="text-caption text-grey">
-              {{ item.teacher?.user?.email || "" }}
+              {{
+                item.teacher?.email ||
+                item.teacher_email ||
+                item.teacher?.user?.email ||
+                ""
+              }}
             </div>
           </div>
         </template>
@@ -370,62 +380,28 @@ onMounted(() => {
         </template>
 
         <template #item.status="{ item }">
-          <v-chip
-            size="small"
-            variant="tonal"
-            :color="statusColor(item.status)"
-          >
+          <v-chip size="small" variant="tonal" :color="statusColor(item.status)">
             {{ item.status }}
           </v-chip>
         </template>
 
         <template #item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn
-              icon="mdi-eye"
-              size="small"
-              variant="text"
-              color="info"
-              @click="openPreview(item)"
-            />
+            <v-btn icon="mdi-eye" size="small" variant="text" color="info" @click="openPreview(item)" />
 
-            <v-btn
-              icon="mdi-pencil"
-              size="small"
-              variant="text"
-              color="primary"
-              :disabled="item.status === 'approved'"
-              @click="openEdit(item)"
-            />
+            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" :disabled="item.status === 'approved'"
+              @click="openEdit(item)" />
 
-            <v-btn
-              v-if="item.status === 'submitted'"
-              icon="mdi-check-circle"
-              size="small"
-              variant="text"
-              color="success"
-              @click="approvePortion(item)"
-            />
+            <v-btn v-if="item.status === 'submitted'" icon="mdi-check-circle" size="small" variant="text"
+              color="success" @click="approvePortion(item)" />
 
-            <v-btn
-              v-if="item.status === 'submitted'"
-              icon="mdi-close-circle"
-              size="small"
-              variant="text"
-              color="error"
-              @click="openReject(item)"
-            />
+            <v-btn v-if="item.status === 'submitted'" icon="mdi-close-circle" size="small" variant="text" color="error"
+              @click="openReject(item)" />
 
-            <v-btn
-              icon="mdi-delete"
-              size="small"
-              variant="text"
-              color="error"
-              @click="deletePortion(item)"
-            />
+            <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deletePortion(item)" />
           </div>
         </template>
-      </v-data-table>
+      </appDataTable>
     </v-card>
 
     <!-- ADD / EDIT DIALOG -->
@@ -442,40 +418,32 @@ onMounted(() => {
         <v-card-text>
           <v-row>
             <v-col cols="12">
-              <v-autocomplete
-                v-model="form.teacher_id"
-                :items="teachers"
-                item-title="user.name"
-                item-value="id"
-                label="Teacher"
-                variant="outlined"
-                :error-messages="errors.teacher_id"
-                @update:model-value="onTeacherChange"
-              />
+              <v-autocomplete v-model="form.teacher_id" :items="teachers" item-title="teacher_name" item-value="id"
+                label="Teacher" variant="outlined" :error-messages="errors.teacher_id"
+                @update:model-value="onTeacherChange" />
             </v-col>
 
             <v-col cols="12">
-              <div v-if="selectedTeacher" class="mb-4">
+              <div v-if="selectedTeacher && selectedTeacher.assignments?.length" class="mb-4">
                 <div class="text-subtitle-2 font-weight-bold mb-2">
                   Assigned Grades & Subjects
                 </div>
 
                 <div class="d-flex flex-wrap ga-2">
-                  <v-chip
-                    v-for="assignment in selectedTeacher.assignments"
-                    :key="assignment.id"
-                    size="large"
-                    variant="tonal"
-                    class="cursor-pointer"
-                    :color="
-                      selectedAssignment?.id === assignment.id
-                        ? 'primary'
-                        : 'default'
-                    "
-                    @click="selectAssignment(assignment)"
-                  >
-                    {{ assignment.grade?.name }} -
-                    {{ assignment.subject?.name }}
+                  <v-chip v-for="assignment in selectedTeacher?.assignments || []" :key="assignment.id" :color="selectedAssignment?.id === assignment.id
+                    ? 'primary'
+                    : 'default'
+                    " :variant="selectedAssignment?.id === assignment.id
+                      ? 'flat'
+                      : 'tonal'
+                      " filter @click="selectAssignment(assignment)">
+                    {{ assignment.grade?.name }}
+
+                    <template v-if="assignment.stream?.name">
+                      - {{ assignment.stream.name }}
+                    </template>
+
+                    - {{ assignment.subject?.name }}
                   </v-chip>
                 </div>
               </div>
@@ -490,19 +458,8 @@ onMounted(() => {
                 Select Exam Names
               </div>
 
-              <v-chip-group
-                v-model="form.exam_name_ids"
-                multiple
-                column
-                selected-class="bg-primary text-white"
-              >
-                <v-chip
-                  v-for="exam in examNames"
-                  :key="exam.id"
-                  :value="exam.id"
-                  filter
-                  variant="tonal"
-                >
+              <v-chip-group v-model="form.exam_name_ids" multiple column selected-class="bg-primary text-white">
+                <v-chip v-for="exam in examNames" :key="exam.id" :value="exam.id" filter variant="tonal">
                   {{ exam.name }}
 
                   <span v-if="exam.tentative_date" class="ml-1 text-caption">
@@ -512,39 +469,23 @@ onMounted(() => {
               </v-chip-group>
 
               <div class="mt-2 d-flex ga-2">
-                <v-btn
-                  size="small"
-                  variant="tonal"
-                  @click="form.exam_name_ids = examNames.map((e) => e.id)"
-                >
+                <v-btn size="small" variant="tonal" @click="form.exam_name_ids = examNames.map((e) => e.id)">
                   Select All
                 </v-btn>
 
-                <v-btn
-                  size="small"
-                  variant="text"
-                  @click="form.exam_name_ids = []"
-                >
+                <v-btn size="small" variant="text" @click="form.exam_name_ids = []">
                   Clear
                 </v-btn>
               </div>
 
-              <div
-                v-if="errors.exam_name_ids"
-                class="text-error text-caption mt-1"
-              >
+              <div v-if="errors.exam_name_ids" class="text-error text-caption mt-1">
                 {{ errors.exam_name_ids[0] }}
               </div>
             </v-col>
 
             <v-col cols="12" md="12">
-              <v-text-field
-                v-model="form.due_date"
-                type="date"
-                label="Due Date"
-                variant="outlined"
-                :error-messages="errors.due_date"
-              />
+              <v-text-field v-model="form.due_date" type="date" label="Due Date" variant="outlined"
+                :error-messages="errors.due_date" />
             </v-col>
           </v-row>
         </v-card-text>
@@ -567,11 +508,7 @@ onMounted(() => {
         <v-card-title class="d-flex justify-space-between align-center">
           Exam Portion Details
 
-          <v-btn
-            icon="mdi-close"
-            variant="text"
-            @click="previewDialog = false"
-          />
+          <v-btn icon="mdi-close" variant="text" @click="previewDialog = false" />
         </v-card-title>
 
         <v-divider />
@@ -585,17 +522,14 @@ onMounted(() => {
                 "-"
               }}
 
-              <span
-                v-if="
-                  selectedPortion.exam_name?.tentative_date ||
-                  selectedPortion.examName?.tentative_date
-                "
-                class="ml-1 text-caption"
-              >
+              <span v-if="
+                selectedPortion.exam_name?.tentative_date ||
+                selectedPortion.examName?.tentative_date
+              " class="ml-1 text-caption">
                 ({{
                   formatDate(
                     selectedPortion.exam_name?.tentative_date ||
-                      selectedPortion.examName?.tentative_date,
+                    selectedPortion.examName?.tentative_date,
                   )
                 }})
               </span>
@@ -609,20 +543,12 @@ onMounted(() => {
               {{ selectedPortion.subject?.name }}
             </v-chip>
 
-            <v-chip
-              :color="statusColor(selectedPortion.status)"
-              variant="tonal"
-            >
+            <v-chip :color="statusColor(selectedPortion.status)" variant="tonal">
               {{ selectedPortion.status }}
             </v-chip>
           </div>
 
-          <v-alert
-            v-if="selectedPortion.rejection_reason"
-            type="error"
-            variant="tonal"
-            class="mb-4"
-          >
+          <v-alert v-if="selectedPortion.rejection_reason" type="error" variant="tonal" class="mb-4">
             {{ selectedPortion.rejection_reason }}
           </v-alert>
 
@@ -660,11 +586,7 @@ onMounted(() => {
             Approve
           </v-btn>
 
-          <v-btn
-            color="error"
-            variant="tonal"
-            @click="openReject(selectedPortion)"
-          >
+          <v-btn color="error" variant="tonal" @click="openReject(selectedPortion)">
             Reject
           </v-btn>
         </v-card-actions>
@@ -677,13 +599,7 @@ onMounted(() => {
         <v-card-title> Reject Syllabus </v-card-title>
 
         <v-card-text>
-          <v-textarea
-            v-model="rejectionReason"
-            label="Rejection Reason"
-            rows="4"
-            auto-grow
-            variant="outlined"
-          />
+          <v-textarea v-model="rejectionReason" label="Rejection Reason" rows="4" auto-grow variant="outlined" />
         </v-card-text>
 
         <v-card-actions>
