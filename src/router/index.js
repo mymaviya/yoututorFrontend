@@ -459,7 +459,7 @@ const routes = [
         component: () => import("../views/admin/sidebar/SidebarMenusPage.vue"),
         meta: {
           title: "Sidebar Menus",
-          permission: "manage.permissions",
+          permission: "manage.sidebar.menus",
         },
       },
       {
@@ -550,6 +550,114 @@ const routes = [
           permission: 'saas.dashboard',
           title: 'SaaS Dashboard'
         }
+      },
+      {
+        path: '/admin/proposals',
+        name: 'admin.proposals',
+        component: () => import('../views/admin/proposals/ProposalList.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Proposals'
+        }
+      },
+      {
+        path: '/admin/proposals/create',
+        name: 'admin.proposals.create',
+        component: () => import('../views/admin/proposals/CreateProposal.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Create Proposal'
+        }
+      },
+      {
+        path: '/admin/proposals/:id/edit',
+        name: 'admin.proposals.edit',
+        component: () => import('../views/admin/proposals/ProposalBuilder.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Proposal Builder'
+        }
+      },
+      {
+        path: '/admin/proposals/:id/preview',
+        name: 'admin.proposals.preview',
+        component: () => import('../views/admin/proposals/ProposalPreview.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Proposal Preview'
+        }
+      },
+      {
+        path: '/admin/quotations',
+        name: 'admin.quotations',
+        component: () => import('../views/admin/quotations/QuotationList.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Quotations'
+        }
+      },
+      {
+        path: '/admin/quotations/:id/edit',
+        name: 'admin.quotations.edit',
+        component: () => import('../views/admin/quotations/QuotationBuilder.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Quotation Builder'
+        }
+      },
+      {
+        path: '/admin/invoices',
+        name: 'admin.invoices',
+        component: () => import('../views/admin/invoices/InvoiceList.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Invoices'
+        }
+      },
+      {
+        path: '/admin/invoices/:id/edit',
+        name: 'admin.invoices.edit',
+        component: () => import('../views/admin/invoices/InvoiceBuilder.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Invoice Builder'
+        }
+      },
+      {
+        path: '/admin/proposal-templates',
+        name: 'admin.proposal.templates',
+        component: () => import('../views/admin/proposals/templates/ProposalTemplateList.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Proposal Templates'
+        }
+      },
+      {
+        path: '/admin/proposal-templates/create',
+        name: 'admin.proposal.templates.create',
+        component: () => import('../views/admin/proposals/templates/ProposalTemplateBuilder.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Create Proposal Template'
+        }
+      },
+      {
+        path: '/admin/proposal-templates/:id/edit',
+        name: 'admin.proposal.templates.edit',
+        component: () => import('../views/admin/proposals/templates/ProposalTemplateBuilder.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Edit Proposal Template'
+        }
+      },
+      {
+        path: '/admin/crm-dashboard',
+        name: 'admin.crm.dashboard',
+        component: () => import('../views/admin/crm/CrmDashboard.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'CRM Dashboard'
+        }
       }
 
     ],
@@ -560,6 +668,7 @@ const routes = [
     component: () => import("../views/errors/NotFound.vue"),
     meta: { title: "404 Not Found" },
   },
+
 ];
 
 const router = createRouter({

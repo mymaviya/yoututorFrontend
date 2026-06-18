@@ -3,20 +3,15 @@
     <v-card rounded="xl" elevation="3">
       <v-card-title class="d-flex flex-wrap align-center ga-3">
         <div>
-          <h2 class="text-h5 font-weight-bold">Website Settings</h2>
+          <h2 class="text-h5 font-weight-bold">System Settings</h2>
           <p class="text-body-2 text-medium-emphasis mb-0">
-            Manage public website, contact, business, social and payment settings.
+            Manage website, company, bank, invoice and payment settings.
           </p>
         </div>
 
         <v-spacer />
 
-        <v-btn
-          color="primary"
-          prepend-icon="mdi-content-save"
-          :loading="saving"
-          @click="saveSettings"
-        >
+        <v-btn color="primary" prepend-icon="mdi-content-save" :loading="saving" @click="saveSettings">
           Save Settings
         </v-btn>
       </v-card-title>
@@ -24,195 +19,139 @@
       <v-divider />
 
       <v-card-text>
-        <v-alert
-          v-if="successMessage"
-          type="success"
-          variant="tonal"
-          class="mb-4"
-          closable
-          @click:close="successMessage = ''"
-        >
+        <v-alert v-if="successMessage" type="success" variant="tonal" class="mb-4" closable>
           {{ successMessage }}
         </v-alert>
 
-        <v-alert
-          v-if="errorMessage"
-          type="error"
-          variant="tonal"
-          class="mb-4"
-          closable
-          @click:close="errorMessage = ''"
-        >
+        <v-alert v-if="errorMessage" type="error" variant="tonal" class="mb-4" closable>
           {{ errorMessage }}
         </v-alert>
 
         <v-tabs v-model="activeTab" color="primary">
           <v-tab value="general">General</v-tab>
           <v-tab value="contact">Contact</v-tab>
-          <v-tab value="social">Social</v-tab>
           <v-tab value="business">Business</v-tab>
-          <v-tab value="payment">Payment</v-tab>
+          <v-tab value="bank">Bank Details</v-tab>
+          <v-tab value="social">Social</v-tab>
+          <v-tab value="payment">Payment Gateway</v-tab>
           <v-tab value="branding">Branding</v-tab>
         </v-tabs>
 
         <v-divider class="mb-6" />
 
         <v-window v-model="activeTab">
-          <!-- GENERAL -->
           <v-window-item value="general">
             <v-row>
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.site_name"
-                  label="Site Name"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.site_name"
-                />
+                <v-text-field v-model="form.site_name" label="Site Name" variant="outlined" />
               </v-col>
 
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.site_tagline"
-                  label="Site Tagline"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.site_tagline"
-                />
+                <v-text-field v-model="form.site_tagline" label="Site Tagline" variant="outlined" />
               </v-col>
 
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.company_name"
-                  label="Company Name"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.company_name"
-                />
+                <v-text-field v-model="form.company_name" label="Company Name" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.company_tagline" label="Company Tagline" variant="outlined" />
               </v-col>
             </v-row>
           </v-window-item>
 
-          <!-- CONTACT -->
           <v-window-item value="contact">
             <v-row>
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.contact_email"
-                  label="Contact Email"
-                  type="email"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.contact_email"
-                />
+                <v-text-field v-model="form.contact_email" label="Contact Email" type="email" variant="outlined" />
               </v-col>
 
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.contact_phone"
-                  label="Contact Phone"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.contact_phone"
-                />
+                <v-text-field v-model="form.contact_phone" label="Contact Phone" variant="outlined" />
               </v-col>
 
               <v-col cols="12">
-                <v-textarea
-                  v-model="form.business_address"
-                  label="Business Address"
-                  variant="outlined"
-                  rows="3"
-                  auto-grow
-                  :error-messages="formErrors.business_address"
-                />
+                <v-textarea v-model="form.business_address" label="Business Address" rows="3" auto-grow variant="outlined" />
               </v-col>
 
               <v-col cols="12">
-                <v-text-field
-                  v-model="form.support_text"
-                  label="Support Text"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.support_text"
-                />
+                <v-text-field v-model="form.support_text" label="Support Text" variant="outlined" />
               </v-col>
             </v-row>
           </v-window-item>
 
-          <!-- SOCIAL -->
-          <v-window-item value="social">
-            <v-row>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.facebook_url"
-                  label="Facebook URL"
-                  variant="outlined"
-                  density="comfortable"
-                  prepend-inner-icon="mdi-facebook"
-                  :error-messages="formErrors.facebook_url"
-                />
-              </v-col>
-
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.linkedin_url"
-                  label="LinkedIn URL"
-                  variant="outlined"
-                  density="comfortable"
-                  prepend-inner-icon="mdi-linkedin"
-                  :error-messages="formErrors.linkedin_url"
-                />
-              </v-col>
-
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.youtube_url"
-                  label="YouTube URL"
-                  variant="outlined"
-                  density="comfortable"
-                  prepend-inner-icon="mdi-youtube"
-                  :error-messages="formErrors.youtube_url"
-                />
-              </v-col>
-            </v-row>
-          </v-window-item>
-
-          <!-- BUSINESS -->
           <v-window-item value="business">
             <v-row>
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.gst_number"
-                  label="GST Number"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.gst_number"
-                />
+                <v-text-field v-model="form.company_address" label="Invoice Company Address" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.company_phone" label="Invoice Company Phone" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.company_email" label="Invoice Company Email" type="email" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.gst_number" label="GST Number" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.pan_no" label="PAN Number" variant="outlined" />
               </v-col>
             </v-row>
           </v-window-item>
 
-          <!-- PAYMENT -->
+          <v-window-item value="bank">
+            <v-row>
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.bank_account_name" label="Account Name" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.bank_name" label="Bank Name" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.bank_account_no" label="Account Number" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.bank_ifsc" label="IFSC Code" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.upi_id" label="UPI ID" variant="outlined" />
+              </v-col>
+            </v-row>
+          </v-window-item>
+
+          <v-window-item value="social">
+            <v-row>
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.facebook_url" label="Facebook URL" prepend-inner-icon="mdi-facebook" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.linkedin_url" label="LinkedIn URL" prepend-inner-icon="mdi-linkedin" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.youtube_url" label="YouTube URL" prepend-inner-icon="mdi-youtube" variant="outlined" />
+              </v-col>
+            </v-row>
+          </v-window-item>
+
           <v-window-item value="payment">
-            <v-alert
-              type="warning"
-              variant="tonal"
-              class="mb-5"
-              rounded="lg"
-            >
-              Keep Razorpay keys private. Do not expose Razorpay Secret on public APIs.
+            <v-alert type="warning" variant="tonal" class="mb-5">
+              Keep Razorpay Secret private.
             </v-alert>
 
             <v-row>
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.razorpay_key_id"
-                  label="Razorpay Key ID"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.razorpay_key_id"
-                />
+                <v-text-field v-model="form.razorpay_key_id" label="Razorpay Key ID" variant="outlined" />
               </v-col>
 
               <v-col cols="12" md="6">
@@ -220,74 +159,22 @@
                   v-model="form.razorpay_key_secret"
                   label="Razorpay Key Secret"
                   :type="showSecret ? 'text' : 'password'"
-                  variant="outlined"
-                  density="comfortable"
                   :append-inner-icon="showSecret ? 'mdi-eye-off' : 'mdi-eye'"
-                  :error-messages="formErrors.razorpay_key_secret"
+                  variant="outlined"
                   @click:append-inner="showSecret = !showSecret"
                 />
               </v-col>
             </v-row>
           </v-window-item>
 
-          <!-- BRANDING -->
           <v-window-item value="branding">
-            <v-alert
-              type="info"
-              variant="tonal"
-              class="mb-5"
-              rounded="lg"
-            >
-              Upload API is not connected yet. For now, paste logo and favicon URLs.
-            </v-alert>
-
             <v-row>
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.site_logo"
-                  label="Logo URL"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.site_logo"
-                />
-
-                <v-card
-                  v-if="form.site_logo"
-                  class="pa-4 mt-2"
-                  rounded="lg"
-                  variant="tonal"
-                >
-                  <div class="text-caption mb-2">Logo Preview</div>
-                  <v-img
-                    :src="form.site_logo"
-                    max-height="90"
-                    contain
-                  />
-                </v-card>
+                <v-text-field v-model="form.site_logo" label="Logo URL" variant="outlined" />
               </v-col>
 
               <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.site_favicon"
-                  label="Favicon URL"
-                  variant="outlined"
-                  density="comfortable"
-                  :error-messages="formErrors.site_favicon"
-                />
-
-                <v-card
-                  v-if="form.site_favicon"
-                  class="pa-4 mt-2"
-                  rounded="lg"
-                  variant="tonal"
-                >
-                  <div class="text-caption mb-2">Favicon Preview</div>
-                  <v-img
-                    :src="form.site_favicon"
-                    max-height="50"
-                    contain
-                  />
-                </v-card>
+                <v-text-field v-model="form.site_favicon" label="Favicon URL" variant="outlined" />
               </v-col>
             </v-row>
           </v-window-item>
@@ -299,22 +186,11 @@
       <v-card-actions class="pa-4">
         <v-spacer />
 
-        <v-btn
-          variant="outlined"
-          color="secondary"
-          prepend-icon="mdi-refresh"
-          :loading="loading"
-          @click="fetchSettings"
-        >
+        <v-btn variant="outlined" prepend-icon="mdi-refresh" :loading="loading" @click="fetchSettings">
           Reload
         </v-btn>
 
-        <v-btn
-          color="primary"
-          prepend-icon="mdi-content-save"
-          :loading="saving"
-          @click="saveSettings"
-        >
+        <v-btn color="primary" prepend-icon="mdi-content-save" :loading="saving" @click="saveSettings">
           Save Settings
         </v-btn>
       </v-card-actions>
@@ -338,54 +214,48 @@ const form = reactive({
   site_name: '',
   site_tagline: '',
   company_name: '',
+  company_tagline: '',
 
   contact_email: '',
   contact_phone: '',
   business_address: '',
   support_text: '',
 
+  company_address: '',
+  company_phone: '',
+  company_email: '',
+  gst_number: '',
+  pan_no: '',
+
+  bank_account_name: '',
+  bank_name: '',
+  bank_account_no: '',
+  bank_ifsc: '',
+  upi_id: '',
+
   facebook_url: '',
   linkedin_url: '',
   youtube_url: '',
-
-  gst_number: '',
 
   razorpay_key_id: '',
   razorpay_key_secret: '',
 
   site_logo: '',
-  site_favicon: ''
-})
-
-const formErrors = reactive({
-  site_name: [],
-  site_tagline: [],
-  company_name: [],
-
-  contact_email: [],
-  contact_phone: [],
-  business_address: [],
-  support_text: [],
-
-  facebook_url: [],
-  linkedin_url: [],
-  youtube_url: [],
-
-  gst_number: [],
-
-  razorpay_key_id: [],
-  razorpay_key_secret: [],
-
-  site_logo: [],
-  site_favicon: []
+  site_favicon: '',
 })
 
 const settingKeys = Object.keys(form)
 
-const clearErrors = () => {
-  Object.keys(formErrors).forEach((key) => {
-    formErrors[key] = []
+const flattenSettings = (groupedSettings) => {
+  const flat = {}
+
+  Object.values(groupedSettings || {}).forEach((groupItems) => {
+    ;(groupItems || []).forEach((item) => {
+      flat[item.key] = item.value ?? ''
+    })
   })
+
+  return flat
 }
 
 const fetchSettings = async () => {
@@ -395,10 +265,10 @@ const fetchSettings = async () => {
 
   try {
     const response = await api.get('/admin/settings')
-    const data = response.data.data || {}
+    const flatSettings = flattenSettings(response.data.data)
 
     settingKeys.forEach((key) => {
-      form[key] = data[key] ?? ''
+      form[key] = flatSettings[key] ?? ''
     })
   } catch (error) {
     errorMessage.value = error.response?.data?.message || 'Unable to load settings.'
@@ -407,90 +277,24 @@ const fetchSettings = async () => {
   }
 }
 
-const validateForm = () => {
-  clearErrors()
-
-  let valid = true
-
-  if (!form.site_name) {
-    formErrors.site_name = ['Site name is required']
-    valid = false
-  }
-
-  if (!form.company_name) {
-    formErrors.company_name = ['Company name is required']
-    valid = false
-  }
-
-  if (!form.contact_email) {
-    formErrors.contact_email = ['Contact email is required']
-    valid = false
-  } else if (!/^\S+@\S+\.\S+$/.test(form.contact_email)) {
-    formErrors.contact_email = ['Enter a valid email address']
-    valid = false
-  }
-
-  if (form.facebook_url && !isValidUrl(form.facebook_url)) {
-    formErrors.facebook_url = ['Enter a valid Facebook URL']
-    valid = false
-  }
-
-  if (form.linkedin_url && !isValidUrl(form.linkedin_url)) {
-    formErrors.linkedin_url = ['Enter a valid LinkedIn URL']
-    valid = false
-  }
-
-  if (form.youtube_url && !isValidUrl(form.youtube_url)) {
-    formErrors.youtube_url = ['Enter a valid YouTube URL']
-    valid = false
-  }
-
-  if (form.site_logo && !isValidUrl(form.site_logo)) {
-    formErrors.site_logo = ['Enter a valid logo URL']
-    valid = false
-  }
-
-  if (form.site_favicon && !isValidUrl(form.site_favicon)) {
-    formErrors.site_favicon = ['Enter a valid favicon URL']
-    valid = false
-  }
-
-  return valid
-}
-
-const isValidUrl = (value) => {
-  try {
-    new URL(value)
-    return true
-  } catch {
-    return false
-  }
-}
-
 const saveSettings = async () => {
+  saving.value = true
   successMessage.value = ''
   errorMessage.value = ''
-
-  if (!validateForm()) return
-
-  saving.value = true
 
   try {
     const settings = settingKeys.map((key) => ({
       key,
-      value: form[key] ?? ''
+      value: form[key] ?? '',
     }))
 
     const response = await api.put('/admin/settings', {
-      settings
+      settings,
     })
 
     successMessage.value = response.data.message || 'Settings updated successfully.'
+    await fetchSettings()
   } catch (error) {
-    if (error.response?.data?.errors) {
-      Object.assign(formErrors, error.response.data.errors)
-    }
-
     errorMessage.value = error.response?.data?.message || 'Unable to save settings.'
   } finally {
     saving.value = false
