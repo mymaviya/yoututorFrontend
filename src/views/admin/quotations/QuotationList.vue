@@ -119,9 +119,36 @@ const editQuotation = (id) => {
   router.push(`/admin/quotations/${id}/edit`)
 }
 
-const downloadPdf = (id) => {
-  ui.showSnackbar?.('Opening quotation PDF...', 'info')
-  window.open(quotationService.pdfUrl(id), '_blank')
+const downloadPdf = async (quotationId) => {
+  try {
+    const selectedQuotation = quotations.value.find(inv => inv.id === quotationId)
+
+    const res = await quotationService.downloadQuotationPdf(quotationId)
+
+    const blob = new Blob([res.data], {
+      type: 'application/pdf',
+    })
+
+    const url = window.URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute(
+      'download',
+      `${selectedQuotation?.quotation_no || 'quotation-' + quotationId}.pdf`
+    )
+
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+
+    window.URL.revokeObjectURL(url)
+
+    ui.showSnackbar?.('Invoice PDF downloaded successfully.', 'success')
+  } catch (error) {
+    console.error(error)
+    ui.showSnackbar?.('Failed to download invoice PDF.', 'error')
+  }
 }
 
 const formatDate = (date) => {

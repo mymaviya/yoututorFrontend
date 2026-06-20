@@ -13,22 +13,10 @@
       <v-divider />
 
       <v-card-text>
-        <v-text-field
-          v-model="search"
-          label="Search invoice, client, organization..."
-          prepend-inner-icon="mdi-magnify"
-          variant="outlined"
-          density="comfortable"
-          clearable
-          class="mb-4"
-        />
+        <v-text-field v-model="search" label="Search invoice, client, organization..." prepend-inner-icon="mdi-magnify"
+          variant="outlined" density="comfortable" clearable class="mb-4" />
 
-        <v-data-table
-          :headers="headers"
-          :items="filteredInvoices"
-          :loading="loading"
-          item-value="id"
-        >
+        <v-data-table :headers="headers" :items="filteredInvoices" :loading="loading" item-value="id">
           <template #item.invoice_no="{ item }">
             <strong>{{ item.invoice_no }}</strong>
           </template>
@@ -124,9 +112,37 @@ const editInvoice = (id) => {
   router.push(`/admin/invoices/${id}/edit`)
 }
 
-const downloadPdf = (id) => {
-  ui.showSnackbar?.('Opening invoice PDF...', 'info')
-  window.open(invoiceService.pdfUrl(id), '_blank')
+
+const downloadPdf = async (invoiceId) => {
+  try {
+    const selectedInvoice = invoices.value.find(inv => inv.id === invoiceId)
+
+    const res = await invoiceService.downloadInvoicePdf(invoiceId)
+
+    const blob = new Blob([res.data], {
+      type: 'application/pdf',
+    })
+
+    const url = window.URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute(
+      'download',
+      `${selectedInvoice?.invoice_no || 'invoice-' + invoiceId}.pdf`
+    )
+
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+
+    window.URL.revokeObjectURL(url)
+
+    ui.showSnackbar?.('Invoice PDF downloaded successfully.', 'success')
+  } catch (error) {
+    console.error(error)
+    ui.showSnackbar?.('Failed to download invoice PDF.', 'error')
+  }
 }
 
 const formatDate = (date) => {

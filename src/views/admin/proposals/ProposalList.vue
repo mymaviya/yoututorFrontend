@@ -131,9 +131,36 @@ const previewProposal = (id) => {
   router.push(`/admin/proposals/${id}/preview`)
 }
 
-const downloadPdf = (id) => {
-  ui.showSnackbar?.('Opening proposal PDF...', 'info')
-  window.open(proposalService.pdfUrl(id), '_blank')
+const downloadPdf = async (proposalId) => {
+  try {
+    const selectedProposal = proposals.value.find(inv => inv.id === proposalId)
+
+    const res = await proposalService.downloadProposalPdf(proposalId)
+
+    const blob = new Blob([res.data], {
+      type: 'application/pdf',
+    })
+
+    const url = window.URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute(
+      'download',
+      `${selectedProposal?.proposal_no || 'proposal-' + proposalId}.pdf`
+    )
+
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+
+    window.URL.revokeObjectURL(url)
+
+    ui.showSnackbar?.('Invoice PDF downloaded successfully.', 'success')
+  } catch (error) {
+    console.error(error)
+    ui.showSnackbar?.('Failed to download invoice PDF.', 'error')
+  }
 }
 
 const formatDate = (date) => {
