@@ -26,7 +26,7 @@
           Required columns:
           <strong>
             Grade, Stream, Subject, Lesson, Question Type, Question, Difficulty,
-            Bloom Level, Marks, Answer, Options, Correct Option, Match Pairs
+            Bloom Level, Marks, Answer, Explanation, Options, Correct Option, Match Pairs
           </strong>
         </v-alert>
 
@@ -125,12 +125,12 @@ const downloadTemplate = async () => {
     responseType: 'blob',
   })
 
-  const blob = new Blob([res.data])
+  const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = window.URL.createObjectURL(blob)
 
   const link = document.createElement('a')
   link.href = url
-  link.setAttribute('download', 'question_import_template.csv')
+  link.setAttribute('download', 'question_import_template.xlsx')
   document.body.appendChild(link)
   link.click()
   link.remove()

@@ -86,7 +86,6 @@ const fetchUnreadCount = async () => {
 
     unreadCount.value = Number(res.data.count || 0);
 
-    console.log("Notification auth user:", res.data.auth_user);
   } catch (err) {
     if (err.response?.status === 401) return;
     console.log(err);
@@ -97,7 +96,7 @@ const openNotification = async (notification) => {
   try {
     if (!notification.is_read) {
       if (notification.ids?.length) {
-        await api.post("/notifications/group-read", {
+        await api.post("/notifications/mark-group-read", {
           ids: notification.ids,
         });
       } else {
@@ -145,7 +144,7 @@ const goProfile = () => {
 };
 
 const goSettings = () => {
-  router.push("/settings");
+  router.push({ name: "profile" });
 };
 
 watch(notificationMenu, async (val) => {
@@ -157,12 +156,13 @@ watch(notificationMenu, async (val) => {
 
 
 let notificationTimer = null;
+let heartbeatTimer = null;
 
 onMounted(() => {
   fetchUnreadCount();
   fetchNotifications();
 
-  setInterval(() => {
+  heartbeatTimer = setInterval(() => {
     auth.heartbeat();
   }, 60000);
 
@@ -182,6 +182,10 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (notificationTimer) {
     clearInterval(notificationTimer);
+  }
+
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
   }
 });
 

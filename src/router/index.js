@@ -9,7 +9,7 @@ import { useUiLoaderStore } from "../stores/uiLoader";
 import DashboardLayout from "../layouts/DashboardLayout.vue";
 import AuthLayout from "../layouts/AuthLayout.vue";
 
-const APP_NAME = "GoLearn";
+const APP_NAME = "YouTutor ERP";
 
 const routes = [
   {
@@ -676,6 +676,16 @@ const router = createRouter({
   routes,
 });
 
+const hasPermission = (auth, permission) => {
+  if (!permission) return true;
+  return (auth.permissions || []).includes(permission);
+};
+
+const hasFeature = (auth, featureKey) => {
+  if (!featureKey) return true;
+  return (auth.allowedFeatureKeys || []).includes(featureKey);
+};
+
 router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore();
   const loader = useUiLoaderStore();
@@ -704,6 +714,19 @@ router.beforeEach(async (to, from, next) => {
     return next({
       name: auth.user.dashboard_route || "Dashboard",
     });
+  }
+
+  const requiredPermission = to.matched.find((record) => record.meta.permission)?.meta.permission;
+  const requiredFeature = to.matched.find((record) => record.meta.featureKey)?.meta.featureKey;
+
+  if (requiresAuth && !hasPermission(auth, requiredPermission)) {
+    loader.stop();
+    return next({ name: auth.user?.dashboard_route || "Dashboard" });
+  }
+
+  if (requiresAuth && !hasFeature(auth, requiredFeature)) {
+    loader.stop();
+    return next({ name: auth.user?.dashboard_route || "Dashboard" });
   }
 
   if (

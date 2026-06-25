@@ -3,6 +3,7 @@ import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import api from "../../../plugins/api";
 import { useUIStore } from "../../../stores/snackBar";
+import { formatDate } from '../../../utils/date'
 
 const router = useRouter();
 const ui = useUIStore();
@@ -151,9 +152,9 @@ onMounted(fetchUsers);
 
         <template #item.date_limit="{ item }">
           <div class="text-caption">
-            {{ item.login_start_date || "-" }}
+            {{ formatDate(item.login_start_date) || "-" }}
             to
-            {{ item.login_end_date || "No End" }}
+            {{ formatDate(item.login_end_date) || "No End" }}
           </div>
         </template>
 

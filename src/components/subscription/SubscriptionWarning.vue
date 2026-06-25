@@ -38,7 +38,7 @@ const status = ref(null)
 
 const fetchStatus = async () => {
   try {
-    const response = await api.get('/admin/subscription-status')
+    const response = await api.get('/my-subscription-status')
     status.value = response.data.data
   } catch (error) {
     console.error(error)

@@ -617,36 +617,46 @@ const removeQuestion = (id) => {
 
 /* AUTO GENERATE *//* AUTO GENERATE */
 const autoGenerate = async () => {
-  try {
-    const res = await api.post("/papers/auto-generate", {
-      grade_id: filters.value.grade_id,
-      subject_id: filters.value.subject_id,
-      lesson_id: filters.value.lesson_id,
+  if (!paper.value.paper_blueprint_id) {
+    ui.showSnackbar("Please select a paper blueprint first", "warning");
+    return;
+  }
 
-      rules: [
-        {
-          type: "mcq",
-          difficulty: "easy",
-          count: 5,
-        },
-        {
-          type: "short",
-          difficulty: "medium",
-          count: 3,
-        },
-        {
-          type: "long",
-          difficulty: "hard",
-          count: 2,
-        },
-      ],
+  try {
+    const res = await api.post("/papers/generate-from-blueprint", {
+      paper_blueprint_id: paper.value.paper_blueprint_id,
+      moderate_mode: moderateDifficultyMode.value,
     });
 
-    selectedQuestions.value = res.data;
+    const generatedQuestions = res.data.data || [];
 
+    if (!Array.isArray(generatedQuestions) || !generatedQuestions.length) {
+      ui.showSnackbar("No questions generated from the selected blueprint", "warning");
+      return;
+    }
+
+    paper.value.sections = generatedQuestions.reduce((sections, question) => {
+      const sectionName = question.section || question.paper_section || "Section A";
+      let section = sections.find((item) => item.name === sectionName);
+
+      if (!section) {
+        section = {
+          id: null,
+          name: sectionName,
+          instructions: "",
+          questions: [],
+        };
+        sections.push(section);
+      }
+
+      section.questions.push(normalizeQuestion(question));
+      return sections;
+    }, []);
+
+    refreshBlueprintStatus();
     ui.showSnackbar("Paper generated successfully");
   } catch (err) {
-    ui.showSnackbar("Auto generation failed", "error");
+    ui.showSnackbar(err.response?.data?.message || "Auto generation failed", "error");
   }
 };
 

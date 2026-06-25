@@ -9,6 +9,7 @@ export const useAuthStore = defineStore("auth", {
     theme: localStorage.getItem("theme") || "light", // light | dark
     permissions: [],
     sidebarMenus: [],
+    allowedFeatureKeys: [],
   }),
 
   getters: {
@@ -34,6 +35,7 @@ export const useAuthStore = defineStore("auth", {
         this.user = res.data.user;
         this.permissions = res.data.user.permissions || [];
         this.sidebarMenus = res.data.user.sidebar_menus || [];
+        this.allowedFeatureKeys = res.data.user.allowed_feature_keys || [];
 
         localStorage.setItem("token", this.token);
 
@@ -60,8 +62,8 @@ export const useAuthStore = defineStore("auth", {
         this.user = res.data;
         this.permissions = res.data.permissions || [];
         this.sidebarMenus = res.data.sidebar_menus || [];
+        this.allowedFeatureKeys = res.data.allowed_feature_keys || [];
 
-        
       } catch (error) {
         console.error(error);
         localStorage.removeItem("token");
@@ -71,6 +73,7 @@ export const useAuthStore = defineStore("auth", {
         this.token = null;
         this.permissions = [];
         this.sidebarMenus = [];
+        this.allowedFeatureKeys = [];
 
         throw error;
       }
@@ -101,6 +104,7 @@ export const useAuthStore = defineStore("auth", {
       this.token = null;
       this.permissions = [];
       this.sidebarMenus = [];
+      this.allowedFeatureKeys = [];
     },
   },
 });

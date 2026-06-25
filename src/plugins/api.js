@@ -1,4 +1,5 @@
 import axios from 'axios'
+import router from '../router'
 import { useUIStore } from '../stores/snackBar'
 
 const silentRoutes = [
@@ -8,9 +9,7 @@ const silentRoutes = [
 ]
 
 const isSilentRequest = (config = {}) => {
-  return silentRoutes.some(route =>
-    config.url?.includes(route)
-  )
+  return silentRoutes.some((route) => config.url?.includes(route))
 }
 
 const api = axios.create({
@@ -37,9 +36,7 @@ api.interceptors.request.use(
 
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
 api.interceptors.response.use(
@@ -52,62 +49,46 @@ api.interceptors.response.use(
 
     return response
   },
-
   (error) => {
     const ui = useUIStore()
     const config = error.config || {}
+    const status = error.response?.status
+    const data = error.response?.data || {}
 
     if (!isSilentRequest(config)) {
       ui.stopLoading()
     }
 
-    const status = error.response?.status
-
     if (status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
+      delete api.defaults.headers.common.Authorization
 
       if (!isSilentRequest(config)) {
         ui.showSnackbar('Session expired. Please login again.', 'error')
       }
+
+      if (router.currentRoute.value.name !== 'login') {
+        router.replace({ name: 'login' })
+      }
     }
 
     if (status === 403) {
-      ui.showSnackbar(error.response?.data?.message || 'Access denied', 'error')
+      if (data.subscription_expired) {
+        if (router.currentRoute.value.name !== 'subscription.expired') {
+          router.replace({ name: 'subscription.expired' })
+        }
+      } else if (!isSilentRequest(config)) {
+        ui.showSnackbar(data.message || 'Access denied', 'error')
+      }
     }
 
-    if (status === 422) {
-      ui.showSnackbar(error.response?.data?.message || 'Validation error', 'error')
+    if (status === 422 && !isSilentRequest(config)) {
+      ui.showSnackbar(data.message || 'Validation error', 'error')
     }
 
-    if (status === 500) {
+    if (status === 500 && !isSilentRequest(config)) {
       ui.showSnackbar('Server error', 'error')
-    }
-
-    return Promise.reject(error)
-  }
-)
-
-api.interceptors.response.use(
-  (response) => {
-    const ui = useUIStore()
-
-    if (!isSilentRequest(response.config)) {
-      ui.stopLoading()
-    }
-
-    return response
-  },
-  (error) => {
-    const ui = useUIStore()
-
-    if (!isSilentRequest(error.config || {})) {
-      ui.stopLoading()
-    }
-
-    if (error.response?.status === 403 && error.response?.data?.subscription_expired) {
-      window.location.href = '/subscription-expired'
-      return Promise.reject(error)
     }
 
     return Promise.reject(error)

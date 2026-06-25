@@ -62,9 +62,33 @@ onMounted(async () => {
   await fetchSidebarBadges();
 });
 
-const menus = computed(() =>
-  buildSidebarMenus(auth.sidebarMenus || [], notificationCounts.value)
-);
+const hasRoute = (routeName) => {
+  if (!routeName) return false;
+  return router.hasRoute(routeName);
+};
+
+const menus = computed(() => {
+  const builtMenus = buildSidebarMenus(auth.sidebarMenus || [], notificationCounts.value);
+
+  return builtMenus
+    .map((item) => {
+      if (!item.children) {
+        return hasRoute(item.routeName) ? item : null;
+      }
+
+      const children = item.children.filter((child) => hasRoute(child.routeName));
+
+      if (!children.length) {
+        return null;
+      }
+
+      return {
+        ...item,
+        children,
+      };
+    })
+    .filter(Boolean);
+});
 
 const user = computed(() => auth.user || {});
 

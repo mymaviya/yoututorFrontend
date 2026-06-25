@@ -5,7 +5,7 @@
         <div>
           <h2 class="text-h5 font-weight-bold">Subscription Plans</h2>
           <p class="text-body-2 text-medium-emphasis mb-0">
-            Manage pricing plans, trial plan, features, popularity and status.
+            Manage pricing plans, display features, module access, popularity and status.
           </p>
         </div>
 
@@ -122,9 +122,14 @@
           </template>
 
           <template #item.features="{ item }">
-            <v-chip color="info" variant="tonal" size="small">
-              {{ normalizedFeatures(item.features).length }} Features
-            </v-chip>
+            <div class="d-flex flex-column ga-1">
+              <v-chip color="info" variant="tonal" size="small" class="align-self-start">
+                {{ normalizedFeatures(item.features).length }} Display Features
+              </v-chip>
+              <v-chip color="primary" variant="tonal" size="small" class="align-self-start">
+                {{ enabledFeatureKeys(item).length }} Modules Enabled
+              </v-chip>
+            </div>
           </template>
 
           <template #item.actions="{ item }">
@@ -159,7 +164,7 @@
     </v-card>
 
     <!-- Create/Edit Dialog -->
-    <v-dialog v-model="formDialog" max-width="900" persistent>
+    <v-dialog v-model="formDialog" max-width="1100" persistent>
       <v-card rounded="xl">
         <v-card-title class="font-weight-bold">
           {{ isEditing ? 'Edit Subscription Plan' : 'Create Subscription Plan' }}
@@ -288,47 +293,103 @@
             </v-col>
 
             <v-col cols="12">
-              <div class="d-flex align-center mb-3">
-                <h3 class="text-subtitle-1 font-weight-bold">Features</h3>
-                <v-spacer />
-                <v-btn
-                  size="small"
-                  color="primary"
-                  variant="tonal"
-                  prepend-icon="mdi-plus"
-                  @click="addFeature"
-                >
-                  Add Feature
-                </v-btn>
-              </div>
+              <v-card variant="tonal" rounded="lg">
+                <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center">
+                  Website Display Features
+                  <v-spacer />
+                  <v-btn
+                    size="small"
+                    color="primary"
+                    variant="tonal"
+                    prepend-icon="mdi-plus"
+                    @click="addFeature"
+                  >
+                    Add Feature
+                  </v-btn>
+                </v-card-title>
 
-              <div
-                v-for="(feature, index) in form.features"
-                :key="index"
-                class="d-flex ga-2 mb-2"
-              >
-                <v-text-field
-                  v-model="form.features[index]"
-                  label="Feature"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details
-                />
+                <v-card-text>
+                  <div
+                    v-for="(feature, index) in form.features"
+                    :key="index"
+                    class="d-flex ga-2 mb-2"
+                  >
+                    <v-text-field
+                      v-model="form.features[index]"
+                      label="Feature shown on pricing page"
+                      variant="outlined"
+                      density="comfortable"
+                      hide-details
+                    />
 
-                <v-btn
-                  icon="mdi-delete"
-                  color="error"
-                  variant="tonal"
-                  @click="removeFeature(index)"
-                />
-              </div>
+                    <v-btn
+                      icon="mdi-delete"
+                      color="error"
+                      variant="tonal"
+                      @click="removeFeature(index)"
+                    />
+                  </div>
 
-              <div
-                v-if="formErrors.features?.length"
-                class="text-error text-caption mt-1"
-              >
-                {{ formErrors.features[0] }}
-              </div>
+                  <div
+                    v-if="formErrors.features?.length"
+                    class="text-error text-caption mt-1"
+                  >
+                    {{ formErrors.features[0] }}
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12">
+              <v-card variant="outlined" rounded="lg">
+                <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center">
+                  ERP Module Access
+                  <v-spacer />
+                  <v-btn size="small" variant="text" color="primary" @click="enableAllFeatures">
+                    Enable All
+                  </v-btn>
+                  <v-btn size="small" variant="text" color="error" @click="disableAllFeatures">
+                    Disable All
+                  </v-btn>
+                </v-card-title>
+
+                <v-card-subtitle>
+                  These values are saved in <code>subscription_plan_feature_items</code> and control backend middleware + sidebar visibility.
+                </v-card-subtitle>
+
+                <v-card-text>
+                  <v-row>
+                    <v-col
+                      v-for="feature in featureCatalog"
+                      :key="feature.key"
+                      cols="12"
+                      md="6"
+                      lg="4"
+                    >
+                      <v-checkbox
+                        v-model="form.enabled_feature_keys"
+                        :value="feature.key"
+                        color="primary"
+                        hide-details
+                      >
+                        <template #label>
+                          <div>
+                            <div class="font-weight-medium">{{ feature.label }}</div>
+                            <div class="text-caption text-medium-emphasis">{{ feature.key }}</div>
+                          </div>
+                        </template>
+                      </v-checkbox>
+                    </v-col>
+                  </v-row>
+
+                  <div
+                    v-if="formErrors.feature_items?.length"
+                    class="text-error text-caption mt-1"
+                  >
+                    {{ formErrors.feature_items[0] }}
+                  </div>
+                </v-card-text>
+              </v-card>
             </v-col>
           </v-row>
         </v-card-text>
@@ -348,7 +409,7 @@
     </v-dialog>
 
     <!-- View Dialog -->
-    <v-dialog v-model="viewDialog" max-width="700">
+    <v-dialog v-model="viewDialog" max-width="850">
       <v-card rounded="xl">
         <v-card-title class="font-weight-bold">
           Plan Details
@@ -389,17 +450,33 @@
             </v-col>
 
             <v-col cols="12">
-              <strong>Features:</strong>
+              <strong>Website Display Features:</strong>
 
               <div class="d-flex flex-wrap ga-2 mt-2">
                 <v-chip
                   v-for="feature in normalizedFeatures(selectedPlan.features)"
                   :key="feature"
-                  color="primary"
+                  color="info"
                   variant="tonal"
                   size="small"
                 >
                   {{ feature }}
+                </v-chip>
+              </div>
+            </v-col>
+
+            <v-col cols="12">
+              <strong>Enabled ERP Modules:</strong>
+
+              <div class="d-flex flex-wrap ga-2 mt-2">
+                <v-chip
+                  v-for="featureKey in enabledFeatureKeys(selectedPlan)"
+                  :key="featureKey"
+                  color="primary"
+                  variant="tonal"
+                  size="small"
+                >
+                  {{ featureLabel(featureKey) }}
                 </v-chip>
               </div>
             </v-col>
@@ -441,6 +518,25 @@ const pagination = reactive({
   total: 0
 })
 
+const featureCatalog = [
+  { key: 'academic_setup', label: 'Academic Setup' },
+  { key: 'question_bank', label: 'Question Bank' },
+  { key: 'approval_workflow', label: 'Approval Workflow' },
+  { key: 'manual_paper_creation', label: 'Manual Paper Creation' },
+  { key: 'blueprint_management', label: 'Blueprint Management' },
+  { key: 'auto_paper_generator', label: 'Auto Paper Generator' },
+  { key: 'teacher_management', label: 'Teacher Management' },
+  { key: 'teacher_tasks', label: 'Teacher Tasks' },
+  { key: 'exam_portion', label: 'Exam Portion' },
+  { key: 'basic_reports', label: 'Basic Reports' },
+  { key: 'analytics', label: 'Analytics' },
+  { key: 'import_export', label: 'Import / Export' },
+  { key: 'user_management', label: 'User Management' },
+  { key: 'role_permission_management', label: 'Roles & Permissions' },
+  { key: 'security_settings', label: 'Security Settings' },
+  { key: 'crm', label: 'CRM' },
+]
+
 const form = reactive({
   id: null,
   name: '',
@@ -451,6 +547,7 @@ const form = reactive({
   duration_days: 365,
   trial_days: 0,
   features: [''],
+  enabled_feature_keys: [],
   is_trial: false,
   is_popular: false,
   is_active: true,
@@ -466,6 +563,7 @@ const formErrors = reactive({
   duration_days: [],
   trial_days: [],
   features: [],
+  feature_items: [],
   is_trial: [],
   is_popular: [],
   is_active: [],
@@ -540,6 +638,7 @@ const resetForm = () => {
   form.duration_days = 365
   form.trial_days = 0
   form.features = ['']
+  form.enabled_feature_keys = []
   form.is_trial = false
   form.is_popular = false
   form.is_active = true
@@ -569,6 +668,7 @@ const openEditDialog = (item) => {
   form.features = normalizedFeatures(item.features).length
     ? normalizedFeatures(item.features)
     : ['']
+  form.enabled_feature_keys = enabledFeatureKeys(item)
   form.is_trial = Boolean(item.is_trial)
   form.is_popular = Boolean(item.is_popular)
   form.is_active = Boolean(item.is_active)
@@ -608,13 +708,27 @@ const removeFeature = (index) => {
   }
 }
 
+const enableAllFeatures = () => {
+  form.enabled_feature_keys = featureCatalog.map(feature => feature.key)
+}
+
+const disableAllFeatures = () => {
+  form.enabled_feature_keys = []
+}
+
 const savePlan = async () => {
   clearErrors()
   saving.value = true
 
+  const enabledKeys = [...new Set(form.enabled_feature_keys)]
+
   const payload = {
     ...form,
-    features: form.features.map(item => item.trim()).filter(Boolean),
+    features: form.features.map(item => String(item || '').trim()).filter(Boolean),
+    feature_items: featureCatalog.map(feature => ({
+      feature_key: feature.key,
+      is_enabled: enabledKeys.includes(feature.key)
+    })),
     monthly_display_price: Number(form.monthly_display_price || 0),
     yearly_price: Number(form.yearly_price || 0),
     yearly_saving: Number(form.yearly_saving || 0),
@@ -622,6 +736,8 @@ const savePlan = async () => {
     trial_days: Number(form.trial_days || 0),
     sort_order: Number(form.sort_order || 0)
   }
+
+  delete payload.enabled_feature_keys
 
   try {
     if (isEditing.value) {
@@ -655,17 +771,33 @@ const deletePlan = async (item) => {
 const normalizedFeatures = (features) => {
   if (!features) return []
 
-  if (Array.isArray(features)) return features
+  if (Array.isArray(features)) return features.filter(Boolean)
 
   if (typeof features === 'string') {
     try {
-      return JSON.parse(features)
+      const parsed = JSON.parse(features)
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : []
     } catch {
       return features.split(',').map(item => item.trim()).filter(Boolean)
     }
   }
 
   return []
+}
+
+const enabledFeatureKeys = (plan) => {
+  const items = plan?.feature_items || plan?.featureItems || []
+
+  if (!Array.isArray(items)) return []
+
+  return items
+    .filter(item => Boolean(item.is_enabled))
+    .map(item => item.feature_key)
+    .filter(Boolean)
+}
+
+const featureLabel = (featureKey) => {
+  return featureCatalog.find(feature => feature.key === featureKey)?.label || featureKey
 }
 
 const formatAmount = (amount) => {
