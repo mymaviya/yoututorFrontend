@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import api from '../../plugins/api'
 import { useUIStore } from '../../stores/snackBar'
 
@@ -13,6 +13,26 @@ const editMode = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const errors = ref({})
+
+const subscriptionStatus = ref(null)
+
+const usedUsers = computed(() => Number(subscriptionStatus.value?.used_users ?? 0))
+const maxUsers = computed(() => Number(subscriptionStatus.value?.max_users ?? 0))
+const remainingUsers = computed(() => Number(subscriptionStatus.value?.remaining_users ?? 0))
+const canCreateUsers = computed(() => Boolean(subscriptionStatus.value?.can_create_users ?? true))
+const hasUserLimit = computed(() => maxUsers.value > 0)
+const userLimitReached = computed(() => hasUserLimit.value && !canCreateUsers.value)
+
+const fetchSubscriptionStatus = async () => {
+  try {
+    const res = await api.get('/my-subscription-status')
+    subscriptionStatus.value = res.data?.data || res.data
+  } catch (error) {
+    console.error(error)
+    subscriptionStatus.value = null
+  }
+}
+
 
 const form = ref({
   id: null,
@@ -74,6 +94,11 @@ const fetchSubjectsByGrade = async (index) => {
 }
 
 const openAdd = () => {
+  if (userLimitReached.value) {
+    ui.showSnackbar('User limit reached for this subscription plan. Please upgrade your plan to add more teachers.', 'warning')
+    return
+  }
+
   editMode.value = false
   errors.value = {}
 
@@ -157,6 +182,11 @@ const removeAssignment = (index) => {
 }
 
 const saveTeacher = async () => {
+  if (!editMode.value && userLimitReached.value) {
+    ui.showSnackbar('User limit reached for this subscription plan. Please upgrade your plan to add more teachers.', 'warning')
+    return
+  }
+
   saving.value = true
   errors.value = {}
 
@@ -191,9 +221,10 @@ const saveTeacher = async () => {
     fetchTeachers()
   } catch (err) {
     if (err.response?.status === 422) {
-      errors.value = err.response.data.errors
+      errors.value = err.response.data.errors || {}
+      ui.showSnackbar(err.response?.data?.message || 'Validation failed', 'error')
     } else {
-      ui.showSnackbar('Failed to save teacher', 'error')
+      ui.showSnackbar(err.response?.data?.message || 'Failed to save teacher', 'error')
     }
   } finally {
     saving.value = false
@@ -216,6 +247,7 @@ const deleteTeacher = async (teacher) => {
 }
 
 onMounted(() => {
+  fetchSubscriptionStatus()
   fetchTeachers()
   fetchGrades()
 })
@@ -234,10 +266,30 @@ onMounted(() => {
         </p>
       </div>
 
-      <v-btn color="primary" prepend-icon="mdi-account-plus" @click="openAdd">
+      <v-btn
+        color="primary"
+        prepend-icon="mdi-account-plus"
+        :disabled="userLimitReached"
+        @click="openAdd"
+      >
         Add Teacher & Assign Subjects
       </v-btn>
     </div>
+
+    <v-alert
+      v-if="hasUserLimit"
+      :type="userLimitReached ? 'warning' : 'info'"
+      variant="tonal"
+      class="mb-4"
+    >
+      Used Users: <strong>{{ usedUsers }}</strong> / <strong>{{ maxUsers }}</strong>
+      <span v-if="!userLimitReached">
+        — Remaining: <strong>{{ remainingUsers }}</strong>
+      </span>
+      <span v-else>
+        — Plan limit reached. Upgrade your plan to add more teachers.
+      </span>
+    </v-alert>
 
     <v-card class="rounded-xl" elevation="0">
       <appDataTable :headers="headers" :items="teachers" :loading="loading">
@@ -282,6 +334,14 @@ onMounted(() => {
 
         <template #item.actions="{ item }">
           <div class="d-flex ga-1">
+            <v-btn
+              icon="mdi-account-card"
+              size="small"
+              variant="text"
+              color="info"
+              :to="{ name: 'teachers.profile', params: { id: item.id } }"
+            />
+
             <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
 
             <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteTeacher(item)" />
@@ -382,7 +442,12 @@ onMounted(() => {
             Cancel
           </v-btn>
 
-          <v-btn color="primary" :loading="saving" @click="saveTeacher">
+          <v-btn
+            color="primary"
+            :loading="saving"
+            :disabled="!editMode && userLimitReached"
+            @click="saveTeacher"
+          >
             {{ editMode ? 'Update Teacher' : 'Save Teacher' }}
           </v-btn>
         </v-card-actions>

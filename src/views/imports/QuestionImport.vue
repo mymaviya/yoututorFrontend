@@ -1,9 +1,11 @@
 <template>
   <v-container fluid>
     <v-card class="rounded-xl">
-      <v-card-title class="d-flex align-center justify-space-between">
+      <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-3">
         <div>
-          <div class="text-h6 font-weight-bold">Question Import</div>
+          <div class="text-h6 font-weight-bold">
+            {{ isMasterMode ? 'Master Question Import' : 'Question Import' }}
+          </div>
           <div class="text-caption text-medium-emphasis">
             Import questions with difficulty, Bloom level, options and match pairs.
           </div>
@@ -13,6 +15,7 @@
           color="primary"
           variant="tonal"
           prepend-icon="mdi-download"
+          :loading="templateLoading"
           @click="downloadTemplate"
         >
           Download Template
@@ -30,9 +33,31 @@
           </strong>
         </v-alert>
 
+        <v-alert
+          v-if="isMasterMode"
+          type="warning"
+          variant="tonal"
+          class="mb-4"
+        >
+          Master import saves platform-owned questions into the selected package below.
+        </v-alert>
+
+        <v-select
+          v-if="isMasterMode"
+          v-model="masterPackageId"
+          :items="packages"
+          item-title="name"
+          item-value="id"
+          label="Question Bank Package"
+          variant="outlined"
+          class="mb-4"
+          :loading="packagesLoading"
+          :error-messages="formErrors.question_bank_package_id"
+        />
+
         <v-file-input
           v-model="file"
-          label="Select Question Import File"
+          :label="isMasterMode ? 'Select Master Question Import File' : 'Select Question Import File'"
           accept=".xlsx,.xls,.csv"
           variant="outlined"
           prepend-icon="mdi-file-excel"
@@ -43,10 +68,10 @@
           color="success"
           prepend-icon="mdi-upload"
           :loading="loading"
-          :disabled="!file"
+          :disabled="!file || (isMasterMode && !masterPackageId)"
           @click="submitImport"
         >
-          Import Questions
+          {{ isMasterMode ? 'Import Master Questions' : 'Import Questions' }}
         </v-btn>
 
         <v-card
@@ -61,7 +86,7 @@
           <v-card-text>
             <div class="d-flex flex-wrap ga-2 mb-4">
               <v-chip color="success" variant="tonal">
-                Created: {{ result.created || 0 }}
+                Created: {{ result.created || result.imported || 0 }}
               </v-chip>
 
               <v-chip color="warning" variant="tonal">
@@ -101,16 +126,45 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import api from "../../plugins/api";
-import { useUIStore } from "../../stores/snackBar";
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import api from '../../plugins/api'
+import { useUIStore } from '../../stores/snackBar'
 
+const route = useRoute()
 const ui = useUIStore()
 
 const file = ref(null)
 const loading = ref(false)
+const templateLoading = ref(false)
+const packagesLoading = ref(false)
 const result = ref(null)
 const formErrors = ref({})
+const packages = ref([])
+const masterPackageId = ref(null)
+
+const isMasterMode = computed(() => {
+  return route.meta?.mode === 'master' ||
+    route.meta?.questionMode === 'master' ||
+    String(route.name || '').startsWith('admin.master-questions') ||
+    route.path.includes('/admin/master-questions')
+})
+
+const endpoints = computed(() => {
+  if (isMasterMode.value) {
+    return {
+      template: '/admin/master-questions/import-template',
+      import: '/admin/master-questions/import',
+      filename: 'master_question_import_template.xlsx',
+    }
+  }
+
+  return {
+    template: '/questions/import-template',
+    import: '/questions/import',
+    filename: 'question_import_template.xlsx',
+  }
+})
 
 const getSelectedFile = () => {
   if (Array.isArray(file.value)) {
@@ -120,22 +174,60 @@ const getSelectedFile = () => {
   return file.value
 }
 
+const fetchPackages = async () => {
+  if (!isMasterMode.value) return
+
+  packagesLoading.value = true
+
+  try {
+    const res = await api.get('/admin/question-bank-packages', {
+      params: {
+        per_page: 1000,
+        status: 'active',
+      },
+    })
+
+    packages.value = res.data.data?.data || []
+  } catch (err) {
+    ui.showSnackbar(
+      err.response?.data?.message || 'Failed to load question bank packages',
+      'error'
+    )
+  } finally {
+    packagesLoading.value = false
+  }
+}
+
 const downloadTemplate = async () => {
-  const res = await api.get('/questions/import-template', {
-    responseType: 'blob',
-  })
+  templateLoading.value = true
 
-  const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-  const url = window.URL.createObjectURL(blob)
+  try {
+    const res = await api.get(endpoints.value.template, {
+      responseType: 'blob',
+    })
 
-  const link = document.createElement('a')
-  link.href = url
-  link.setAttribute('download', 'question_import_template.xlsx')
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
 
-  window.URL.revokeObjectURL(url)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', endpoints.value.filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+
+    window.URL.revokeObjectURL(url)
+    ui.showSnackbar('Template downloaded successfully')
+  } catch (err) {
+    ui.showSnackbar(
+      err.response?.data?.message || 'Failed to download template',
+      'error'
+    )
+  } finally {
+    templateLoading.value = false
+  }
 }
 
 const submitImport = async () => {
@@ -148,34 +240,54 @@ const submitImport = async () => {
     formErrors.value = {
       file: ['Please select a file.'],
     }
+    ui.showSnackbar('Please select a file', 'warning')
+    return
+  }
+
+  if (isMasterMode.value && !masterPackageId.value) {
+    formErrors.value = {
+      question_bank_package_id: ['Please select a question bank package.'],
+    }
+    ui.showSnackbar('Please select a question bank package', 'warning')
     return
   }
 
   const formData = new FormData()
   formData.append('file', selectedFile)
 
+  if (isMasterMode.value) {
+    formData.append('question_bank_package_id', masterPackageId.value)
+  }
+
   loading.value = true
 
   try {
-    const res = await api.post('/questions/import', formData, {
+    const res = await api.post(endpoints.value.import, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     })
 
     result.value = res.data
-    ui.showSnackbar('Question import completed successfully', 'success')
+    ui.showSnackbar(
+      isMasterMode.value
+        ? 'Master question import completed successfully'
+        : 'Question import completed successfully'
+    )
   } catch (err) {
     if (err.response?.status === 422) {
       formErrors.value = err.response.data.errors || {}
     }
 
     ui.showSnackbar(
-      err.response?.data?.message || 'Question import failed',
+      err.response?.data?.message ||
+        (isMasterMode.value ? 'Master question import failed' : 'Question import failed'),
       'error'
     )
   } finally {
     loading.value = false
   }
 }
+
+onMounted(fetchPackages)
 </script>

@@ -17,6 +17,26 @@ const roles = ref([]);
 
 const errors = ref({});
 
+const subscriptionStatus = ref(null);
+
+const usedUsers = computed(() => Number(subscriptionStatus.value?.used_users ?? 0));
+const maxUsers = computed(() => Number(subscriptionStatus.value?.max_users ?? 0));
+const remainingUsers = computed(() => Number(subscriptionStatus.value?.remaining_users ?? 0));
+const canCreateUsers = computed(() => Boolean(subscriptionStatus.value?.can_create_users ?? true));
+const hasUserLimit = computed(() => maxUsers.value > 0);
+const userLimitReached = computed(() => hasUserLimit.value && !canCreateUsers.value);
+
+const fetchSubscriptionStatus = async () => {
+  try {
+    const res = await api.get("/my-subscription-status");
+    subscriptionStatus.value = res.data?.data || res.data;
+  } catch (error) {
+    console.error(error);
+    subscriptionStatus.value = null;
+  }
+};
+
+
 const form = ref({
   name: "",
   email: "",
@@ -84,6 +104,11 @@ const fetchUser = async () => {
 };
 
 const save = async () => {
+  if (!isEdit.value && userLimitReached.value) {
+    ui.showSnackbar("User limit reached for this subscription plan. Please upgrade your plan to create more users.", "warning");
+    return;
+  }
+
   errors.value = {};
   saving.value = true;
 
@@ -123,6 +148,7 @@ const save = async () => {
 };
 
 onMounted(async () => {
+  await fetchSubscriptionStatus();
   await fetchRoles();
   await fetchUser();
 });
@@ -151,6 +177,21 @@ onMounted(async () => {
       indeterminate
       class="mb-4"
     />
+
+    <v-alert
+      v-if="!isEdit && hasUserLimit"
+      :type="userLimitReached ? 'warning' : 'info'"
+      variant="tonal"
+      class="mb-4"
+    >
+      Used Users: <strong>{{ usedUsers }}</strong> / <strong>{{ maxUsers }}</strong>
+      <span v-if="!userLimitReached">
+        — Remaining: <strong>{{ remainingUsers }}</strong>
+      </span>
+      <span v-else>
+        — Plan limit reached. Upgrade your plan to create more users.
+      </span>
+    </v-alert>
 
     <v-card class="pa-5 rounded-xl" elevation="0">
       <v-row>
@@ -291,6 +332,7 @@ onMounted(async () => {
         <v-btn
           color="primary"
           :loading="saving"
+          :disabled="!isEdit && userLimitReached"
           @click="save"
         >
           {{ isEdit ? "Update User" : "Create User" }}

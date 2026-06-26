@@ -1,5 +1,3 @@
-<!-- src/views/exam/Questions/QuestionForm.vue -->
-
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import api from "../../../plugins/api";
@@ -21,6 +19,15 @@ const aiLoading = ref(false);
 const aiSuggestion = ref(null);
 
 const isEditMode = computed(() => !!route.params.id);
+
+const isMasterMode = computed(() => {
+  return route.meta?.mode === "master" ||
+    route.meta?.questionMode === "master" ||
+    String(route.name || "").startsWith("admin.master-questions") ||
+    route.path.includes("/admin/master-questions");
+});
+
+const packages = ref([]);
 
 const defaultOptions = () => [
   { option_text: "", option_image: null, is_correct: false },
@@ -63,7 +70,7 @@ const blankContentItem = () => {
 };
 // Task
 const fetchTaskInfo = async () => {
-  if (!route.query.task_id) return;
+  if (isMasterMode.value || !route.query.task_id) return;
 
   const res = await api.get("/teacher/my-question-tasks");
 
@@ -72,9 +79,28 @@ const fetchTaskInfo = async () => {
   );
 };
 
+const fetchPackages = async () => {
+  if (!isMasterMode.value) return;
+
+  const res = await api.get("/admin/question-bank-packages", {
+    params: {
+      per_page: 1000,
+      status: "active",
+    },
+  });
+
+  packages.value = res.data.data?.data || [];
+};
+
 /* FETCH grades */
 
 const fetchGrades = async () => {
+  if (isMasterMode.value) {
+    const gradeRes = await api.get("/grades");
+    grades.value = gradeRes.data.data || gradeRes.data;
+    return;
+  }
+
   const res = await api.get("/my-assignments");
 
   if (res.data.is_admin) {
@@ -148,7 +174,7 @@ const fetchQuestionTypes = async () => {
     params: {
       grade_id: form.value.grade_id,
       subject_id: form.value.subject_id,
-      ...(isEditMode.value ? {} : { active_only: 1 }),
+      ...(isMasterMode.value || isEditMode.value ? {} : { active_only: 1 }),
     },
   });
 
@@ -157,6 +183,7 @@ const fetchQuestionTypes = async () => {
 
 const form = ref({
   id: null,
+  question_bank_package_id: null,
   grade_id: null,
   subject_id: null,
   lesson_id: null,
@@ -257,8 +284,12 @@ const removeMatchRow = (index) => {
 };
 
 const fetchQuestionForEdit = async () => {
-  const res = await api.get(`/questions/${route.params.id}`);
-  const q = res.data;
+  const endpoint = isMasterMode.value
+    ? `/admin/master-questions/${route.params.id}`
+    : `/questions/${route.params.id}`;
+
+  const res = await api.get(endpoint);
+  const q = res.data.data || res.data;
 
   form.value.grade_id = q.grade_id;
 
@@ -273,7 +304,10 @@ const fetchQuestionForEdit = async () => {
 
   Object.assign(form.value, {
   id: q.id,
-  type: q.type?.slug || q.question_type || q.type || null,
+  question_bank_package_id: q.question_bank_package_id || null,
+  type: isMasterMode.value
+    ? q.question_type_master_id
+    : (q.type?.slug || q.question_type || q.type || null),
   difficulty: q.difficulty,
   bloom_level: q.bloom_level,
   marks: q.marks,
@@ -365,11 +399,19 @@ const save = async () => {
 
     const formData = new FormData();
 
+    if (isMasterMode.value) {
+      formData.append("question_bank_package_id", form.value.question_bank_package_id || "");
+    }
+
     formData.append("grade_id", form.value.grade_id);
     formData.append("subject_id", form.value.subject_id);
     formData.append("lesson_id", form.value.lesson_id);
     formData.append("task_id", route.query.task_id || "");
-    formData.append("type", form.value.type);
+    if (isMasterMode.value) {
+      formData.append("question_type_master_id", form.value.type || "");
+    } else {
+      formData.append("type", form.value.type);
+    }
     formData.append("difficulty", form.value.difficulty);
     formData.append("bloom_level", form.value.bloom_level || "");
     formData.append("marks", form.value.marks);
@@ -476,28 +518,43 @@ const save = async () => {
     if (isEditMode.value) {
       formData.append("_method", "PUT");
 
-      await api.post(`/questions/${route.params.id}`, formData, {
+      const updateEndpoint = isMasterMode.value
+        ? `/admin/master-questions/${route.params.id}`
+        : `/questions/${route.params.id}`;
+
+      await api.post(updateEndpoint, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      ui.showSnackbar("Question updated successfully");
-      router.push({ name: "questions.index" });
-    } else {
-      console.log(
-        "Form Data to be sent:",
-        formData.values
-          ? Object.fromEntries(formData.entries())
-          : "No form data entries",
+      ui.showSnackbar(
+        isMasterMode.value
+          ? "Master question updated successfully"
+          : "Question updated successfully",
       );
-      await api.post("/questions", formData, {
+
+      router.push({
+        name: isMasterMode.value
+          ? "admin.master-questions.index"
+          : "questions.index",
+      });
+    } else {
+      const createEndpoint = isMasterMode.value
+        ? "/admin/master-questions"
+        : "/questions";
+
+      await api.post(createEndpoint, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      ui.showSnackbar("Question saved successfully");
+      ui.showSnackbar(
+        isMasterMode.value
+          ? "Master question saved successfully"
+          : "Question saved successfully",
+      );
 
       form.value.question = "";
       form.value.answer = "";
@@ -583,6 +640,16 @@ const suggestBloomLevel = async () => {
   }
 };
 
+const selectedQuestionType = computed(() => {
+  return questionTypes.value.find((type) => {
+    if (isMasterMode.value) {
+      return Number(type.id) === Number(form.value.type);
+    }
+
+    return type.slug === form.value.type;
+  });
+});
+
 const subjectTitle = (subject) => {
   if (!subject) return "-";
   return subject.name || subject.subject?.name || "-";
@@ -662,6 +729,7 @@ watch(
 onMounted(async () => {
   pageLoading.value = true;
   try {
+    await fetchPackages();
     await fetchGrades();
     if (isEditMode.value) {
       await fetchQuestionForEdit();
@@ -740,16 +808,16 @@ onMounted(async () => {
     <div class="d-flex justify-space-between align-center mb-6">
       <div>
         <h2 class="text-h5 font-weight-bold">
-          {{ isEditMode ? "Edit Question" : "Add Question" }}
+          {{ isMasterMode ? (isEditMode ? "Edit Master Question" : "Add Master Question") : (isEditMode ? "Edit Question" : "Add Question") }}
         </h2>
 
         <p class="text-grey">
-          Create rich questions with images, equations, and multiple formats.
+          {{ isMasterMode ? "Create platform-owned questions for premium question bank packages." : "Create rich questions with images, equations, and multiple formats." }}
         </p>
       </div>
 
       <v-btn color="primary" :disabled="taskInfo?.status === 'completed'" size="large" @click="save">
-        {{ isEditMode ? "Update Question" : "Save Question" }}
+        {{ isMasterMode ? (isEditMode ? "Update Master Question" : "Save Master Question") : (isEditMode ? "Update Question" : "Save Question") }}
       </v-btn>
     </div>
 
@@ -777,6 +845,19 @@ onMounted(async () => {
     </v-alert>
 
     <!-- BASIC INFO -->
+    <v-row v-if="isMasterMode" class="mb-1">
+      <v-col cols="12" md="6">
+        <v-select
+          v-model="form.question_bank_package_id"
+          :items="packages"
+          item-title="name"
+          item-value="id"
+          label="Question Bank Package"
+          :error-messages="errors.question_bank_package_id"
+        />
+      </v-col>
+    </v-row>
+
     <v-row>
       <v-col cols="12" md="4">
         <v-select v-model="form.grade_id" :items="grades" item-title="name" item-value="id" label="Grade"
@@ -797,8 +878,14 @@ onMounted(async () => {
     <!-- QUESTION CONFIG -->
     <v-row>
       <v-col cols="12" md="3">
-        <v-select v-model="form.type" :items="questionTypes" item-title="name" item-value="slug" label="Question Type"
-          :error-messages="errors.type" />
+        <v-select
+          v-model="form.type"
+          :items="questionTypes"
+          item-title="name"
+          :item-value="isMasterMode ? 'id' : 'slug'"
+          label="Question Type"
+          :error-messages="isMasterMode ? errors.question_type_master_id : errors.type"
+        />
       </v-col>
 
       <v-col cols="12" md="3">

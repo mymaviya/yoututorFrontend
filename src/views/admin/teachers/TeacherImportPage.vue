@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import api from "../../../plugins/api";
 import { useUIStore } from "../../../stores/snackBar";
 
@@ -18,6 +18,29 @@ const previewTotal = ref(0);
 const result = ref(null);
 const credentials = ref([]);
 
+const subscriptionStatus = ref(null);
+
+const usedUsers = computed(() => Number(subscriptionStatus.value?.used_users ?? 0));
+const maxUsers = computed(() => Number(subscriptionStatus.value?.max_users ?? 0));
+const remainingUsers = computed(() => Number(subscriptionStatus.value?.remaining_users ?? 0));
+const canCreateUsers = computed(() => Boolean(subscriptionStatus.value?.can_create_users ?? true));
+const hasUserLimit = computed(() => maxUsers.value > 0);
+const userLimitReached = computed(() => hasUserLimit.value && !canCreateUsers.value);
+const previewExceedsLimit = computed(() => {
+  return hasUserLimit.value && previewTotal.value > remainingUsers.value;
+});
+
+const fetchSubscriptionStatus = async () => {
+  try {
+    const res = await api.get("/my-subscription-status");
+    subscriptionStatus.value = res.data?.data || res.data;
+  } catch (error) {
+    console.error(error);
+    subscriptionStatus.value = null;
+  }
+};
+
+
 const previewHeaders = [
   { title: "Name", key: "name" },
   { title: "Email", key: "email" },
@@ -35,7 +58,13 @@ const credentialHeaders = [
 const hasPreview = computed(() => previewRows.value.length > 0);
 
 const canImport = computed(() => {
-  return !!file.value && hasPreview.value && !importing.value;
+  return (
+    !!file.value &&
+    hasPreview.value &&
+    !importing.value &&
+    !userLimitReached.value &&
+    !previewExceedsLimit.value
+  );
 });
 
 const selectedFile = computed(() => {
@@ -144,6 +173,16 @@ const previewTeachers = async () => {
 };
 
 const importTeachers = async () => {
+  if (userLimitReached.value) {
+    ui.showSnackbar("User limit reached for this subscription plan. Please upgrade your plan before importing teachers.", "warning");
+    return;
+  }
+
+  if (previewExceedsLimit.value) {
+    ui.showSnackbar(`This file has ${previewTotal.value} rows, but only ${remainingUsers.value} user slot(s) are available.`, "warning");
+    return;
+  }
+
   if (!selectedFile.value) {
     ui.showSnackbar("Please select an Excel file", "warning");
     return;
@@ -162,10 +201,11 @@ const importTeachers = async () => {
     result.value = response.data;
     credentials.value = response.data.credentials || [];
 
-    hasPreview.value = false;
+    preview.value = null;
     previewRows.value = [];
     previewTotal.value = 0;
-    selectedFile.value = null;
+    file.value = null;
+    await fetchSubscriptionStatus();
 
     ui.showSnackbar("Teachers imported successfully", "success");
   } catch (error) {
@@ -196,6 +236,10 @@ const exportCredentials = () => {
 
   URL.revokeObjectURL(url);
 };
+
+onMounted(() => {
+  fetchSubscriptionStatus();
+});
 </script>
 
 <template>
@@ -213,6 +257,31 @@ const exportCredentials = () => {
         Download Template
       </v-btn>
     </div>
+
+    <v-alert
+      v-if="hasUserLimit"
+      :type="userLimitReached || previewExceedsLimit ? 'warning' : 'info'"
+      variant="tonal"
+      class="mb-4"
+    >
+      Used Users: <strong>{{ usedUsers }}</strong> / <strong>{{ maxUsers }}</strong>
+      <span v-if="!userLimitReached">
+        — Remaining: <strong>{{ remainingUsers }}</strong>
+      </span>
+      <span v-else>
+        — Plan limit reached. Upgrade your plan before importing teachers.
+      </span>
+    </v-alert>
+
+    <v-alert
+      v-if="previewExceedsLimit"
+      type="warning"
+      variant="tonal"
+      class="mb-4"
+    >
+      This file contains {{ previewTotal }} teacher row(s), but only {{ remainingUsers }} user slot(s) are available.
+      Remove extra rows or upgrade the subscription plan.
+    </v-alert>
 
     <v-card class="rounded-xl pa-6 mb-6" elevation="0">
       <v-file-input v-model="file" label="Select Excel File" accept=".xlsx,.xls,.csv" prepend-icon="mdi-file-excel"

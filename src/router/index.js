@@ -658,7 +658,91 @@ const routes = [
           requiresAuth: true,
           title: 'CRM Dashboard'
         }
-      }
+      },
+      {
+        path: "/teachers/:id/profile",
+        name: "teachers.profile",
+        component: () => import("../views/admin/teachers/TeacherProfilePage.vue"),
+        meta: {
+          title: "Teacher Profile",
+          requiresAuth: true,
+          permission: "teachers.view",
+        },
+      },
+      {
+        path: "/master-question-bank",
+        name: "master-question-bank.questions",
+        component: () => import("../views/exams/MasterQuestionBank.vue"),
+        meta: {
+          title: "Premium Question Bank",
+          requiresAuth: true,
+          permission: "premium.question.bank.view",
+        },
+      },
+      {
+        path: "/admin/question-bank-packages",
+        name: "admin.question-bank-packages.index",
+        component: () => import("../views/admin/question-bank/QuestionBankPackages.vue"),
+        meta: {
+          title: "Question Bank Packages",
+          requiresAuth: true,
+          permission: "question.bank.packages.manage",
+        },
+      },
+      {
+        path: "/admin/master-questions",
+        name: "admin.master-questions.index",
+        component: () => import("../views/admin/question-bank/MasterQuestions.vue"),
+        meta: {
+          title: "Master Questions",
+          requiresAuth: true,
+          permission: "master.questions.manage",
+        },
+      },
+      {
+        path: "/admin/question-bank-purchases",
+        name: "admin.question-bank-purchases.index",
+        component: () => import("../views/admin/question-bank/QuestionBankPurchases.vue"),
+        meta: {
+          title: "Question Bank Purchases",
+          requiresAuth: true,
+          permission: "question.bank.purchases.manage",
+        },
+      },
+      {
+        path: "/admin/master-questions/create",
+        name: "admin.master-questions.create",
+        component: () => import("../views/exams/Questions/QuestionForm.vue"),
+        meta: {
+          title: "Create Master Question",
+          requiresAuth: true,
+          permission: "master.questions.manage",
+          mode: "master",
+        },
+      },
+      {
+        path: "/admin/master-questions/:id/edit",
+        name: "admin.master-questions.edit",
+        component: () => import("../views/exams/Questions/QuestionForm.vue"),
+        meta: {
+          title: "Edit Master Question",
+          requiresAuth: true,
+          permission: "master.questions.manage",
+          mode: "master",
+        },
+      },
+      {
+        path: "/admin/master-questions/import",
+        name: "admin.master-questions.import",
+        component: () => import("../views/imports/QuestionImport.vue"),
+        meta: {
+          title: "Import Master Questions",
+          requiresAuth: true,
+          permission: "master.questions.manage",
+          mode: "master",
+        },
+      },
+
 
     ],
   },
