@@ -15,6 +15,24 @@ const grades = ref([]);
 const subjects = ref([]);
 const lessons = ref([]);
 const questionTypes = ref([]);
+const normalizedQuestionTypes = computed(() => {
+  return questionTypes.value.map((item) => {
+    const master = item.question_type_master || item.master || item.type || null;
+
+    const rawId = isMasterMode.value
+      ? (item.question_type_master_id || master?.id || item.master_id || item.id)
+      : (item.slug || master?.slug || item.question_type || item.type || item.id);
+
+    return {
+      ...item,
+      id: rawId === null || rawId === undefined ? null : String(rawId),
+      name: item.name || master?.name || item.title || item.label || '-',
+      slug: item.slug || master?.slug || item.question_type || item.type || '',
+      has_options: item.has_options ?? master?.has_options ?? false,
+    };
+  });
+});
+
 const aiLoading = ref(false);
 const aiSuggestion = ref(null);
 
@@ -46,7 +64,7 @@ const defaultMatchRows = () => [
 const contentBasedTypes = ["word_meaning", "make_sentence", "difficult_words"];
 
 const isContentBasedType = computed(() => {
-  return contentBasedTypes.includes(form.value.type);
+  return contentBasedTypes.includes(selectedTypeSlug.value);
 });
 
 const blankContentItem = () => {
@@ -247,11 +265,11 @@ const bloomLevels = [
 ];
 
 const isMCQ = computed(() => {
-  return ["mcq", "multiple_mcq"].includes(form.value.type);
+  return ["mcq", "multiple_mcq", "true_false"].includes(selectedTypeSlug.value);
 });
 
 const isMatchColumn = computed(() => {
-  return form.value.type === "match_column";
+  return selectedTypeSlug.value === "match_column";
 });
 
 const isLanguageContent = computed(() => {
@@ -283,6 +301,66 @@ const removeMatchRow = (index) => {
   form.value.matches.splice(index, 1);
 };
 
+
+const getMasterQuestionTypeId = (question) => {
+  const candidates = [
+    question.question_type_master_id,
+    question.type?.id,
+    question.type?.question_type_master_id,
+    question.question_type_master?.id,
+    question.questionTypeMaster?.id,
+    question.question_type?.id,
+    question.questionType?.id,
+  ];
+
+  const id = candidates.find((value) => value !== null && value !== undefined && value !== "");
+
+  return id === null || id === undefined ? null : String(id);
+};
+
+const ensureCurrentQuestionTypeInList = (question) => {
+  if (!isMasterMode.value) return;
+
+  const currentTypeId = getMasterQuestionTypeId(question);
+
+  if (!currentTypeId) return;
+
+  const exists = normalizedQuestionTypes.value.some((item) => {
+    return String(item.id) === String(currentTypeId);
+  });
+
+  if (exists) return;
+
+  const typeObject =
+    question.type ||
+    question.question_type_master ||
+    question.questionTypeMaster ||
+    question.question_type ||
+    question.questionType ||
+    null;
+
+  questionTypes.value.push({
+    id: currentTypeId,
+    question_type_master_id: currentTypeId,
+    name:
+      typeObject?.name ||
+      typeObject?.title ||
+      question.question_type_name ||
+      question.type_name ||
+      `Question Type #${currentTypeId}`,
+    slug:
+      typeObject?.slug ||
+      question.question_type ||
+      question.type_slug ||
+      "",
+    has_options:
+      typeObject?.has_options ??
+      ["mcq", "multiple_mcq", "true_false"].includes(
+        typeObject?.slug || question.question_type || question.type_slug || "",
+      ),
+  });
+};
+
 const fetchQuestionForEdit = async () => {
   const endpoint = isMasterMode.value
     ? `/admin/master-questions/${route.params.id}`
@@ -300,13 +378,15 @@ const fetchQuestionForEdit = async () => {
   await fetchLessons();
   await fetchQuestionTypes();
 
+  ensureCurrentQuestionTypeInList(q);
+
   form.value.lesson_id = q.lesson_id;
 
   Object.assign(form.value, {
   id: q.id,
   question_bank_package_id: q.question_bank_package_id || null,
   type: isMasterMode.value
-    ? q.question_type_master_id
+    ? getMasterQuestionTypeId(q)
     : (q.type?.slug || q.question_type || q.type || null),
   difficulty: q.difficulty,
   bloom_level: q.bloom_level,
@@ -328,11 +408,11 @@ const fetchQuestionForEdit = async () => {
       }))
     : defaultOptions(),
 
-    matches: q.match_pairs?.length
-      ? q.match_pairs.map((pair) => ({
+    matches: (q.match_pairs || q.matchPairs)?.length
+      ? (q.match_pairs || q.matchPairs).map((pair) => ({
         id: pair.id,
-        left: pair.left_text || "",
-        right: pair.right_text || "",
+        left: pair.left_value || pair.left_text || pair.left || "",
+        right: pair.right_value || pair.right_text || pair.right || "",
       }))
       : defaultMatchRows(),
   });
@@ -483,7 +563,7 @@ const save = async () => {
     }
 
     /* Match Column */
-    if (form.value.type === "match_column") {
+    if (isMatchColumn.value) {
       const validMatches = form.value.matches.filter(
         (row) =>
           (row.left && row.left.trim() !== "") ||
@@ -641,12 +721,13 @@ const suggestBloomLevel = async () => {
 };
 
 const selectedQuestionType = computed(() => {
-  return questionTypes.value.find((type) => {
+  return normalizedQuestionTypes.value.find((type) => {
     if (isMasterMode.value) {
-      return Number(type.id) === Number(form.value.type);
+      return String(type.id) === String(form.value.type);
     }
 
-    return type.slug === form.value.type;
+    return String(type.id) === String(form.value.type) ||
+      String(type.slug) === String(form.value.type);
   });
 });
 
@@ -708,7 +789,7 @@ watch(
   (type, oldType) => {
     if (pageLoading.value) return;
 
-    if (type === "match_column") {
+    if (selectedTypeSlug.value === "match_column") {
       form.value.options = [];
 
       if (!form.value.matches || form.value.matches.length === 0) {
@@ -716,7 +797,7 @@ watch(
       }
     }
 
-    if (["mcq", "multiple_mcq"].includes(type) && oldType === "match_column") {
+    if (["mcq", "multiple_mcq"].includes(selectedTypeSlug.value) && oldType === "match_column") {
       form.value.matches = defaultMatchRows();
 
       if (!form.value.options || form.value.options.length === 0) {
@@ -880,9 +961,9 @@ onMounted(async () => {
       <v-col cols="12" md="3">
         <v-select
           v-model="form.type"
-          :items="questionTypes"
+          :items="normalizedQuestionTypes"
           item-title="name"
-          :item-value="isMasterMode ? 'id' : 'slug'"
+          item-value="id"
           label="Question Type"
           :error-messages="isMasterMode ? errors.question_type_master_id : errors.type"
         />
@@ -936,7 +1017,7 @@ onMounted(async () => {
     <v-card v-if="isLanguageContent" class="pa-4 rounded-xl mb-4" variant="outlined">
       <div class="d-flex justify-space-between align-center mb-4">
         <div class="text-h6 font-weight-bold text-capitalize">
-          {{ form.type.replaceAll("_", " ") }} Items
+          {{ selectedTypeSlug.replaceAll("_", " ") }} Items
         </div>
 
         <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus"
@@ -950,11 +1031,11 @@ onMounted(async () => {
           <v-text-field v-model="item.word" label="Word" variant="outlined" />
         </v-col>
 
-        <v-col v-if="form.type === 'word_meaning'" cols="12" md="5">
+        <v-col v-if="selectedTypeSlug === 'word_meaning'" cols="12" md="5">
           <v-text-field v-model="item.meaning" label="Meaning" variant="outlined" />
         </v-col>
 
-        <v-col v-if="form.type === 'make_sentence'" cols="12" md="5">
+        <v-col v-if="selectedTypeSlug === 'make_sentence'" cols="12" md="5">
           <v-text-field v-model="item.sentence" label="Sentence" variant="outlined" />
         </v-col>
 
@@ -966,7 +1047,7 @@ onMounted(async () => {
     </v-card>
 
     <!-- MCQ OPTIONS -->
-    <div v-if="['mcq', 'multiple_mcq'].includes(form.type)">
+    <div v-if="isMCQ">
       <v-btn color="primary" variant="tonal" prepend-icon="mdi-plus" class="mt-3" @click="
         form.options.push({
           option_text: '',
@@ -989,8 +1070,8 @@ onMounted(async () => {
               </div>
               <v-spacer></v-spacer>
               <v-checkbox v-model="option.is_correct" density="compact" hide-details color="success"
-                :label="form.type === 'mcq' ? 'Correct' : 'Select'" @update:model-value="
-                  form.type === 'mcq' ? makeSingleCorrect(index) : null
+                :label="selectedTypeSlug === 'mcq' || selectedTypeSlug === 'true_false' ? 'Correct' : 'Select'" @update:model-value="
+                  selectedTypeSlug === 'mcq' || selectedTypeSlug === 'true_false' ? makeSingleCorrect(index) : null
                   " />
               <v-btn icon="mdi-delete" color="error" variant="text" size="small"
                 @click="form.options.splice(index, 1)" />

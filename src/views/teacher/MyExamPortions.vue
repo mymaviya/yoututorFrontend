@@ -21,8 +21,8 @@ const formLessons = ref([])
 
 const headers = [
   { title: 'Exam', key: 'exam' },
-  { title: 'Grade', key: 'grade.name' },
-  { title: 'Subject', key: 'subject.name' },
+  { title: 'Grade', key: 'grade_display' },
+  { title: 'Subject', key: 'subject_display' },
   { title: 'Due Date', key: 'due_date' },
   { title: 'Status', key: 'status' },
   { title: 'Actions', key: 'actions', sortable: false }
@@ -149,6 +149,37 @@ const examDate = (portion) => {
   return portion.exam_name?.tentative_date || null
 }
 
+const gradeName = (portion) => {
+  return portion.grade?.name ||
+    portion.grade_name ||
+    '-'
+}
+
+const subjectName = (portion) => {
+  return portion.subject?.name ||
+    portion.subject_name ||
+    portion.subject_title ||
+    '-'
+}
+
+const lessonName = (item) => {
+  return item.lesson?.name ||
+    item.lesson?.title ||
+    item.lesson_name ||
+    item.lesson_title ||
+    item.name ||
+    item.title ||
+    '-'
+}
+
+const lessonOptionTitle = (lesson) => {
+  return lesson?.name ||
+    lesson?.title ||
+    lesson?.lesson_name ||
+    lesson?.lesson_title ||
+    `Lesson #${lesson?.id || ''}`
+}
+
 onMounted(fetchPortions)
 </script>
 
@@ -248,6 +279,14 @@ onMounted(fetchPortions)
           </div>
         </template>
 
+        <template #item.grade_display="{ item }">
+          {{ gradeName(item) }}
+        </template>
+
+        <template #item.subject_display="{ item }">
+          {{ subjectName(item) }}
+        </template>
+
         <template #item.due_date="{ item }">
           {{ formatDate(item.due_date) }}
         </template>
@@ -318,8 +357,8 @@ onMounted(fetchPortions)
             </div>
 
             <div>
-              {{ selectedPortion.grade?.name }} -
-              {{ selectedPortion.subject?.name }}
+              {{ gradeName(selectedPortion) }} -
+              {{ subjectName(selectedPortion) }}
             </div>
 
             <div v-if="selectedPortion.due_date">
@@ -376,7 +415,7 @@ onMounted(fetchPortions)
                 <v-select
                   v-model="row.lesson_id"
                   :items="lessons"
-                  item-title="title"
+                  :item-title="lessonOptionTitle"
                   item-value="id"
                   label="Select Existing Lesson"
                   clearable
@@ -474,11 +513,11 @@ onMounted(fetchPortions)
             </v-chip>
 
             <v-chip variant="tonal">
-              {{ selectedPortion.grade?.name }}
+              {{ gradeName(selectedPortion) }}
             </v-chip>
 
             <v-chip variant="tonal">
-              {{ selectedPortion.subject?.name }}
+              {{ subjectName(selectedPortion) }}
             </v-chip>
 
             <v-chip
@@ -520,7 +559,7 @@ onMounted(fetchPortions)
                 v-for="item in selectedPortion.lessons"
                 :key="item.id"
               >
-                <td>{{ item.lesson?.title || '-' }}</td>
+                <td>{{ lessonName(item) }}</td>
                 <td>{{ item.topics || '-' }}</td>
                 <td>{{ item.learning_objectives || '-' }}</td>
                 <td>{{ item.remarks || '-' }}</td>

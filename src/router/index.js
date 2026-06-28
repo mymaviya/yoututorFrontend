@@ -742,6 +742,18 @@ const routes = [
           mode: "master",
         },
       },
+      {
+        path: "/paper-generator/ai",
+        name: "ai.paper.generator.index",
+        component: () => import("../views/paper-generator/AiPaperGeneratorPage.vue"),
+        meta: {
+          title: "AI Paper Generator",
+          requiresAuth: true,
+          permission: "ai.paper.generator.index",
+          featureKey: "ai_paper_generator",
+        },
+      },
+
 
 
     ],

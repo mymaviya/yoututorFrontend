@@ -14,6 +14,7 @@ const isSilentRequest = (config = {}) => {
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
+  timeout: 600000,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json'

@@ -15,7 +15,7 @@
           <v-btn
             color="primary"
             variant="flat"
-            :disabled="!selected.length || importing"
+            :disabled="isSuperAdminMode || !selected.length || importing"
             :loading="importing"
             @click="importSelected"
           >
@@ -31,8 +31,44 @@
       variant="tonal"
       class="mb-4"
     >
-      No premium question bank package is assigned to your subscription yet.
+      {{
+        isSuperAdminMode
+          ? 'No master question bank package has been created yet.'
+          : 'No premium question bank package is assigned to your subscription yet.'
+      }}
     </v-alert>
+
+    <v-row v-if="packages.length" class="mb-4">
+      <v-col
+        v-for="item in packages"
+        :key="`${item.source}-${item.package?.id}`"
+        cols="12"
+        md="4"
+      >
+        <v-card variant="outlined" class="h-100 rounded-xl">
+          <v-card-text>
+            <div class="d-flex align-start justify-space-between ga-3">
+              <div>
+                <div class="font-weight-bold">
+                  {{ item.package?.name || '-' }}
+                </div>
+                <div class="text-caption text-medium-emphasis mt-1">
+                  {{ item.package?.grade_group || 'Grade/package access' }}
+                </div>
+              </div>
+
+              <v-chip
+                size="small"
+                variant="tonal"
+                :color="packageSourceColor(item.source)"
+              >
+                {{ packageSourceLabel(item.source) }}
+              </v-chip>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
 
     <v-card class="mb-4" variant="outlined">
       <v-card-text>
@@ -114,10 +150,10 @@
           <div class="py-2">
             <div class="font-weight-medium" v-html="item.question"></div>
             <div class="text-caption text-medium-emphasis mt-1">
-              {{ item.grade?.name || '-' }}
-              <span v-if="item.stream"> / {{ item.stream?.name }}</span>
-              / {{ item.subject?.name || '-' }}
-              <span v-if="item.lesson"> / {{ item.lesson?.name }}</span>
+              {{ displayName(item.grade) || '-' }}
+              <span v-if="item.stream"> / {{ displayName(item.stream) }}</span>
+              / {{ displayName(item.subject) || '-' }}
+              <span v-if="item.lesson"> / {{ displayName(item.lesson) }}</span>
             </div>
           </div>
         </template>
@@ -127,7 +163,20 @@
         </template>
 
         <template #item.package="{ item }">
-          {{ item.package?.name || '-' }}
+          <div class="py-2">
+            <div class="font-weight-medium">
+              {{ item.package?.name || '-' }}
+            </div>
+            <v-chip
+              v-if="packageSourceFor(item.question_bank_package_id)"
+              size="x-small"
+              variant="tonal"
+              class="mt-1"
+              :color="packageSourceColor(packageSourceFor(item.question_bank_package_id))"
+            >
+              {{ packageSourceLabel(packageSourceFor(item.question_bank_package_id)) }}
+            </v-chip>
+          </div>
         </template>
 
         <template #item.marks="{ item }">
@@ -135,14 +184,25 @@
         </template>
 
         <template #item.actions="{ item }">
-          <v-btn
-            size="small"
-            variant="text"
-            color="primary"
-            @click="openPreview(item)"
-          >
-            View
-          </v-btn>
+          <div class="d-flex ga-1 justify-end">
+            <v-btn
+              size="small"
+              variant="text"
+              color="primary"
+              @click="openPreview(item)"
+            >
+              View
+            </v-btn>
+            <v-btn
+              v-if="!isSuperAdminMode"
+              size="small"
+              variant="text"
+              color="success"
+              @click="importSingle(item.id)"
+            >
+              Import
+            </v-btn>
+          </div>
         </template>
       </v-data-table-server>
     </v-card>
@@ -154,6 +214,20 @@
         <v-card-text v-if="preview">
           <div class="text-subtitle-2 mb-2">
             {{ preview.type?.name || '-' }} · {{ preview.difficulty }} · {{ preview.marks }} marks
+          </div>
+
+          <div class="d-flex flex-wrap ga-2 mb-3">
+            <v-chip size="small" variant="tonal">
+              {{ preview.package?.name || '-' }}
+            </v-chip>
+            <v-chip
+              v-if="packageSourceFor(preview.question_bank_package_id)"
+              size="small"
+              variant="tonal"
+              :color="packageSourceColor(packageSourceFor(preview.question_bank_package_id))"
+            >
+              {{ packageSourceLabel(packageSourceFor(preview.question_bank_package_id)) }}
+            </v-chip>
           </div>
 
           <div class="mb-4" v-html="preview.question"></div>
@@ -172,7 +246,11 @@
           <v-btn variant="text" @click="previewDialog = false">
             Close
           </v-btn>
-          <v-btn color="primary" @click="importSingle(preview?.id)">
+          <v-btn
+            color="primary"
+            :disabled="isSuperAdminMode"
+            @click="importSingle(preview?.id)"
+          >
             Import
           </v-btn>
         </v-card-actions>
@@ -192,6 +270,7 @@ const loading = ref(false)
 const importing = ref(false)
 const packages = ref([])
 const questions = ref([])
+const isSuperAdminMode = ref(false)
 const selected = ref([])
 
 const previewDialog = ref(false)
@@ -231,21 +310,125 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
 ]
 
+const displayName = (item) => {
+  if (!item) return ''
+
+  return (
+    item.name ||
+    item.title ||
+    item.subject_name ||
+    item.lesson_name ||
+    item.lesson_title ||
+    item.stream_name ||
+    item.grade_name ||
+    ''
+  )
+}
+
+const normalizePackageAccess = (item, source = 'subscription_plan') => {
+  if (item?.package) {
+    return {
+      ...item,
+      source: item.source || source,
+      source_label: item.source_label || packageSourceLabel(item.source || source),
+      package: item.package,
+    }
+  }
+
+  return {
+    id: null,
+    source,
+    source_label: packageSourceLabel(source),
+    package: item,
+  }
+}
+
 const packageOptions = computed(() => {
   return packages.value
     .map((purchase) => purchase.package)
     .filter(Boolean)
+    .map((packageItem) => ({
+      ...packageItem,
+      name: `${packageItem.name || '-'}${packageSourceFor(packageItem.id) ? ` (${packageSourceLabel(packageSourceFor(packageItem.id))})` : ''}`,
+    }))
 })
 
+const packageSourceMap = computed(() => {
+  const map = {}
+
+  packages.value.forEach((item) => {
+    if (item.package?.id) {
+      map[item.package.id] = item.source
+    }
+  })
+
+  return map
+})
+
+const packageSourceFor = (packageId) => {
+  if (!packageId) return null
+
+  return packageSourceMap.value[packageId] || null
+}
+
+const packageSourceLabel = (source) => {
+  return {
+    subscription_plan: 'Included in Plan',
+    manual_purchase: 'Add-on Purchase',
+    superadmin: 'Super Admin Preview',
+  }[source] || 'Package Access'
+}
+
+const packageSourceColor = (source) => {
+  return {
+    subscription_plan: 'success',
+    manual_purchase: 'primary',
+    superadmin: 'secondary',
+  }[source] || 'grey'
+}
+
 const fetchPackages = async () => {
+  isSuperAdminMode.value = false
+
   try {
     const res = await api.get('/master-question-bank/packages')
-    packages.value = res.data.data || []
+    packages.value = (res.data.data || []).map((item) => normalizePackageAccess(item))
+
+    if (!packages.value.length) {
+      await fetchSuperAdminPackagesFallback()
+    }
   } catch (err) {
-    ui.showSnackbar(
-      err.response?.data?.message || 'Failed to load purchased packages',
-      'error'
-    )
+    await fetchSuperAdminPackagesFallback()
+
+    if (!isSuperAdminMode.value) {
+      ui.showSnackbar(
+        err.response?.data?.message || 'Failed to load purchased packages',
+        'error'
+      )
+    }
+  }
+}
+
+const fetchSuperAdminPackagesFallback = async () => {
+  try {
+    const res = await api.get('/admin/question-bank-packages', {
+      params: {
+        status: 'active',
+        per_page: 1000,
+      },
+    })
+
+    const payload = res.data.data
+    const rows = Array.isArray(payload)
+      ? payload
+      : payload?.data || []
+
+    if (rows.length) {
+      isSuperAdminMode.value = true
+      packages.value = rows.map((item) => normalizePackageAccess(item, 'superadmin'))
+    }
+  } catch (err) {
+    // Non-superadmin users may not access admin package routes. Ignore fallback failure.
   }
 }
 
@@ -253,7 +436,11 @@ const fetchQuestions = async () => {
   loading.value = true
 
   try {
-    const res = await api.get('/master-question-bank/questions', {
+    const endpoint = isSuperAdminMode.value
+      ? '/admin/master-questions'
+      : '/master-question-bank/questions'
+
+    const res = await api.get(endpoint, {
       params: {
         ...filters,
         page: pagination.page,

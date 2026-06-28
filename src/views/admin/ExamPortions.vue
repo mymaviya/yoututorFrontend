@@ -443,7 +443,7 @@ onMounted(() => {
                       - {{ assignment.stream.name }}
                     </template>
 
-                    - {{ assignment.subject?.name }}
+                    - {{ assignment.subject?.name }}  
                   </v-chip>
                 </div>
               </div>
@@ -566,7 +566,7 @@ onMounted(() => {
 
             <tbody>
               <tr v-for="item in selectedPortion.lessons" :key="item.id">
-                <td>{{ item.lesson?.title || "-" }}</td>
+                <td>{{ item.lesson?.name || item.lesson?.title || "-" }}</td>
                 <td>{{ item.topics || "-" }}</td>
                 <td>{{ item.learning_objectives || "-" }}</td>
                 <td>{{ item.remarks || "-" }}</td>

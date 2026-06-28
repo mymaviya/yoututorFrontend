@@ -28,6 +28,7 @@
         <v-alert type="info" variant="tonal" class="mb-4">
           Required columns:
           <strong>
+            <span v-if="isMasterMode">Package Slug, </span>
             Grade, Stream, Subject, Lesson, Question Type, Question, Difficulty,
             Bloom Level, Marks, Answer, Explanation, Options, Correct Option, Match Pairs
           </strong>
@@ -39,7 +40,7 @@
           variant="tonal"
           class="mb-4"
         >
-          Master import saves platform-owned questions into the selected package below.
+          Master import saves platform-owned questions. Select a package below to apply one package to the full file, or leave it blank and use the Package Slug column in Excel.
         </v-alert>
 
         <v-select
@@ -68,7 +69,7 @@
           color="success"
           prepend-icon="mdi-upload"
           :loading="loading"
-          :disabled="!file || (isMasterMode && !masterPackageId)"
+          :disabled="!file"
           @click="submitImport"
         >
           {{ isMasterMode ? 'Import Master Questions' : 'Import Questions' }}
@@ -241,14 +242,6 @@ const submitImport = async () => {
       file: ['Please select a file.'],
     }
     ui.showSnackbar('Please select a file', 'warning')
-    return
-  }
-
-  if (isMasterMode.value && !masterPackageId.value) {
-    formErrors.value = {
-      question_bank_package_id: ['Please select a question bank package.'],
-    }
-    ui.showSnackbar('Please select a question bank package', 'warning')
     return
   }
 

@@ -1370,7 +1370,7 @@ onMounted(async () => {
     } else {
       await fetchQuestions();
     }
-    
+
   } finally {
     pageReady.value = true;
     loading.stopPage();
@@ -1545,8 +1545,12 @@ onMounted(async () => {
                         <v-chip size="small" color="warning" variant="tonal">
                           {{ element.difficulty || element.difficulty_level }}
                         </v-chip>
+                        
+                        
                       </div>
-
+                      
+                      <v-btn v-if="element.is_ai_generated"  icon="mdi-robot" size="small" variant="text" color="info" />
+                         
                       <v-btn v-if="!isQuestionAdded(element.id)" color="primary" size="small"
                         @click="handleAddQuestionClick(element)">
                         Add

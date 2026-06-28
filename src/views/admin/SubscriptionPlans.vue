@@ -391,6 +391,52 @@
                 </v-card-text>
               </v-card>
             </v-col>
+
+            <v-col cols="12">
+              <v-card variant="outlined" rounded="lg">
+                <v-card-title class="text-subtitle-1 font-weight-bold">
+                  Included Master Question Bank Packages
+                </v-card-title>
+
+                <v-card-subtitle>
+                  Schools on this subscription plan will automatically get access to selected premium question bank packages.
+                </v-card-subtitle>
+
+                <v-card-text>
+                  <v-select
+                    v-model="form.question_bank_package_ids"
+                    :items="questionBankPackages"
+                    item-title="name"
+                    item-value="id"
+                    label="Question Bank Packages"
+                    variant="outlined"
+                    density="comfortable"
+                    multiple
+                    chips
+                    closable-chips
+                    clearable
+                    :error-messages="formErrors.question_bank_package_ids"
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item v-bind="props">
+                        <template #subtitle>
+                          {{ item.raw?.grade_group || item.raw?.package_type || '' }}
+                        </template>
+                      </v-list-item>
+                    </template>
+                  </v-select>
+
+                  <v-alert
+                    type="info"
+                    variant="tonal"
+                    density="comfortable"
+                    class="mt-3"
+                  >
+                    Manual purchases can still be assigned separately as add-ons. This selection is bundled with the plan itself.
+                  </v-alert>
+                </v-card-text>
+              </v-card>
+            </v-col>
           </v-row>
         </v-card-text>
 
@@ -497,6 +543,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import api from '../../plugins/api'
+import { useUIStore } from '../../stores/snackBar'
+
+const ui = useUIStore()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -506,6 +555,7 @@ const isEditing = ref(false)
 const selectedPlan = ref(null)
 
 const plans = ref([])
+const questionBankPackages = ref([])
 
 const filters = reactive({
   search: '',
@@ -531,6 +581,7 @@ const featureCatalog = [
   { key: 'basic_reports', label: 'Basic Reports' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'import_export', label: 'Import / Export' },
+  { key: 'premium_question_bank', label: 'Premium Question Bank' },
   { key: 'user_management', label: 'User Management' },
   { key: 'role_permission_management', label: 'Roles & Permissions' },
   { key: 'security_settings', label: 'Security Settings' },
@@ -548,6 +599,7 @@ const form = reactive({
   trial_days: 0,
   features: [''],
   enabled_feature_keys: [],
+  question_bank_package_ids: [],
   is_trial: false,
   is_popular: false,
   is_active: true,
@@ -564,6 +616,7 @@ const formErrors = reactive({
   trial_days: [],
   features: [],
   feature_items: [],
+  question_bank_package_ids: [],
   is_trial: [],
   is_popular: [],
   is_active: [],
@@ -585,6 +638,25 @@ const statusOptions = [
   { title: 'Inactive', value: 'inactive' }
 ]
 
+
+const fetchQuestionBankPackages = async () => {
+  try {
+    const response = await api.get('/admin/question-bank-packages', {
+      params: {
+        per_page: 1000,
+        status: 'active'
+      }
+    })
+
+    questionBankPackages.value = response.data.data?.data || []
+  } catch (error) {
+    ui.showSnackbar(
+      error.response?.data?.message || 'Failed to load question bank packages',
+      'error'
+    )
+  }
+}
+
 const fetchPlans = async () => {
   loading.value = true
 
@@ -605,7 +677,7 @@ const fetchPlans = async () => {
     pagination.page = result.current_page || 1
     pagination.per_page = result.per_page || 50
   } catch (error) {
-    console.error(error)
+    ui.showSnackbar(error.response?.data?.message || 'Failed to load subscription plans', 'error')
   } finally {
     loading.value = false
   }
@@ -639,6 +711,7 @@ const resetForm = () => {
   form.trial_days = 0
   form.features = ['']
   form.enabled_feature_keys = []
+  form.question_bank_package_ids = []
   form.is_trial = false
   form.is_popular = false
   form.is_active = true
@@ -669,6 +742,7 @@ const openEditDialog = (item) => {
     ? normalizedFeatures(item.features)
     : ['']
   form.enabled_feature_keys = enabledFeatureKeys(item)
+  form.question_bank_package_ids = selectedQuestionBankPackageIds(item)
   form.is_trial = Boolean(item.is_trial)
   form.is_popular = Boolean(item.is_popular)
   form.is_active = Boolean(item.is_active)
@@ -725,6 +799,7 @@ const savePlan = async () => {
   const payload = {
     ...form,
     features: form.features.map(item => String(item || '').trim()).filter(Boolean),
+    question_bank_package_ids: form.question_bank_package_ids,
     feature_items: featureCatalog.map(feature => ({
       feature_key: feature.key,
       is_enabled: enabledKeys.includes(feature.key)
@@ -742,8 +817,10 @@ const savePlan = async () => {
   try {
     if (isEditing.value) {
       await api.put(`/admin/subscription-plans/${form.id}`, payload)
+      ui.showSnackbar('Subscription plan updated successfully')
     } else {
       await api.post('/admin/subscription-plans', payload)
+      ui.showSnackbar('Subscription plan created successfully')
     }
 
     formDialog.value = false
@@ -751,6 +828,9 @@ const savePlan = async () => {
   } catch (error) {
     if (error.response?.data?.errors) {
       Object.assign(formErrors, error.response.data.errors)
+      ui.showSnackbar('Please fix the validation errors', 'error')
+    } else {
+      ui.showSnackbar(error.response?.data?.message || 'Failed to save subscription plan', 'error')
     }
   } finally {
     saving.value = false
@@ -758,13 +838,19 @@ const savePlan = async () => {
 }
 
 const deletePlan = async (item) => {
-  if (!confirm(`Delete ${item.name}?`)) return
+  const ok = await ui.confirmDialog(
+    'Delete Subscription Plan',
+    `Are you sure you want to delete ${item.name}?`
+  )
+
+  if (!ok) return
 
   try {
     await api.delete(`/admin/subscription-plans/${item.id}`)
+    ui.showSnackbar('Subscription plan deleted successfully')
     fetchPlans()
   } catch (error) {
-    alert(error.response?.data?.message || 'Unable to delete plan.')
+    ui.showSnackbar(error.response?.data?.message || 'Unable to delete plan.', 'error')
   }
 }
 
@@ -796,6 +882,17 @@ const enabledFeatureKeys = (plan) => {
     .filter(Boolean)
 }
 
+
+const selectedQuestionBankPackageIds = (plan) => {
+  const packages = plan?.question_bank_packages || plan?.questionBankPackages || []
+
+  if (!Array.isArray(packages)) return []
+
+  return packages
+    .map(item => item?.id || item?.question_bank_package_id)
+    .filter(Boolean)
+}
+
 const featureLabel = (featureKey) => {
   return featureCatalog.find(feature => feature.key === featureKey)?.label || featureKey
 }
@@ -806,5 +903,8 @@ const formatAmount = (amount) => {
   })
 }
 
-onMounted(fetchPlans)
+onMounted(async () => {
+  await fetchQuestionBankPackages()
+  await fetchPlans()
+})
 </script>
