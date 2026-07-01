@@ -11,6 +11,7 @@ const ui = useUIStore();
 
 const papers = ref([]);
 const loading = ref(false);
+const exportingId = ref(null);
 
 const headers = [
   { title: "Title", key: "title" },
@@ -29,6 +30,11 @@ const fetchPapers = async () => {
   try {
     const res = await api.get("/question-papers");
     papers.value = res.data.data || res.data;
+  } catch (e) {
+    ui.showSnackbar(
+      e.response?.data?.message || "Failed to load question papers.",
+      "error",
+    );
   } finally {
     loading.value = false;
   }
@@ -46,23 +52,82 @@ const editPaper = (id) => {
   router.push(`/papers/${id}/edit`);
 };
 
-const downloadPdf = async (id) => {
-  const res = await api.get(`/question-papers/${id}/pdf`, {
-    responseType: "blob",
-  });
+const getFilenameFromResponse = (response, fallback) => {
+  const disposition = response.headers?.["content-disposition"];
 
-  const blob = new Blob([res.data], {
-    type: "application/pdf",
-  });
+  if (!disposition) return fallback;
 
-  const url = window.URL.createObjectURL(blob);
+  const match = disposition.match(/filename="?([^"]+)"?/i);
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `question-paper-${id}.pdf`;
-  link.click();
+  return match?.[1] || fallback;
+};
 
-  window.URL.revokeObjectURL(url);
+const downloadFile = async (id, endpoint, fallbackName, mimeType) => {
+  exportingId.value = `${id}-${endpoint}`;
+
+  try {
+    const res = await api.get(`/question-papers/${id}/${endpoint}`, {
+      responseType: "blob",
+    });
+
+    const blob = new Blob([res.data], {
+      type: mimeType,
+    });
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = getFilenameFromResponse(res, fallbackName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    ui.showSnackbar(
+      e.response?.data?.message || "Failed to export question paper.",
+      "error",
+    );
+  } finally {
+    exportingId.value = null;
+  }
+};
+
+const exportPaperWord = (id) => {
+  downloadFile(
+    id,
+    "export-word",
+    `question-paper-${id}.doc`,
+    "application/msword",
+  );
+};
+
+const exportAnswerKeyWord = (id) => {
+  downloadFile(
+    id,
+    "answer-key-word",
+    `question-paper-${id}-answer-key.doc`,
+    "application/msword",
+  );
+};
+
+const exportPaperPdf = (id) => {
+  downloadFile(
+    id,
+    "export-pdf",
+    `question-paper-${id}.pdf`,
+    "application/pdf",
+  );
+};
+
+const exportAnswerKeyPdf = (id) => {
+  downloadFile(
+    id,
+    "answer-key-pdf",
+    `question-paper-${id}-answer-key.pdf`,
+    "application/pdf",
+  );
 };
 
 const deletePaper = async (id) => {
@@ -73,11 +138,18 @@ const deletePaper = async (id) => {
 
   if (!ok) return;
 
-  await api.delete(`/question-papers/${id}`);
+  try {
+    await api.delete(`/question-papers/${id}`);
 
-  ui.showSnackbar("Question paper deleted successfully");
+    ui.showSnackbar("Question paper deleted successfully");
 
-  fetchPapers();
+    fetchPapers();
+  } catch (e) {
+    ui.showSnackbar(
+      e.response?.data?.message || "Failed to delete question paper.",
+      "error",
+    );
+  }
 };
 
 const statusColor = (status) => {
@@ -92,27 +164,43 @@ const statusColor = (status) => {
 };
 
 const finalizePaper = async (id) => {
-  await api.post(`/question-papers/${id}/finalize`);
-  ui.showSnackbar("Paper finalized successfully");
-  fetchPapers();
+  try {
+    await api.post(`/question-papers/${id}/finalize`);
+    ui.showSnackbar("Paper finalized successfully");
+    fetchPapers();
+  } catch (e) {
+    ui.showSnackbar(e.response?.data?.message || "Failed to finalize paper.", "error");
+  }
 };
 
 const reopenPaper = async (id) => {
-  await api.post(`/question-papers/${id}/reopen`);
-  ui.showSnackbar("Paper reopened successfully");
-  fetchPapers();
+  try {
+    await api.post(`/question-papers/${id}/reopen`);
+    ui.showSnackbar("Paper reopened successfully");
+    fetchPapers();
+  } catch (e) {
+    ui.showSnackbar(e.response?.data?.message || "Failed to reopen paper.", "error");
+  }
 };
 
 const markPrinted = async (id) => {
-  await api.post(`/question-papers/${id}/printed`);
-  ui.showSnackbar("Paper marked as printed");
-  fetchPapers();
+  try {
+    await api.post(`/question-papers/${id}/printed`);
+    ui.showSnackbar("Paper marked as printed");
+    fetchPapers();
+  } catch (e) {
+    ui.showSnackbar(e.response?.data?.message || "Failed to mark as printed.", "error");
+  }
 };
 
 const archivePaper = async (id) => {
-  await api.post(`/question-papers/${id}/archive`);
-  ui.showSnackbar("Paper archived successfully");
-  fetchPapers();
+  try {
+    await api.post(`/question-papers/${id}/archive`);
+    ui.showSnackbar("Paper archived successfully");
+    fetchPapers();
+  } catch (e) {
+    ui.showSnackbar(e.response?.data?.message || "Failed to archive paper.", "error");
+  }
 };
 
 onMounted(fetchPapers);
@@ -134,10 +222,13 @@ onMounted(fetchPapers);
 
     <v-card class="rounded-xl" elevation="0">
       <appDataTable :headers="headers" :items="papers" :loading="loading">
-        <template #item.exam_type="{ item }"> {{ item.exam_name?.name || item.examName?.name || item.exam_type || '-' }} </template>
+        <template #item.exam_type="{ item }">
+          {{ item.exam_name?.name || item.examName?.name || item.exam_type || "-" }}
+        </template>
 
-
-        <template #item.duration_minutes="{ item }"> {{ item.duration_minutes }} min </template>
+        <template #item.duration_minutes="{ item }">
+          {{ item.duration_minutes || item.duration || "-" }} min
+        </template>
 
         <template #item.total_marks="{ item }">
           <v-chip color="primary" variant="tonal">
@@ -156,7 +247,7 @@ onMounted(fetchPapers);
         </template>
 
         <template #item.actions="{ item }">
-          <div class="d-flex ga-1">
+          <div class="d-flex ga-1 align-center">
             <v-tooltip text="View Paper">
               <template #activator="{ props }">
                 <v-btn
@@ -186,18 +277,54 @@ onMounted(fetchPapers);
               </template>
             </v-tooltip>
 
-            <v-tooltip text="Download PDF">
+            <v-menu location="bottom end">
               <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  icon="mdi-file-pdf-box"
-                  size="small"
-                  variant="text"
-                  color="red"
-                  @click="downloadPdf(item.id)"
-                />
+                <v-tooltip text="Export Paper">
+                  <template #activator="{ props: tooltipProps }">
+                    <v-btn
+                      v-bind="{ ...props, ...tooltipProps }"
+                      icon="mdi-download"
+                      size="small"
+                      variant="text"
+                      color="deep-purple"
+                      :loading="String(exportingId || '').startsWith(`${item.id}-`)"
+                    />
+                  </template>
+                </v-tooltip>
               </template>
-            </v-tooltip>
+
+              <v-list density="compact" min-width="250">
+                <v-list-subheader>Question Paper</v-list-subheader>
+
+                <v-list-item
+                  prepend-icon="mdi-file-word-box"
+                  title="Download Paper Word"
+                  @click="exportPaperWord(item.id)"
+                />
+
+                <v-list-item
+                  prepend-icon="mdi-file-pdf-box"
+                  title="Download Paper PDF"
+                  @click="exportPaperPdf(item.id)"
+                />
+
+                <v-divider class="my-1" />
+
+                <v-list-subheader>Answer Key</v-list-subheader>
+
+                <v-list-item
+                  prepend-icon="mdi-file-word-box-outline"
+                  title="Download Answer Key Word"
+                  @click="exportAnswerKeyWord(item.id)"
+                />
+
+                <v-list-item
+                  prepend-icon="mdi-file-pdf-box"
+                  title="Download Answer Key PDF"
+                  @click="exportAnswerKeyPdf(item.id)"
+                />
+              </v-list>
+            </v-menu>
 
             <v-tooltip
               text="Finalize Paper"
