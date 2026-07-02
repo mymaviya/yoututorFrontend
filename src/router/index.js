@@ -95,6 +95,15 @@ const routes = [
           public: true,
           title: 'Payment Failed'
         }
+      },
+      {
+        path: '/desktop-dashboard',
+        name: 'DesktopDashboard',
+        component: () => import('../views/public/DesktopDashboard.vue'),
+        meta: {
+          public: true,
+          layout: 'blank'
+        }
       }
     ]
   },
@@ -397,6 +406,16 @@ const routes = [
         name: "roles.edit",
         component: () => import("../views/admin/roles/RoleForm.vue"),
         meta: { title: "Edit Role" },
+      },
+
+      {
+        path: "/school-profile",
+        name: "school.profile",
+        component: () => import("../views/admin/SchoolProfilePage.vue"),
+        meta: {
+          title: "School Profile",
+          requiresAuth: true,
+        },
       },
 
       {

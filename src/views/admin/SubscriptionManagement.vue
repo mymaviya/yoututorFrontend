@@ -11,12 +11,7 @@
 
         <v-spacer />
 
-        <v-btn
-          color="primary"
-          prepend-icon="mdi-refresh"
-          :loading="loading"
-          @click="fetchSubscriptions"
-        >
+        <v-btn color="primary" prepend-icon="mdi-refresh" :loading="loading" @click="fetchSubscriptions">
           Refresh
         </v-btn>
       </v-card-title>
@@ -26,40 +21,19 @@
       <v-card-text>
         <v-row>
           <v-col cols="12" md="4">
-            <v-text-field
-              v-model="filters.search"
-              label="Search school, person, mobile, email"
-              variant="outlined"
-              density="comfortable"
-              prepend-inner-icon="mdi-magnify"
-              clearable
-              @keyup.enter="fetchSubscriptions"
-              @click:clear="clearSearch"
-            />
+            <v-text-field v-model="filters.search" label="Search school, person, mobile, email" variant="outlined"
+              density="comfortable" prepend-inner-icon="mdi-magnify" clearable @keyup.enter="fetchSubscriptions"
+              @click:clear="clearSearch" />
           </v-col>
 
           <v-col cols="12" md="3">
-            <v-select
-              v-model="filters.status"
-              label="Status"
-              :items="statusOptions"
-              variant="outlined"
-              density="comfortable"
-              clearable
-              @update:model-value="fetchSubscriptions"
-            />
+            <v-select v-model="filters.status" label="Status" :items="statusOptions" variant="outlined"
+              density="comfortable" clearable @update:model-value="fetchSubscriptions" />
           </v-col>
 
           <v-col cols="12" md="3">
-            <v-select
-              v-model="filters.plan_id"
-              label="Plan"
-              :items="planOptions"
-              variant="outlined"
-              density="comfortable"
-              clearable
-              @update:model-value="fetchSubscriptions"
-            />
+            <v-select v-model="filters.plan_id" label="Plan" :items="planOptions" variant="outlined"
+              density="comfortable" clearable @update:model-value="fetchSubscriptions" />
           </v-col>
 
           <v-col cols="12" md="2">
@@ -69,16 +43,9 @@
           </v-col>
         </v-row>
 
-        <v-data-table-server
-          v-model:items-per-page="pagination.per_page"
-          :headers="headers"
-          :items="subscriptions"
-          :items-length="pagination.total"
-          :loading="loading"
-          item-value="id"
-          class="rounded-lg"
-          @update:options="onTableOptions"
-        >
+        <v-data-table-server v-model:items-per-page="pagination.per_page" :headers="headers" :items="subscriptions"
+          :items-length="pagination.total" :loading="loading" item-value="id" class="rounded-lg"
+          @update:options="onTableOptions">
           <template #item.school_name="{ item }">
             <div class="font-weight-bold">{{ item.school_name }}</div>
             <div class="text-caption text-medium-emphasis">
@@ -111,11 +78,7 @@
 
           <template #item.license="{ item }">
             <div v-if="item.license_key">
-              <v-chip
-                :color="licenseColor(item.license_key.status)"
-                variant="tonal"
-                size="small"
-              >
+              <v-chip :color="licenseColor(item.license_key.status)" variant="tonal" size="small">
                 {{ formatStatus(item.license_key.status) }}
               </v-chip>
 
@@ -138,45 +101,20 @@
 
           <template #item.actions="{ item }">
             <div class="d-flex ga-2 justify-end flex-wrap">
-              <v-btn
-                icon="mdi-eye"
-                size="small"
-                variant="tonal"
-                color="primary"
-                @click="openViewDialog(item)"
-              />
+              <v-btn icon="mdi-eye" size="small" variant="tonal" color="primary" @click="openViewDialog(item)" />
 
-              <v-btn
-                icon="mdi-cash-check"
-                size="small"
-                variant="tonal"
-                color="success"
-                @click="openActivateDialog(item)"
-              />
+              <v-btn icon="mdi-school" size="small" variant="tonal" color="deep-purple" title="Update School Profile"
+                @click="openSchoolProfileDialog(item)" />
 
-              <v-btn
-                icon="mdi-calendar-plus"
-                size="small"
-                variant="tonal"
-                color="info"
-                @click="openExtendDialog(item)"
-              />
+              <v-btn icon="mdi-cash-check" size="small" variant="tonal" color="success"
+                @click="openActivateDialog(item)" />
 
-              <v-btn
-                icon="mdi-autorenew"
-                size="small"
-                variant="tonal"
-                color="success"
-                @click="openRenewDialog(item)"
-              />
+              <v-btn icon="mdi-calendar-plus" size="small" variant="tonal" color="info"
+                @click="openExtendDialog(item)" />
 
-              <v-btn
-                icon="mdi-pencil"
-                size="small"
-                variant="tonal"
-                color="warning"
-                @click="openStatusDialog(item)"
-              />
+              <v-btn icon="mdi-autorenew" size="small" variant="tonal" color="success" @click="openRenewDialog(item)" />
+
+              <v-btn icon="mdi-pencil" size="small" variant="tonal" color="warning" @click="openStatusDialog(item)" />
             </div>
           </template>
         </v-data-table-server>
@@ -196,12 +134,7 @@
 
           <v-spacer />
 
-          <v-chip
-            v-if="selected"
-            :color="statusColor(selected.status)"
-            variant="flat"
-            size="small"
-          >
+          <v-chip v-if="selected" :color="statusColor(selected.status)" variant="flat" size="small">
             {{ formatStatus(selected.status) }}
           </v-chip>
         </v-card-title>
@@ -311,12 +244,7 @@
             </v-window-item>
 
             <v-window-item value="renewals">
-              <v-alert
-                v-if="!renewalHistory.length"
-                color="info"
-                variant="tonal"
-                rounded="lg"
-              >
+              <v-alert v-if="!renewalHistory.length" color="info" variant="tonal" rounded="lg">
                 No renewal history found for this subscription.
               </v-alert>
 
@@ -369,34 +297,15 @@
         <v-divider />
 
         <v-card-text>
-          <v-select
-            v-model="activateForm.subscription_plan_id"
-            label="Select Plan"
-            :items="paidPlanOptions"
-            variant="outlined"
-            density="comfortable"
-            :error-messages="formErrors.subscription_plan_id"
-            @update:model-value="setPlanAmount"
-          />
+          <v-select v-model="activateForm.subscription_plan_id" label="Select Plan" :items="paidPlanOptions"
+            variant="outlined" density="comfortable" :error-messages="formErrors.subscription_plan_id"
+            @update:model-value="setPlanAmount" />
 
-          <v-text-field
-            v-model="activateForm.amount"
-            label="Amount"
-            type="number"
-            variant="outlined"
-            density="comfortable"
-            prefix="₹"
-            :error-messages="formErrors.amount"
-          />
+          <v-text-field v-model="activateForm.amount" label="Amount" type="number" variant="outlined"
+            density="comfortable" prefix="₹" :error-messages="formErrors.amount" />
 
-          <v-text-field
-            v-model="activateForm.starts_at"
-            label="Start Date"
-            type="date"
-            variant="outlined"
-            density="comfortable"
-            :error-messages="formErrors.starts_at"
-          />
+          <v-text-field v-model="activateForm.starts_at" label="Start Date" type="date" variant="outlined"
+            density="comfortable" :error-messages="formErrors.starts_at" />
         </v-card-text>
 
         <v-card-actions class="pa-4">
@@ -416,14 +325,8 @@
         <v-divider />
 
         <v-card-text>
-          <v-text-field
-            v-model="extendForm.days"
-            label="Extend Days"
-            type="number"
-            variant="outlined"
-            density="comfortable"
-            :error-messages="formErrors.days"
-          />
+          <v-text-field v-model="extendForm.days" label="Extend Days" type="number" variant="outlined"
+            density="comfortable" :error-messages="formErrors.days" />
         </v-card-text>
 
         <v-card-actions class="pa-4">
@@ -449,60 +352,29 @@
 
           <v-row>
             <v-col cols="12" md="6">
-              <v-select
-                v-model="renewForm.subscription_plan_id"
-                label="Subscription Plan"
-                :items="paidPlanOptions"
-                variant="outlined"
-                density="comfortable"
-                :error-messages="formErrors.subscription_plan_id"
-                @update:model-value="setRenewPlanValues"
-              />
+              <v-select v-model="renewForm.subscription_plan_id" label="Subscription Plan" :items="paidPlanOptions"
+                variant="outlined" density="comfortable" :error-messages="formErrors.subscription_plan_id"
+                @update:model-value="setRenewPlanValues" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-select
-                v-model="renewForm.renewal_type"
-                label="Renewal Type"
-                :items="renewalTypeOptions"
-                variant="outlined"
-                density="comfortable"
-                :error-messages="formErrors.renewal_type"
-              />
+              <v-select v-model="renewForm.renewal_type" label="Renewal Type" :items="renewalTypeOptions"
+                variant="outlined" density="comfortable" :error-messages="formErrors.renewal_type" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="renewForm.duration_days"
-                label="Duration Days"
-                type="number"
-                variant="outlined"
-                density="comfortable"
-                :error-messages="formErrors.duration_days"
-              />
+              <v-text-field v-model="renewForm.duration_days" label="Duration Days" type="number" variant="outlined"
+                density="comfortable" :error-messages="formErrors.duration_days" />
             </v-col>
 
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="renewForm.renewal_amount"
-                label="Renewal Amount"
-                type="number"
-                prefix="₹"
-                variant="outlined"
-                density="comfortable"
-                :error-messages="formErrors.renewal_amount"
-              />
+              <v-text-field v-model="renewForm.renewal_amount" label="Renewal Amount" type="number" prefix="₹"
+                variant="outlined" density="comfortable" :error-messages="formErrors.renewal_amount" />
             </v-col>
 
             <v-col cols="12">
-              <v-textarea
-                v-model="renewForm.remarks"
-                label="Remarks"
-                variant="outlined"
-                density="comfortable"
-                rows="3"
-                :error-messages="formErrors.remarks"
-              />
+              <v-textarea v-model="renewForm.remarks" label="Remarks" variant="outlined" density="comfortable" rows="3"
+                :error-messages="formErrors.remarks" />
             </v-col>
           </v-row>
         </v-card-text>
@@ -517,6 +389,109 @@
       </v-card>
     </v-dialog>
 
+
+    <!-- School Profile Dialog -->
+    <v-dialog v-model="schoolProfileDialog" max-width="1200" persistent>
+      <v-card rounded="xl">
+        <v-card-title class="d-flex align-center">
+          <div>
+            <div class="font-weight-bold">Update School Profile</div>
+            <div class="text-caption text-medium-emphasis">
+              These details will be used in question paper header and footer.
+            </div>
+          </div>
+
+          <v-spacer />
+
+          <v-btn icon="mdi-close" variant="text" :disabled="saving" @click="schoolProfileDialog = false" />
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text>
+          <v-col cols="12" md="12">
+            <v-card variant="outlined" rounded="lg" class="pa-4 mb-4">
+              <div class="text-subtitle-2 font-weight-bold mb-3">
+                Question Paper Header Preview
+              </div>
+
+              <SchoolHeaderPreview :show-title="false" :school-name="schoolProfileForm.school_name"
+                :school-address="schoolProfileForm.school_address" :school-phone="schoolProfileForm.school_phone"
+                :school-email="schoolProfileForm.school_email"
+                :school-logo="schoolLogoPreview || schoolProfileForm.school_logo" exam-title="Periodic Assessment 1"
+                :academic-session="schoolProfileForm.academic_session" />
+            </v-card>
+          </v-col>
+
+          <v-col cols="12" md="12">
+            <v-row>
+              <v-col cols="12" md="6">
+                <v-text-field v-model="schoolProfileForm.school_name" label="School Name" variant="outlined"
+                  density="comfortable" :error-messages="formErrors.school_name" />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field v-model="schoolProfileForm.school_code" label="School Code" variant="outlined"
+                  density="comfortable" disabled hint="School code is generated by system and cannot be changed."
+                  persistent-hint />
+              </v-col>
+
+              <v-col cols="12">
+                <v-textarea v-model="schoolProfileForm.school_address" label="School Address" variant="outlined"
+                  density="comfortable" rows="2" :error-messages="formErrors.school_address" />
+              </v-col>
+
+              <v-col cols="12" md="4">
+                <v-text-field v-model="schoolProfileForm.school_phone" label="School Phone" variant="outlined"
+                  density="comfortable" :error-messages="formErrors.school_phone" />
+              </v-col>
+
+              <v-col cols="12" md="4">
+                <v-text-field v-model="schoolProfileForm.school_email" label="School Email" variant="outlined"
+                  density="comfortable" :error-messages="formErrors.school_email" />
+              </v-col>
+
+              <v-col cols="12" md="4">
+                <v-text-field v-model="schoolProfileForm.academic_session" label="Academic Session" variant="outlined"
+                  density="comfortable" placeholder="2026-27" :error-messages="formErrors.academic_session" />
+              </v-col>
+
+              <v-col cols="12" md="4">
+                <v-text-field v-model="schoolProfileForm.principal_name" label="Principal Name" variant="outlined"
+                  density="comfortable" :error-messages="formErrors.principal_name" />
+              </v-col>
+
+              <v-col cols="12" md="4">
+                <v-text-field v-model="schoolProfileForm.affiliation_no" label="Affiliation / Registration No."
+                  variant="outlined" density="comfortable" :error-messages="formErrors.affiliation_no" />
+              </v-col>
+
+              <v-col cols="12" md="4">
+                <v-file-input v-model="schoolLogoFile" label="School Logo" variant="outlined" density="comfortable"
+                  accept="image/png,image/jpeg,image/jpg,image/webp" prepend-icon="mdi-image"
+                  hint="Recommended logo size: square PNG/JPG, below 1 MB." persistent-hint
+                  :error-messages="formErrors.logo || formErrors.school_logo" @update:model-value="previewSchoolLogo" />
+
+              </v-col>
+            </v-row>
+          </v-col>
+
+
+
+        </v-card-text>
+
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn variant="text" :disabled="saving" @click="schoolProfileDialog = false">
+            Cancel
+          </v-btn>
+          <v-btn color="primary" :loading="saving" @click="saveSchoolProfile">
+            Save Profile
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Status Dialog -->
     <v-dialog v-model="statusDialog" max-width="480">
       <v-card rounded="xl">
@@ -524,14 +499,8 @@
         <v-divider />
 
         <v-card-text>
-          <v-select
-            v-model="statusForm.status"
-            label="Status"
-            :items="statusOptions"
-            variant="outlined"
-            density="comfortable"
-            :error-messages="formErrors.status"
-          />
+          <v-select v-model="statusForm.status" label="Status" :items="statusOptions" variant="outlined"
+            density="comfortable" :error-messages="formErrors.status" />
         </v-card-text>
 
         <v-card-actions class="pa-4">
@@ -550,6 +519,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../../plugins/api'
 import { useUIStore } from '../../stores/snackBar'
+import SchoolHeaderPreview from '../../components/common/SchoolHeaderPreview.vue'
 
 const ui = useUIStore()
 
@@ -567,6 +537,7 @@ const activateDialog = ref(false)
 const extendDialog = ref(false)
 const statusDialog = ref(false)
 const renewDialog = ref(false)
+const schoolProfileDialog = ref(false)
 
 const filters = reactive({
   search: '',
@@ -602,6 +573,20 @@ const statusForm = reactive({
   status: ''
 })
 
+const schoolLogoFile = ref(null)
+const schoolLogoPreview = ref(null)
+
+const schoolProfileForm = reactive({
+  school_name: '',
+  school_code: '',
+  school_address: '',
+  school_phone: '',
+  school_email: '',
+  academic_session: '',
+  principal_name: '',
+  affiliation_no: ''
+})
+
 const formErrors = reactive({
   subscription_plan_id: [],
   amount: [],
@@ -611,7 +596,16 @@ const formErrors = reactive({
   duration_days: [],
   renewal_amount: [],
   renewal_type: [],
-  remarks: []
+  remarks: [],
+  school_name: [],
+  school_address: [],
+  school_phone: [],
+  school_email: [],
+  school_logo: [],
+  logo: [],
+  academic_session: [],
+  principal_name: [],
+  affiliation_no: []
 })
 
 const headers = [
@@ -770,6 +764,113 @@ const openStatusDialog = (item) => {
   selected.value = item
   statusForm.status = item.status
   statusDialog.value = true
+}
+
+const openSchoolProfileDialog = (item) => {
+  clearErrors()
+  selected.value = item
+  schoolLogoFile.value = null
+  schoolLogoPreview.value = item.school_logo_url || item.school_logo || null
+
+  schoolProfileForm.school_name = item.school_name || ''
+  schoolProfileForm.school_code = item.school_code || ''
+  schoolProfileForm.school_address = item.school_address || item.address || ''
+  schoolProfileForm.school_phone = item.school_phone || item.mobile || ''
+  schoolProfileForm.school_email = item.school_email || item.email || ''
+  schoolProfileForm.academic_session = item.academic_session || ''
+  schoolProfileForm.principal_name = item.principal_name || ''
+  schoolProfileForm.affiliation_no = item.affiliation_no || ''
+
+  schoolProfileDialog.value = true
+}
+
+const previewSchoolLogo = (file) => {
+  const logo = Array.isArray(file) ? file[0] : file
+
+  if (!logo) {
+    schoolLogoPreview.value = selected.value?.school_logo_url || selected.value?.school_logo || null
+    return
+  }
+
+  schoolLogoPreview.value = URL.createObjectURL(logo)
+}
+
+const saveSchoolProfile = async () => {
+  clearErrors()
+  saving.value = true
+
+  try {
+    const formData = new FormData()
+
+    formData.append('school_name', schoolProfileForm.school_name || '')
+    formData.append('school_address', schoolProfileForm.school_address || '')
+    formData.append('school_phone', schoolProfileForm.school_phone || '')
+    formData.append('school_email', schoolProfileForm.school_email || '')
+    formData.append('academic_session', schoolProfileForm.academic_session || '')
+    formData.append('principal_name', schoolProfileForm.principal_name || '')
+    formData.append('affiliation_no', schoolProfileForm.affiliation_no || '')
+
+    const logo = Array.isArray(schoolLogoFile.value)
+      ? schoolLogoFile.value[0]
+      : schoolLogoFile.value
+
+    if (logo) {
+      // Backend controller validates and reads the uploaded file as `logo`
+      formData.append('logo', logo)
+    }
+
+    formData.append('_method', 'PUT')
+
+    const res = await api.post(
+      `/admin/subscriptions/${selected.value.id}/school-profile`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+
+    const updated = res.data?.data
+
+    if (updated) {
+      const index = subscriptions.value.findIndex(
+        subscription => Number(subscription.id) === Number(updated.id)
+      )
+
+      if (index !== -1) {
+        subscriptions.value[index] = {
+          ...subscriptions.value[index],
+          ...updated
+        }
+      }
+
+      selected.value = {
+        ...selected.value,
+        ...updated
+      }
+
+      schoolProfileForm.school_name = updated.school_name || ''
+      schoolProfileForm.school_code = updated.school_code || ''
+      schoolProfileForm.school_address = updated.school_address || updated.address || ''
+      schoolProfileForm.school_phone = updated.school_phone || updated.mobile || ''
+      schoolProfileForm.school_email = updated.school_email || updated.email || ''
+      schoolProfileForm.academic_session = updated.academic_session || ''
+      schoolProfileForm.principal_name = updated.principal_name || ''
+      schoolProfileForm.affiliation_no = updated.affiliation_no || ''
+
+      schoolLogoPreview.value = updated.school_logo_url || updated.school_logo || null
+      schoolLogoFile.value = null
+    }
+
+    schoolProfileDialog.value = false
+    ui.showSnackbar('School profile updated successfully.')
+    await fetchSubscriptions()
+  } catch (error) {
+    handleErrors(error, 'Unable to update school profile.')
+  } finally {
+    saving.value = false
+  }
 }
 
 const setPlanAmount = () => {
@@ -976,5 +1077,15 @@ onMounted(async () => {
   .detail-row span {
     text-align: left;
   }
+}
+
+.school-logo-preview {
+  min-height: 170px;
+  border: 1px dashed rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--v-theme-surface-variant), 0.35);
 }
 </style>
