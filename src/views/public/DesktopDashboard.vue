@@ -1,33 +1,42 @@
 <template>
   <div class="desktop-wallpaper">
     <!-- LEFT BLANK AREA FOR DESKTOP ICONS -->
-    <section class="icons-area">
-      <div class="icons-placeholder">
-        <div class="folder-icon">▦</div>
-        <h2>Desktop Icons Area</h2>
-        <p>This area is left blank for your desktop icons</p>
-      </div>
-    </section>
+    <section class="icons-area"></section>
 
     <!-- RIGHT DASHBOARD AREA -->
     <section class="dashboard-area">
       <header class="school-header">
         <div class="school-info">
-          <div class="logo">📘</div>
+          <div class="logo">
+            <img
+              v-if="school.logo"
+              :src="school.logo"
+              alt="School Logo"
+            />
+            <span v-else>📘</span>
+          </div>
+
           <div>
-            <h1>YouTutor Public School</h1>
-            <p>Excellence in Education</p>
+            <h1>{{ school.name }}</h1>
+            <p>{{ school.tagline }}</p>
           </div>
         </div>
 
         <div class="weather-box">
           <div class="weather-icon">⛅</div>
           <div>
-            <h2>30°C</h2>
-            <p>Partly Cloudy</p>
+            <h2>{{ weather.temperature }}</h2>
+            <p>{{ weather.condition }}</p>
           </div>
         </div>
       </header>
+
+      <div
+        v-if="errorMessage"
+        class="error-banner"
+      >
+        {{ errorMessage }}
+      </div>
 
       <div class="top-grid">
         <div class="card clock-card">
@@ -40,11 +49,19 @@
 
         <div class="card bell-card">
           <div class="bell-icon">🔔</div>
+
           <div>
             <p>NEXT BELL</p>
-            <h2>{{ nextBell.time }}</h2>
-            <span>{{ nextBell.title }}</span>
+
+            <h2>
+              {{ nextBell?.time || 'No Bell' }}
+            </h2>
+
+            <span>
+              {{ nextBell?.title || 'No upcoming bell found' }}
+            </span>
           </div>
+
           <div class="countdown">
             {{ countdown }}
             <small>MIN : SEC</small>
@@ -57,11 +74,19 @@
           <div class="card class-card">
             <div class="class-row">
               <div class="circle green">👨‍🏫</div>
+
               <div>
                 <p>CURRENT CLASS</p>
-                <h3>{{ currentClass.class }} - {{ currentClass.subject }}</h3>
-                <span>{{ currentClass.room }}</span>
-                <small>{{ currentClass.time }}</small>
+
+                <h3>
+                  {{ currentClass?.class || 'No Current Class' }}
+                  <template v-if="currentClass?.subject">
+                    - {{ currentClass.subject }}
+                  </template>
+                </h3>
+
+                <span>{{ currentClass?.room || '-' }}</span>
+                <small>{{ currentClass?.time || '-' }}</small>
               </div>
             </div>
 
@@ -69,11 +94,19 @@
 
             <div class="class-row">
               <div class="circle blue">📅</div>
+
               <div>
                 <p>NEXT CLASS</p>
-                <h3>{{ nextClass.class }} - {{ nextClass.subject }}</h3>
-                <span>{{ nextClass.room }}</span>
-                <small>{{ nextClass.time }}</small>
+
+                <h3>
+                  {{ nextClass?.class || 'No Upcoming Class' }}
+                  <template v-if="nextClass?.subject">
+                    - {{ nextClass.subject }}
+                  </template>
+                </h3>
+
+                <span>{{ nextClass?.room || '-' }}</span>
+                <small>{{ nextClass?.time || '-' }}</small>
               </div>
             </div>
           </div>
@@ -82,15 +115,26 @@
             <h3>📢 Important Notices</h3>
 
             <div
+              v-if="notices.length === 0"
+              class="empty-state"
+            >
+              No notices found
+            </div>
+
+            <div
               v-for="notice in notices"
               :key="notice.id"
               class="notice-item"
             >
-              <div class="notice-icon">{{ notice.icon }}</div>
+              <div class="notice-icon">
+                {{ notice.icon || '📢' }}
+              </div>
+
               <div>
                 <h4>{{ notice.title }}</h4>
                 <p>{{ notice.description }}</p>
               </div>
+
               <span>{{ notice.date }}</span>
             </div>
           </div>
@@ -100,7 +144,14 @@
           <div class="card timetable-card">
             <h3>📅 Today's Timetable</h3>
 
-            <table>
+            <div
+              v-if="timetable.length === 0"
+              class="empty-state"
+            >
+              No timetable found for today
+            </div>
+
+            <table v-else>
               <thead>
                 <tr>
                   <th>Time</th>
@@ -129,14 +180,19 @@
 
           <div class="card quote-card">
             <h3>❝ Quote of the Day</h3>
-            <p>
-              The beautiful thing about learning is nobody can take it away from you.
-            </p>
-            <span>- B.B. King</span>
+            <p>{{ quote.text }}</p>
+            <span>- {{ quote.author }}</span>
           </div>
 
           <div class="card events-card">
             <h3>🚩 Upcoming Events</h3>
+
+            <div
+              v-if="events.length === 0"
+              class="empty-state"
+            >
+              No upcoming events found
+            </div>
 
             <div
               v-for="event in events"
@@ -152,130 +208,83 @@
 
       <footer class="ticker">
         <strong>📢 Announcement:</strong>
-        <span>School will remain closed on 10th July on account of Muharram.</span>
-        <small>Have a great day! 😊</small>
+
+        <span>
+          {{ tickerMessage }}
+        </span>
+
+        <small>
+          Last updated: {{ lastUpdated || '--' }}
+        </small>
       </footer>
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import api from '../../plugins/api'
+
+const route = useRoute()
 
 const currentTime = ref('')
 const currentDate = ref('')
+const lastUpdated = ref('')
+const errorMessage = ref('')
 
-const nextBell = ref({
-  time: '10:30 AM',
-  title: 'Short Break',
-  raw: '10:30:00'
+const school = ref({
+  name: 'YouTutor Public School',
+  tagline: 'Excellence in Education',
+  logo: null
 })
 
-const currentClass = ref({
-  class: 'Class 8A',
-  subject: 'Mathematics',
-  room: 'Room 204',
-  time: '09:50 AM - 10:30 AM'
+const weather = ref({
+  temperature: '30°C',
+  condition: 'Partly Cloudy'
 })
 
-const nextClass = ref({
-  class: 'Class 9B',
-  subject: 'Science',
-  room: 'Room 205',
-  time: '10:40 AM - 11:20 AM'
+const nextBell = ref(null)
+const currentClass = ref(null)
+const nextClass = ref(null)
+const timetable = ref([])
+const notices = ref([])
+const events = ref([])
+
+const quote = ref({
+  text: 'The beautiful thing about learning is nobody can take it away from you.',
+  author: 'B.B. King'
 })
 
-const timetable = ref([
-  {
-    id: 1,
-    time: '09:00 - 09:40',
-    class: '7B',
-    subject: 'Mathematics',
-    room: '203',
-    status: '✓ Completed',
-    statusClass: 'completed'
-  },
-  {
-    id: 2,
-    time: '09:50 - 10:30',
-    class: '8A',
-    subject: 'Mathematics',
-    room: '204',
-    status: '● Ongoing',
-    statusClass: 'ongoing'
-  },
-  {
-    id: 3,
-    time: '10:40 - 11:20',
-    class: '9B',
-    subject: 'Science',
-    room: '205',
-    status: '⏳ Upcoming',
-    statusClass: 'upcoming'
-  },
-  {
-    id: 4,
-    time: '11:30 - 12:10',
-    class: '-',
-    subject: 'Free Period',
-    room: '-',
-    status: 'Free',
-    statusClass: 'free'
-  },
-  {
-    id: 5,
-    time: '12:40 - 01:20',
-    class: '10A',
-    subject: 'English',
-    room: '206',
-    status: 'Upcoming',
-    statusClass: ''
+const tickerMessage = computed(() => {
+  if (notices.value.length > 0) {
+    return notices.value[0].description || notices.value[0].title
   }
-])
 
-const notices = ref([
-  {
-    id: 1,
-    icon: '🗓️',
-    title: 'Staff Meeting',
-    description: 'Staff meeting today at 3:00 PM in the conference room.',
-    date: '02 Jul'
-  },
-  {
-    id: 2,
-    icon: '📖',
-    title: 'Unit Test',
-    description: 'Unit test for classes 6 to 10 starts from next Monday.',
-    date: '02 Jul'
-  },
-  {
-    id: 3,
-    icon: '🪪',
-    title: 'ID Card Verification',
-    description: 'All students must carry their ID cards daily.',
-    date: '01 Jul'
-  },
-  {
-    id: 4,
-    icon: '🏆',
-    title: 'Inter School Competition',
-    description: 'Science exhibition on 15th July.',
-    date: '01 Jul'
+  if (events.value.length > 0) {
+    return events.value[0].title
   }
-])
 
-const events = ref([
-  { id: 1, date: '10 Jul', title: 'School closed on account of Muharram.' },
-  { id: 2, date: '15 Jul', title: 'Science Exhibition' },
-  { id: 3, date: '20 Jul', title: 'Monthly PTM' },
-  { id: 4, date: '25 Jul', title: 'Inter House Sports Competition' }
-])
+  return 'Welcome to YouTutor ERP Desktop Dashboard.'
+})
+
+const teacherId = computed(() => {
+  return (
+    route.query.teacher_id ||
+    localStorage.getItem('desktop_dashboard_teacher_id') ||
+    ''
+  )
+})
 
 const countdown = computed(() => {
+  if (!nextBell.value?.raw) {
+    return '--:--'
+  }
+
   const now = new Date()
   const target = new Date()
+  const [h, m, s] = String(nextBell.value.raw).split(':')
 
-  const [h, m, s] = nextBell.value.raw.split(':')
   target.setHours(Number(h), Number(m), Number(s || 0), 0)
 
   const diff = target - now
@@ -290,7 +299,71 @@ const countdown = computed(() => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 })
 
-let timer = null
+let clockTimer = null
+let refreshTimer = null
+
+const normalizeClass = (value) => {
+  if (!value) {
+    return null
+  }
+
+  return {
+    class: value.class || value.grade || '-',
+    subject: value.subject || '-',
+    room: value.room || '-',
+    time: value.time || '-'
+  }
+}
+
+const loadDashboard = async () => {
+  try {
+    errorMessage.value = ''
+
+    const params = {}
+
+    if (teacherId.value) {
+      params.teacher_id = teacherId.value
+    }
+
+    const { data } = await api.get('/desktop-dashboard/data', {
+      params
+    })
+
+    school.value = {
+      ...school.value,
+      ...(data.school || {})
+    }
+
+    weather.value = {
+      ...weather.value,
+      ...(data.weather || {})
+    }
+
+    nextBell.value = data.next_bell || null
+    currentClass.value = normalizeClass(data.current_class)
+    nextClass.value = normalizeClass(data.next_class)
+    timetable.value = Array.isArray(data.timetable) ? data.timetable : []
+    notices.value = Array.isArray(data.notices) ? data.notices : []
+    events.value = Array.isArray(data.events) ? data.events : []
+
+    if (data.quote) {
+      quote.value = {
+        ...quote.value,
+        ...data.quote
+      }
+    }
+
+    lastUpdated.value = new Date().toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (error) {
+    console.error('Desktop dashboard API error:', error)
+
+    errorMessage.value =
+      'Unable to fetch live dashboard data. Please check backend API.'
+  }
+}
 
 const updateClock = () => {
   const now = new Date()
@@ -309,13 +382,17 @@ const updateClock = () => {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
   updateClock()
-  timer = setInterval(updateClock, 1000)
+  await loadDashboard()
+
+  clockTimer = setInterval(updateClock, 1000)
+  refreshTimer = setInterval(loadDashboard, 30000)
 })
 
 onBeforeUnmount(() => {
-  clearInterval(timer)
+  clearInterval(clockTimer)
+  clearInterval(refreshTimer)
 })
 </script>
 
@@ -335,37 +412,8 @@ onBeforeUnmount(() => {
 }
 
 .icons-area {
-  position: relative;
-  margin: 24px;
-  border: 2px dashed rgba(255, 255, 255, 0.45);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.icons-placeholder {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.75);
+  min-height: 100vh;
   pointer-events: none;
-}
-
-.folder-icon {
-  font-size: 86px;
-  opacity: 0.75;
-}
-
-.icons-placeholder h2 {
-  margin: 20px 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.icons-placeholder p {
-  font-size: 20px;
-  margin: 0;
 }
 
 .dashboard-area {
@@ -373,6 +421,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
 }
 
 .school-header {
@@ -396,6 +445,13 @@ onBeforeUnmount(() => {
   font-size: 42px;
   background: linear-gradient(135deg, #0ea5e9, #1e3a8a);
   border: 2px solid #facc15;
+  overflow: hidden;
+}
+
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .school-info h1 {
@@ -423,6 +479,14 @@ onBeforeUnmount(() => {
 .weather-box h2,
 .weather-box p {
   margin: 0;
+}
+
+.error-banner {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.85);
+  border: 1px solid rgba(254, 202, 202, 0.8);
+  font-size: 14px;
 }
 
 .top-grid {
@@ -532,6 +596,7 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   font-size: 34px;
+  flex: 0 0 auto;
 }
 
 .green {
@@ -686,6 +751,14 @@ th {
   color: #38bdf8;
 }
 
+.empty-state {
+  padding: 18px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.75);
+  text-align: center;
+}
+
 .ticker {
   min-height: 48px;
   display: flex;
@@ -703,7 +776,8 @@ th {
 
 .ticker small {
   margin-left: auto;
-  font-size: 16px;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 @media (max-width: 1200px) {

@@ -772,6 +772,17 @@ const routes = [
           featureKey: "ai_paper_generator",
         },
       },
+      {
+        path: '/bell-schedules',
+        name: 'bell-schedules',
+        component: () => import('../views/admin/BellSchedulePage.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Bell Schedule',
+          permission: 'bell_schedule_management',
+          featureKey: 'bell_schedule_management'
+        },
+      },
 
 
 
