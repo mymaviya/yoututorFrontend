@@ -38,9 +38,7 @@ const weeklyCapacity = computed(() => (
   (summary.value.weekly_periods ?? 0) + (summary.value.free_periods ?? 0)
 ))
 const hasLoadedTimetable = computed(() => Boolean(appliedFilters.value?.teacher_id))
-const busy = computed(() => (
-  loading.value || filtersLoading.value || exporting.value || printing.value
-))
+const refreshing = computed(() => loading.value || filtersLoading.value)
 const messageOf = errorValue => (
   errorValue?.response?.data?.message
   || errorValue?.message
@@ -174,7 +172,9 @@ onMounted(loadFilters)
   <v-container fluid class="pa-4 pa-md-6">
     <div class="d-flex flex-column ga-4">
       <TimetableToolbar
-        :loading="busy"
+        :refreshing="refreshing"
+        :exporting="exporting"
+        :printing="printing"
         :show-export="hasLoadedTimetable"
         :show-print="hasLoadedTimetable"
         @refresh="refresh"
@@ -191,6 +191,7 @@ onMounted(loadFilters)
         :academic-years="options.academicYears"
         :teachers="options.teachers"
         :loading="loading || filtersLoading"
+        :disabled="exporting || printing"
         @update:model-value="updateFilters"
         @apply="load"
         @reset="reset"
