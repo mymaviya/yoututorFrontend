@@ -67,6 +67,39 @@
                 density="comfortable"
               />
 
+              <v-alert
+                type="info"
+                variant="tonal"
+                density="comfortable"
+                class="mb-4"
+              >
+                First period will always be {{ form.first_period_extra_minutes }} minutes longer than other periods.
+              </v-alert>
+
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-text-field
+                    v-model.number="form.first_period_extra_minutes"
+                    label="First Period Extra Minutes"
+                    suffix="minutes"
+                    type="number"
+                    variant="outlined"
+                    density="comfortable"
+                  />
+                </v-col>
+
+                <v-col cols="12" md="6">
+                  <v-text-field
+                    v-model.number="form.period_after_break_gap"
+                    label="Gap After Break Before Next Period"
+                    suffix="minutes"
+                    type="number"
+                    variant="outlined"
+                    density="comfortable"
+                  />
+                </v-col>
+              </v-row>
+
               <v-row>
                 <v-col cols="12" md="6">
                   <v-text-field
@@ -160,6 +193,12 @@
                 </v-col>
               </v-row>
 
+              <v-switch
+                v-model="form.bus_dispersal_enabled"
+                label="Enable Bus Dispersal"
+                color="primary"
+              />
+
               <v-row>
                 <v-col cols="12" md="6">
                   <v-text-field
@@ -169,6 +208,7 @@
                     type="number"
                     variant="outlined"
                     density="comfortable"
+                    :disabled="!form.bus_dispersal_enabled"
                   />
                 </v-col>
 
@@ -194,7 +234,7 @@
                 <v-col cols="12" md="6">
                   <v-text-field
                     v-model.number="form.first_period_duration"
-                    label="First Period Duration"
+                    label="First Period Duration (optional override)"
                     suffix="minutes"
                     type="number"
                     variant="outlined"
@@ -322,9 +362,10 @@
           <v-card-text>
             <ul class="text-body-2">
               <li>Enter only Assembly Bell Time, School Over Time and Total Periods.</li>
-              <li>The system can automatically calculate period duration.</li>
-              <li>You can choose no break, short break, long break, or both.</li>
-              <li>After saving settings, click Generate Schedule.</li>
+              <li>The system automatically keeps the first period 5 minutes longer by default.</li>
+              <li>After every short or long break, the next period starts after the configured gap.</li>
+              <li>Bus dispersal is optional and can be enabled or disabled.</li>
+              <li>Schedule sorting is handled by bell timing, not manual order.</li>
             </ul>
           </v-card-text>
         </v-card>
@@ -336,6 +377,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import api from "../../plugins/api";
+import { formatTime, } from '../../utils/date'
 
 const saving = ref(false)
 const generating = ref(false)
@@ -364,6 +406,9 @@ const form = reactive({
   short_break_duration: 15,
   long_break_after_period: 4,
   long_break_duration: 20,
+  first_period_extra_minutes: 5,
+  period_after_break_gap: 5,
+  bus_dispersal_enabled: true,
   bus_dispersal_duration: 10,
   teacher_dispersal_after_school_over: 90,
   auto_calculate_period_duration: true,
@@ -390,6 +435,9 @@ const fillForm = (data) => {
     ...data,
     assembly_bell_time: normalizeTime(data.assembly_bell_time),
     school_over_time: normalizeTime(data.school_over_time),
+    bus_dispersal_enabled: Boolean(data.bus_dispersal_enabled),
+    first_period_extra_minutes: data.first_period_extra_minutes ?? 5,
+    period_after_break_gap: data.period_after_break_gap ?? 5,
     effective_from: data.effective_from
       ? String(data.effective_from).slice(0, 10)
       : new Date().toISOString().slice(0, 10),
@@ -412,7 +460,7 @@ const loadData = async () => {
 const loadPreview = async () => {
   try {
     const { data } = await api.get('/bell-schedules/preview')
-    bells.value = data.data || []
+    bells.value = sortBells(data.data || [])
   } catch (error) {
     setMessage(
       error.response?.data?.message || 'Failed to load generated schedule.',
@@ -443,7 +491,7 @@ const generateSchedule = async () => {
 
   try {
     const { data } = await api.post('/bell-schedules/generate')
-    bells.value = data.data || []
+    bells.value = sortBells(data.data || [])
     setMessage(data.message || 'Bell schedule generated successfully.')
   } catch (error) {
     setMessage(
@@ -455,16 +503,9 @@ const generateSchedule = async () => {
   }
 }
 
-const formatTime = (time) => {
-  if (!time) return '-'
-
-  const [hour, minute] = String(time).split(':')
-  const date = new Date()
-  date.setHours(Number(hour), Number(minute), 0)
-
-  return date.toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
+const sortBells = (items) => {
+  return [...items].sort((a, b) => {
+    return String(a.start_time || '').localeCompare(String(b.start_time || ''))
   })
 }
 

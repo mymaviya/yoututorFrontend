@@ -774,13 +774,80 @@ const routes = [
       },
       {
         path: '/bell-schedules',
-        name: 'bell-schedules',
+        name: 'bell.schedules',
         component: () => import('../views/admin/BellSchedulePage.vue'),
         meta: {
           requiresAuth: true,
           title: 'Bell Schedule',
           permission: 'bell_schedule_management',
           featureKey: 'bell_schedule_management'
+        },
+      },
+      {
+        path: '/school-notices',
+        name: 'school-notices',
+        component: () => import('../views/admin/SchoolNoticePage.vue'),
+        meta: {
+          title: 'School Notices',
+          requiresAuth: true,
+          permission: 'bell_schedule_management',
+        },
+      },
+      {
+        path: '/academic-planning',
+        name: 'academic.planning.dashboard',
+        component: () => import('../pages/AcademicPlanning/Dashboard.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'academic.planning.dashboard',
+          feature_key: 'academic.planning',
+          title: 'Academic Planning',
+        },
+      },
+      {
+        path: '/academic-planning/subject-allocation',
+        name: 'subject.allocation',
+        component: () => import('../pages/AcademicPlanning/SubjectPeriodAllocation/Index.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'subject.allocation',
+          feature_key: 'academic.planning',
+          title: 'Subject Allocation',
+        },
+      },
+      {
+        path: '/academic-planning/teacher-availability',
+        name: 'teacher.availability',
+        component: () => import('../pages/AcademicPlanning/TeacherAvailability/Index.vue'),
+        meta: {
+          requiresAuth: true,
+          permission: 'teacher.availability',
+          feature_key: 'academic.planning',
+          title: 'Teacher Availability',
+        },
+      },
+      {
+        path: '/academic-planning/teacher-substitutions',
+        name: 'teacher.substitutions',
+        component: () => import('../views/academic-planning/TeacherSubstitution/Index.vue'),
+        meta: {
+          title: 'Teacher Substitution',
+          requiresAuth: true,
+          permission: 'teacher.availability',
+          feature_key: 'academic.planning',
+        },
+      },
+      {
+        path: '/academic-planning/teacher-timetable',
+        name: 'teacher.timetable',
+        component: () =>
+          import('../views/academic-planning/TeacherTimetable/TeacherTimetablePage.vue'),
+        meta: {
+          title: 'Teacher Timetable',
+          requiresAuth: true,
+          // permission: 'teacher.timetable',
+          permission: 'teacher.availability',
+          feature_key: 'academic.planning',
         },
       },
 
