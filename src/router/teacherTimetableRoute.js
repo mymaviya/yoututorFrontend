@@ -9,7 +9,11 @@ export default {
       path: 'teacher-timetable',
       name: 'teacher.timetable',
       component: () => import('../views/timetable/TeacherTimetablePage.vue'),
-      meta: { title: 'Teacher Timetable', requiresAuth: true, feature_key: 'academic_planning' },
+      meta: {
+        title: 'Teacher Timetable',
+        requiresAuth: true,
+        featureKey: 'academic_planning',
+      },
     },
   ],
 }
