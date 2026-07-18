@@ -17,11 +17,24 @@ const props = defineProps({
 })
 
 const defaultItems = [
-  { key: 'assigned', label: 'Assigned Class', color: 'primary', icon: 'mdi-book-open-variant' },
-  { key: 'free', label: 'Free Period', color: 'success', icon: 'mdi-check-circle-outline' },
-  { key: 'break', label: 'Break', color: 'warning', icon: 'mdi-coffee-outline' },
-  { key: 'conflict', label: 'Conflict', color: 'error', icon: 'mdi-alert-circle-outline' },
-  { key: 'unavailable', label: 'Unavailable', color: 'grey', icon: 'mdi-minus-circle-outline' },
+  {
+    key: 'assigned',
+    label: 'Assigned Class',
+    color: 'primary',
+    icon: 'mdi-book-open-variant',
+  },
+  {
+    key: 'substitution',
+    label: 'Substitution',
+    color: 'warning',
+    icon: 'mdi-account-switch-outline',
+  },
+  {
+    key: 'free',
+    label: 'Free Period',
+    color: 'success',
+    icon: 'mdi-check-circle-outline',
+  },
 ]
 
 const resolvedItems = computed(() => (
