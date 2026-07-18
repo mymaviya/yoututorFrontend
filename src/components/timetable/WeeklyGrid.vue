@@ -1,22 +1,8 @@
 <script setup>
-import { computed } from 'vue'
-
-const props = defineProps({
-  days: {
-    type: Array,
-    default: () => [],
-  },
-  periods: {
-    type: Array,
-    default: () => [],
-  },
-  entries: {
-    type: Array,
-    default: () => [],
-  },
-  loading: {
-    type: Boolean,
-    default: false,
-  },
-  emptyMessage: {
-   
+const props=defineProps({days:{type:Array,default:()=>[]},periods:{type:Array,default:()=>[]},entries:{type:Array,default:()=>[]},loading:{type:Boolean,default:false},emptyMessage:{type:String,default:'No timetable entries found.'}})
+const entryFor=(day,period)=>props.entries.find(e=>(e.day_id??e.day??e.day_name)===(day.id??day.value??day.name)&&(e.period_id??e.period??e.period_no)===(period.id??period.value??period.number))
+</script>
+<template>
+<v-card rounded="xl" border><v-card-title class="px-5 py-4">Weekly Timetable</v-card-title><v-divider/><v-card-text v-if="loading"><v-skeleton-loader type="table"/></v-card-text><v-card-text v-else-if="!days.length||!periods.length" class="text-center py-12"><v-icon icon="mdi-calendar-blank-outline" size="48" class="mb-3"/><div class="text-body-1">{{ emptyMessage }}</div></v-card-text><div v-else class="table-wrap"><table class="timetable-table"><thead><tr><th>Period</th><th v-for="day in days" :key="day.id??day.name">{{ day.name??day.label }}</th></tr></thead><tbody><tr v-for="period in periods" :key="period.id??period.number"><th><div>{{ period.name??`Period ${period.number??period.id}` }}</div><small>{{ period.start_time }}<span v-if="period.end_time"> - {{ period.end_time }}</span></small></th><td v-for="day in days" :key="day.id??day.name"><template v-if="entryFor(day,period)"><v-sheet rounded="lg" class="pa-3" :color="entryFor(day,period).is_conflict?'error-container':'primary-container'"><div class="font-weight-bold">{{ entryFor(day,period).subject_name??entryFor(day,period).subject?.name??'Assigned' }}</div><div class="text-caption">{{ entryFor(day,period).grade_name??entryFor(day,period).grade?.name }} {{ entryFor(day,period).section_name??entryFor(day,period).section?.name }}</div><div class="text-caption" v-if="entryFor(day,period).room">Room: {{ entryFor(day,period).room }}</div></v-sheet></template><span v-else class="text-caption text-medium-emphasis">Free</span></td></tr></tbody></table></div></v-card>
+</template>
+<style scoped>.table-wrap{overflow:auto}.timetable-table{width:100%;min-width:900px;border-collapse:collapse}.timetable-table th,.timetable-table td{border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));padding:12px;vertical-align:top}.timetable-table thead th{background:rgb(var(--v-theme-surface-variant));position:sticky;top:0}.timetable-table tbody th{min-width:150px;background:rgb(var(--v-theme-surface))}</style>
