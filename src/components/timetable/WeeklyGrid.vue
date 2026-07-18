@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   days: { type: Array, default: () => [] },
   periods: { type: Array, default: () => [] },
@@ -11,12 +13,48 @@ const dayName = day => typeof day === 'string'
   ? day
   : (day?.name ?? day?.label ?? day?.value ?? '')
 
+const dayKey = day => String(dayName(day)).trim().toLowerCase()
+
 const periodId = period => Number(period?.id ?? period?.school_bell_id ?? period?.value)
 
-const entryFor = (day, period) => props.entries.find(entry => (
-  String(entry.weekday ?? entry.day_name ?? entry.day ?? '').toLowerCase() === String(dayName(day)).toLowerCase()
-  && Number(entry.school_bell_id ?? entry.bell_id ?? entry.period_id) === periodId(period)
-))
+const entryPeriodId = entry => Number(
+  entry?.school_bell_id
+  ?? entry?.bell_id
+  ?? entry?.period_id,
+)
+
+const entryDayKey = entry => String(
+  entry?.weekday
+  ?? entry?.day_name
+  ?? entry?.day
+  ?? '',
+).trim().toLowerCase()
+
+const cellKey = (day, period) => `${dayKey(day)}:${periodId(period)}`
+
+const entryLookup = computed(() => {
+  const lookup = new Map()
+
+  for (const entry of props.entries) {
+    const weekday = entryDayKey(entry)
+    const bellId = entryPeriodId(entry)
+
+    if (weekday && Number.isFinite(bellId)) {
+      lookup.set(`${weekday}:${bellId}`, entry)
+    }
+  }
+
+  return lookup
+})
+
+const gridRows = computed(() => props.periods.map((period, index) => ({
+  period,
+  index,
+  cells: props.days.map(day => ({
+    day,
+    entry: entryLookup.value.get(cellKey(day, period)) ?? null,
+  })),
+})))
 
 const periodTitle = (period, index) => (
   period?.name
@@ -83,58 +121,51 @@ const substituteTeacherName = entry => {
         <thead>
           <tr>
             <th>Period</th>
-            <th v-for="day in days" :key="dayName(day)">
+            <th v-for="day in days" :key="dayKey(day)">
               {{ dayName(day) }}
             </th>
           </tr>
         </thead>
 
         <tbody>
-          <tr v-for="(period, index) in periods" :key="periodId(period) || index">
+          <tr v-for="row in gridRows" :key="periodId(row.period) || row.index">
             <th>
-              <div>{{ periodTitle(period, index) }}</div>
+              <div>{{ periodTitle(row.period, row.index) }}</div>
               <small>
-                {{ formatTime(period.start_time) }}
-                <span v-if="period.end_time"> - {{ formatTime(period.end_time) }}</span>
+                {{ formatTime(row.period.start_time) }}
+                <span v-if="row.period.end_time"> - {{ formatTime(row.period.end_time) }}</span>
               </small>
             </th>
 
-            <td v-for="day in days" :key="dayName(day)">
-              <template v-if="entryFor(day, period)">
-                <v-sheet
-                  rounded="lg"
-                  class="pa-3 timetable-entry"
-                  :color="isSubstitution(entryFor(day, period)) ? 'warning-container' : 'primary-container'"
+            <td v-for="cell in row.cells" :key="dayKey(cell.day)">
+              <v-sheet
+                v-if="cell.entry"
+                rounded="lg"
+                class="pa-3 timetable-entry"
+                :color="isSubstitution(cell.entry) ? 'warning-container' : 'primary-container'"
+              >
+                <div class="font-weight-bold">
+                  {{ cell.entry.subject?.name ?? cell.entry.subject_name ?? 'Assigned Class' }}
+                </div>
+
+                <div v-if="classLabel(cell.entry)" class="text-caption">
+                  {{ classLabel(cell.entry) }}
+                </div>
+
+                <div v-if="roomLabel(cell.entry)" class="text-caption">
+                  Room: {{ roomLabel(cell.entry) }}
+                </div>
+
+                <v-chip
+                  v-if="isSubstitution(cell.entry)"
+                  size="x-small"
+                  color="warning"
+                  variant="tonal"
+                  class="mt-2"
                 >
-                  <div class="font-weight-bold">
-                    {{ entryFor(day, period).subject?.name ?? entryFor(day, period).subject_name ?? 'Assigned Class' }}
-                  </div>
-
-                  <div
-                    v-if="classLabel(entryFor(day, period))"
-                    class="text-caption"
-                  >
-                    {{ classLabel(entryFor(day, period)) }}
-                  </div>
-
-                  <div
-                    v-if="roomLabel(entryFor(day, period))"
-                    class="text-caption"
-                  >
-                    Room: {{ roomLabel(entryFor(day, period)) }}
-                  </div>
-
-                  <v-chip
-                    v-if="isSubstitution(entryFor(day, period))"
-                    size="x-small"
-                    color="warning"
-                    variant="tonal"
-                    class="mt-2"
-                  >
-                    Substitution<span v-if="substituteTeacherName(entryFor(day, period))">: {{ substituteTeacherName(entryFor(day, period)) }}</span>
-                  </v-chip>
-                </v-sheet>
-              </template>
+                  Substitution<span v-if="substituteTeacherName(cell.entry)">: {{ substituteTeacherName(cell.entry) }}</span>
+                </v-chip>
+              </v-sheet>
 
               <span v-else class="text-caption text-medium-emphasis">Free</span>
             </td>
