@@ -6,7 +6,7 @@ const props = defineProps({
   },
   subtitle: {
     type: String,
-    default: 'View and manage weekly teaching assignments.'
+    default: 'View weekly teaching assignments and free periods.'
   },
   loading: {
     type: Boolean,
