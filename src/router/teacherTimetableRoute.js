@@ -1,6 +1,6 @@
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 
-const teacherTimetableRoute = {
+export default {
   path: '/',
   component: DashboardLayout,
   meta: { requiresAuth: true },
@@ -9,13 +9,7 @@ const teacherTimetableRoute = {
       path: 'teacher-timetable',
       name: 'teacher.timetable',
       component: () => import('../views/timetable/TeacherTimetablePage.vue'),
-      meta: {
-        title: 'Teacher Timetable',
-        requiresAuth: true,
-        feature_key: 'teacher_timetable',
-      },
+      meta: { title: 'Teacher Timetable', requiresAuth: true, feature_key: 'academic_planning' },
     },
   ],
 }
-
-export default teacherTimetableRoute
