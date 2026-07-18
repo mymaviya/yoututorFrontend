@@ -26,4 +26,22 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  subjects:
+  subjects: {
+    type: Array,
+    default: () => []
+  },
+  teachers: {
+    type: Array,
+    default: () => []
+  },
+  loading: {
+    type: Boolean,
+    default: false
+  },
+  disabled: {
+    type: Boolean,
+    default: false
+  },
+  showSchool: {
+    type: Boolean,
+   
