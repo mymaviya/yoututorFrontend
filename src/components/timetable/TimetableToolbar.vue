@@ -2,24 +2,32 @@
 const props = defineProps({
   title: {
     type: String,
-    default: 'Teacher Timetable'
+    default: 'Teacher Timetable',
   },
   subtitle: {
     type: String,
-    default: 'View weekly teaching assignments and free periods.'
+    default: 'View weekly teaching assignments and free periods.',
   },
-  loading: {
+  refreshing: {
     type: Boolean,
-    default: false
+    default: false,
+  },
+  exporting: {
+    type: Boolean,
+    default: false,
+  },
+  printing: {
+    type: Boolean,
+    default: false,
   },
   showPrint: {
     type: Boolean,
-    default: true
+    default: true,
   },
   showExport: {
     type: Boolean,
-    default: true
-  }
+    default: true,
+  },
 })
 
 const emit = defineEmits(['refresh', 'print', 'export'])
@@ -46,14 +54,15 @@ const emit = defineEmits(['refresh', 'print', 'export'])
           </div>
         </div>
 
-        <div class="d-flex flex-wrap align-center ga-2">
+        <div class="toolbar-actions d-flex flex-wrap align-center ga-2">
           <slot name="actions" />
 
           <v-btn
             v-if="props.showExport"
             variant="tonal"
             prepend-icon="mdi-file-export-outline"
-            :disabled="props.loading"
+            :loading="props.exporting"
+            :disabled="props.refreshing || props.printing"
             @click="emit('export')"
           >
             Export
@@ -63,7 +72,8 @@ const emit = defineEmits(['refresh', 'print', 'export'])
             v-if="props.showPrint"
             variant="tonal"
             prepend-icon="mdi-printer-outline"
-            :disabled="props.loading"
+            :loading="props.printing"
+            :disabled="props.refreshing || props.exporting"
             @click="emit('print')"
           >
             Print
@@ -72,7 +82,8 @@ const emit = defineEmits(['refresh', 'print', 'export'])
           <v-btn
             color="primary"
             prepend-icon="mdi-refresh"
-            :loading="props.loading"
+            :loading="props.refreshing"
+            :disabled="props.exporting || props.printing"
             @click="emit('refresh')"
           >
             Refresh
@@ -91,6 +102,13 @@ const emit = defineEmits(['refresh', 'print', 'export'])
 
 .min-width-0 {
   min-width: 0;
+}
+
+@media (max-width: 599px) {
+  .toolbar-actions,
+  .toolbar-actions :deep(.v-btn) {
+    width: 100%;
+  }
 }
 
 @media print {
