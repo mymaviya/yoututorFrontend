@@ -1,47 +1,8 @@
 <script setup>
-import { computed } from 'vue'
-
-const props = defineProps({
-  modelValue: {
-    type: Object,
-    default: () => ({})
-  },
-  academicYears: {
-    type: Array,
-    default: () => []
-  },
-  schools: {
-    type: Array,
-    default: () => []
-  },
-  grades: {
-    type: Array,
-    default: () => []
-  },
-  sections: {
-    type: Array,
-    default: () => []
-  },
-  streams: {
-    type: Array,
-    default: () => []
-  },
-  subjects: {
-    type: Array,
-    default: () => []
-  },
-  teachers: {
-    type: Array,
-    default: () => []
-  },
-  loading: {
-    type: Boolean,
-    default: false
-  },
-  disabled: {
-    type: Boolean,
-    default: false
-  },
-  showSchool: {
-    type: Boolean,
-   
+const props=defineProps({modelValue:{type:Object,default:()=>({})},academicYears:{type:Array,default:()=>[]},schools:{type:Array,default:()=>[]},grades:{type:Array,default:()=>[]},sections:{type:Array,default:()=>[]},streams:{type:Array,default:()=>[]},subjects:{type:Array,default:()=>[]},teachers:{type:Array,default:()=>[]},loading:{type:Boolean,default:false},disabled:{type:Boolean,default:false},showSchool:{type:Boolean,default:true}})
+const emit=defineEmits(['update:modelValue','apply','reset'])
+const set=(key,value)=>emit('update:modelValue',{...props.modelValue,[key]:value})
+</script>
+<template>
+<v-card rounded="xl" border><v-card-text class="pa-4"><v-row dense><v-col cols="12" sm="6" md="3"><v-select label="Academic Year" :items="academicYears" item-title="name" item-value="id" :model-value="modelValue.academic_year_id" :loading="loading" :disabled="disabled" clearable @update:model-value="set('academic_year_id',$event)"/></v-col><v-col v-if="showSchool" cols="12" sm="6" md="3"><v-select label="School" :items="schools" item-title="name" item-value="id" :model-value="modelValue.school_id" :disabled="disabled" clearable @update:model-value="set('school_id',$event)"/></v-col><v-col cols="12" sm="6" md="3"><v-select label="Grade" :items="grades" item-title="name" item-value="id" :model-value="modelValue.grade_id" :disabled="disabled" clearable @update:model-value="set('grade_id',$event)"/></v-col><v-col cols="12" sm="6" md="3"><v-select label="Section" :items="sections" item-title="name" item-value="id" :model-value="modelValue.section_id" :disabled="disabled" clearable @update:model-value="set('section_id',$event)"/></v-col><v-col cols="12" sm="6" md="3"><v-select label="Stream" :items="streams" item-title="name" item-value="id" :model-value="modelValue.stream_id" :disabled="disabled" clearable @update:model-value="set('stream_id',$event)"/></v-col><v-col cols="12" sm="6" md="3"><v-select label="Subject" :items="subjects" item-title="name" item-value="id" :model-value="modelValue.subject_id" :disabled="disabled" clearable @update:model-value="set('subject_id',$event)"/></v-col><v-col cols="12" sm="6" md="3"><v-select label="Teacher" :items="teachers" item-title="name" item-value="id" :model-value="modelValue.teacher_id" :disabled="disabled" clearable @update:model-value="set('teacher_id',$event)"/></v-col><v-col cols="12" md="3" class="d-flex align-center ga-2"><v-btn color="primary" block :loading="loading" :disabled="disabled" @click="emit('apply')">Apply</v-btn><v-btn variant="tonal" :disabled="disabled" @click="emit('reset')">Reset</v-btn></v-col></v-row></v-card-text></v-card>
+</template>
