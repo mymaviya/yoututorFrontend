@@ -55,6 +55,11 @@ const timetableApi = {
     return unwrap(response)
   },
 
+  async generationRunConflicts(id, params = {}) {
+    const response = await api.get(`/timetable-generation-runs/${id}/conflicts`, { params })
+    return unwrap(response)
+  },
+
   async conflicts(params = {}) {
     const response = await api.get('/timetable-reports/conflicts', { params })
     return unwrap(response)
@@ -94,6 +99,16 @@ const timetableApi = {
 
   async queuePreview(payload) {
     const response = await api.post('/timetable-generator/preview', { ...payload, async: true })
+    return unwrap(response)
+  },
+
+  async batchPreview(payload, async = true) {
+    const response = await api.post('/timetable-batch-generator/preview', { ...payload, async })
+    return unwrap(response)
+  },
+
+  async batchGenerate(payload, async = true) {
+    const response = await api.post('/timetable-batch-generator/generate', { ...payload, async })
     return unwrap(response)
   },
 
