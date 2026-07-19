@@ -45,41 +45,6 @@ const timetableApi = {
     return unwrap(response)
   },
 
-  async timetableGrid(id) {
-    const response = await api.get(`/weekly-timetables/${id}/grid`)
-    return unwrap(response)
-  },
-
-  async createEntry(timetableId, payload) {
-    const response = await api.post(`/weekly-timetables/${timetableId}/entries`, payload)
-    return unwrap(response)
-  },
-
-  async updateEntry(timetableId, entryId, payload) {
-    const response = await api.put(`/weekly-timetables/${timetableId}/entries/${entryId}`, payload)
-    return unwrap(response)
-  },
-
-  async deleteEntry(timetableId, entryId, forceLocked = false) {
-    const response = await api.delete(`/weekly-timetables/${timetableId}/entries/${entryId}`, {
-      data: { force_locked: forceLocked },
-    })
-    return unwrap(response)
-  },
-
-  async replaceGrid(timetableId, entries, preserveLocked = true) {
-    const response = await api.put(`/weekly-timetables/${timetableId}/grid`, {
-      entries,
-      preserve_locked: preserveLocked,
-    })
-    return unwrap(response)
-  },
-
-  async createVersion(id, name = null) {
-    const response = await api.post(`/weekly-timetables/${id}/versions`, { name })
-    return unwrap(response)
-  },
-
   async generationRuns(params = {}) {
     const response = await api.get('/timetable-generation-runs', { params })
     return unwrap(response)
@@ -103,10 +68,6 @@ const timetableApi = {
   async workload(params = {}) {
     const response = await api.get('/timetable-reports/workload', { params })
     return unwrap(response)
-  },
-
-  async downloadClassReport(id, format = 'pdf') {
-    return api.get(`/timetable-reports/classes/${id}/${format}`, { responseType: 'blob' })
   },
 
   templates: templateResource,
@@ -149,6 +110,64 @@ const timetableApi = {
   async batchGenerate(payload, async = true) {
     const response = await api.post('/timetable-batch-generator/generate', { ...payload, async })
     return unwrap(response)
+  },
+
+  async grid(id) {
+    const response = await api.get(`/weekly-timetables/${id}/grid`)
+    return unwrap(response)
+  },
+
+  async createEntry(timetableId, payload) {
+    const response = await api.post(`/weekly-timetables/${timetableId}/entries`, payload)
+    return unwrap(response)
+  },
+
+  async updateEntry(timetableId, entryId, payload) {
+    const response = await api.put(`/weekly-timetables/${timetableId}/entries/${entryId}`, payload)
+    return unwrap(response)
+  },
+
+  async deleteEntry(timetableId, entryId, forceLocked = false) {
+    const response = await api.delete(`/weekly-timetables/${timetableId}/entries/${entryId}`, {
+      data: { force_locked: forceLocked },
+    })
+    return unwrap(response)
+  },
+
+  async replaceGrid(timetableId, entries, preserveLocked = true) {
+    const response = await api.put(`/weekly-timetables/${timetableId}/grid`, {
+      entries,
+      preserve_locked: preserveLocked,
+    })
+    return unwrap(response)
+  },
+
+  async createVersion(id, name = null) {
+    const response = await api.post(`/weekly-timetables/${id}/versions`, { name })
+    return unwrap(response)
+  },
+
+  async classReport(id) {
+    const response = await api.get(`/timetable-reports/classes/${id}`)
+    return unwrap(response)
+  },
+
+  async teacherReport(id, params = {}) {
+    const response = await api.get(`/timetable-reports/teachers/${id}`, { params })
+    return unwrap(response)
+  },
+
+  async roomReport(id, params = {}) {
+    const response = await api.get(`/timetable-reports/rooms/${id}`, { params })
+    return unwrap(response)
+  },
+
+  async downloadReport(type, id, format, params = {}) {
+    const response = await api.get(`/timetable-reports/${type}/${id}/${format}`, {
+      params,
+      responseType: 'blob',
+    })
+    return response
   },
 
   async publish(id) {
