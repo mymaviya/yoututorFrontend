@@ -6,6 +6,16 @@ export default {
   meta: { requiresAuth: true },
   children: [
     {
+      path: 'academic-planning/timetable-generator',
+      name: 'timetable.generator',
+      component: () => import('../pages/AcademicPlanning/TimetableGenerator/GeneratorPage.vue'),
+      meta: {
+        title: 'Smart Timetable Generator',
+        requiresAuth: true,
+        featureKey: 'academic_planning',
+      },
+    },
+    {
       path: 'academic-planning/timetable-templates',
       name: 'timetable.templates',
       component: () => import('../pages/AcademicPlanning/TimetableSetup/TemplatesPage.vue'),
