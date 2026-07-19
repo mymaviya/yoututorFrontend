@@ -1,6 +1,9 @@
 export const groupIcons = {
   Academic: "mdi-school",
   "Academic Planning": "mdi-calendar-school",
+  Timetable: "mdi-calendar-clock",
+  "Timetable Management": "mdi-calendar-multiple-check",
+  "Timetable Setup": "mdi-calendar-cog",
   Teachers: "mdi-account-tie",
   "Question Bank": "mdi-help-box-multiple",
   Papers: "mdi-file-document-multiple",
