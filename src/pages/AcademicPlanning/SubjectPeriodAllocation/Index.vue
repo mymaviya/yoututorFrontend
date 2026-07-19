@@ -3,7 +3,10 @@
     <v-card rounded="xl">
       <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-3 pa-4 pa-md-5">
         <div>
-          <div class="text-h6 font-weight-bold">Subject Period Allocation</div>
+          <div class="d-flex align-center ga-2">
+            <div class="text-h6 font-weight-bold">Subject Period Allocation</div>
+            <v-chip v-if="isDirty" color="warning" size="small" variant="tonal">Unsaved changes</v-chip>
+          </div>
           <div class="text-body-2 text-medium-emphasis">
             Bulk edit weekly periods and timetable preferences.
           </div>
@@ -13,7 +16,7 @@
           <v-btn
             variant="tonal"
             prepend-icon="mdi-content-copy"
-            :disabled="!filters.grade_id || loading || store.saving"
+            :disabled="!filters.grade_id || busy"
             @click="openCopyDialog"
           >
             Copy Grade
@@ -24,7 +27,7 @@
             prepend-icon="mdi-refresh"
             :loading="loading"
             :disabled="!filters.grade_id || store.saving"
-            @click="loadSubjects"
+            @click="loadSubjectsWithConfirmation"
           >
             Load Subjects
           </v-btn>
@@ -75,6 +78,8 @@
               density="comfortable"
               variant="outlined"
               hide-details
+              :disabled="busy"
+              @update:model-value="onContextFilterChange"
             />
           </v-col>
 
@@ -88,6 +93,7 @@
               density="comfortable"
               variant="outlined"
               hide-details
+              :disabled="busy"
               @update:model-value="onGradeChange"
             />
           </v-col>
@@ -103,7 +109,8 @@
               variant="outlined"
               hide-details
               clearable
-              :disabled="!filters.grade_id"
+              :disabled="!filters.grade_id || busy"
+              @update:model-value="onContextFilterChange"
             />
           </v-col>
 
@@ -118,10 +125,47 @@
               variant="outlined"
               hide-details
               clearable
-              :disabled="!filters.grade_id"
+              :disabled="!filters.grade_id || busy"
+              @update:model-value="onContextFilterChange"
             />
           </v-col>
         </v-row>
+
+        <v-row v-if="rows.length" class="mb-1">
+          <v-col cols="12" sm="4">
+            <v-card variant="tonal" rounded="lg" class="pa-3">
+              <div class="text-caption text-medium-emphasis">Subjects</div>
+              <div class="text-h6 font-weight-bold">{{ rows.length }}</div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="4">
+            <v-card variant="tonal" rounded="lg" class="pa-3">
+              <div class="text-caption text-medium-emphasis">Total weekly periods</div>
+              <div class="text-h6 font-weight-bold">{{ totalWeeklyPeriods }}</div>
+            </v-card>
+          </v-col>
+          <v-col cols="12" sm="4">
+            <v-card variant="tonal" rounded="lg" class="pa-3">
+              <div class="text-caption text-medium-emphasis">Validation warnings</div>
+              <div class="text-h6 font-weight-bold" :class="validationIssues.length ? 'text-warning' : 'text-success'">
+                {{ validationIssues.length }}
+              </div>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <v-alert
+          v-if="validationIssues.length"
+          type="warning"
+          variant="tonal"
+          class="mb-4"
+          title="Allocation needs attention"
+        >
+          <div v-for="issue in validationIssues.slice(0, 5)" :key="issue" class="text-body-2">• {{ issue }}</div>
+          <div v-if="validationIssues.length > 5" class="text-caption mt-1">
+            And {{ validationIssues.length - 5 }} more issue(s).
+          </div>
+        </v-alert>
 
         <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-4" @click:close="message = ''">
           {{ message }}
@@ -205,7 +249,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import api from '../../../plugins/api'
 import { useSubjectPeriodAllocationStore } from '../../../stores/subjectPeriodAllocation'
 
@@ -217,6 +262,8 @@ const message = ref('')
 const messageType = ref('success')
 const fileInput = ref(null)
 const copyDialog = ref(false)
+const baseline = ref('[]')
+const suppressDirtyCheck = ref(false)
 
 const academicYears = ref([])
 const grades = ref([])
@@ -229,6 +276,7 @@ const filters = reactive({ academic_year_id: null, grade_id: null, section_id: n
 const copyForm = reactive({ from_academic_year_id: null, from_grade_id: null })
 
 const categories = ['major', 'minor', 'language', 'elective', 'lab', 'activity']
+const workingDaysPerWeek = 6
 const headers = [
   { title: 'Subject', key: 'subject_name', minWidth: 180 },
   { title: 'Category', key: 'subject_category', minWidth: 150 },
@@ -243,8 +291,58 @@ const headers = [
   { title: 'Priority', key: 'priority', width: 100 },
 ]
 
+const normalizeRows = (items) => items.map((item) => ({
+  ...item,
+  weekly_periods: Number(item.weekly_periods ?? 0),
+  max_periods_per_day: Number(item.max_periods_per_day ?? 1),
+  priority: Number(item.priority ?? 1),
+  preferred_teacher_id: item.preferred_teacher_id || null,
+  prefer_double_period: Boolean(item.prefer_double_period),
+  prefer_morning: Boolean(item.prefer_morning),
+  prefer_saturday: Boolean(item.prefer_saturday),
+  is_parallel_subject: Boolean(item.is_parallel_subject),
+  parallel_group_code: item.is_parallel_subject ? String(item.parallel_group_code || '').trim() : null,
+}))
+
+const serializedRows = computed(() => JSON.stringify(normalizeRows(rows.value)))
+const isDirty = computed(() => rows.value.length > 0 && serializedRows.value !== baseline.value)
 const busy = computed(() => loading.value || copying.value || transferring.value || store.saving)
-const canSave = computed(() => Boolean(filters.academic_year_id && filters.grade_id && rows.value.length && !busy.value))
+const totalWeeklyPeriods = computed(() => rows.value.reduce((total, item) => total + (Number(item.weekly_periods) || 0), 0))
+
+const validationIssues = computed(() => {
+  const issues = []
+  const subjectIds = new Set()
+
+  rows.value.forEach((item) => {
+    const subjectName = item.subject_name || 'Unnamed subject'
+    const weekly = Number(item.weekly_periods)
+    const maxDaily = Number(item.max_periods_per_day)
+    const priority = Number(item.priority)
+
+    if (!item.subject_id) issues.push(`${subjectName}: subject ID is missing.`)
+    if (subjectIds.has(item.subject_id)) issues.push(`${subjectName}: duplicate subject entry.`)
+    subjectIds.add(item.subject_id)
+
+    if (!categories.includes(item.subject_category)) issues.push(`${subjectName}: select a valid category.`)
+    if (!Number.isInteger(weekly) || weekly < 0 || weekly > 60) issues.push(`${subjectName}: weekly periods must be a whole number from 0 to 60.`)
+    if (!Number.isInteger(maxDaily) || maxDaily < 1 || maxDaily > 10) issues.push(`${subjectName}: maximum periods per day must be from 1 to 10.`)
+    if (!Number.isInteger(priority) || priority < 1 || priority > 10) issues.push(`${subjectName}: priority must be from 1 to 10.`)
+    if (weekly > maxDaily * workingDaysPerWeek) issues.push(`${subjectName}: ${weekly} weekly periods exceed the ${maxDaily}-per-day capacity.`)
+    if (item.prefer_double_period && weekly > 0 && weekly < 2) issues.push(`${subjectName}: double-period preference requires at least 2 weekly periods.`)
+    if (item.is_parallel_subject && !String(item.parallel_group_code || '').trim()) issues.push(`${subjectName}: parallel group code is required.`)
+  })
+
+  return issues
+})
+
+const canSave = computed(() => Boolean(
+  filters.academic_year_id &&
+  filters.grade_id &&
+  rows.value.length &&
+  isDirty.value &&
+  !validationIssues.value.length &&
+  !busy.value,
+))
 const canCopy = computed(() => Boolean(copyForm.from_academic_year_id && copyForm.from_grade_id && filters.academic_year_id && filters.grade_id && !copying.value))
 
 const notify = (text, type = 'success') => {
@@ -258,6 +356,15 @@ const extractList = (response) => {
   if (Array.isArray(payload?.data)) return payload.data
   if (Array.isArray(payload?.data?.data)) return payload.data.data
   return []
+}
+
+const confirmDiscard = () => !isDirty.value || window.confirm('You have unsaved subject allocation changes. Discard them?')
+
+const setRows = (items) => {
+  suppressDirtyCheck.value = true
+  rows.value = normalizeRows(Array.isArray(items) ? items : [])
+  baseline.value = JSON.stringify(normalizeRows(rows.value))
+  window.setTimeout(() => { suppressDirtyCheck.value = false }, 0)
 }
 
 const fetchMasters = async () => {
@@ -274,6 +381,9 @@ const fetchMasters = async () => {
     streams.value = results[2].status === 'fulfilled' ? extractList(results[2].value) : []
     teachers.value = results[3].status === 'fulfilled' ? extractList(results[3].value) : []
 
+    const failedLoads = results.filter((result) => result.status === 'rejected').length
+    if (failedLoads) notify(`${failedLoads} filter source(s) could not be loaded.`, 'warning')
+
     const activeYear = academicYears.value.find((item) => item.is_active)
     filters.academic_year_id = activeYear?.id || academicYears.value[0]?.id || null
   } catch (error) {
@@ -281,10 +391,15 @@ const fetchMasters = async () => {
   }
 }
 
+const onContextFilterChange = () => {
+  if (rows.value.length) setRows([])
+  message.value = ''
+}
+
 const onGradeChange = async () => {
   filters.section_id = null
   filters.stream_id = null
-  rows.value = []
+  setRows([])
   sections.value = []
   if (!filters.grade_id) return
 
@@ -294,6 +409,11 @@ const onGradeChange = async () => {
   } catch (error) {
     notify(error.response?.data?.message || 'Failed to load sections.', 'error')
   }
+}
+
+const loadSubjectsWithConfirmation = async () => {
+  if (!confirmDiscard()) return
+  await loadSubjects()
 }
 
 const loadSubjects = async () => {
@@ -306,10 +426,10 @@ const loadSubjects = async () => {
   message.value = ''
   try {
     const { data } = await api.get('/subject-period-allocations/bulk-editor-data', { params: { ...filters } })
-    rows.value = Array.isArray(data?.data) ? data.data : []
+    setRows(Array.isArray(data?.data) ? data.data : [])
     notify(`${rows.value.length} subject allocation${rows.value.length === 1 ? '' : 's'} loaded.`)
   } catch (error) {
-    rows.value = []
+    setRows([])
     notify(error.response?.data?.message || 'Failed to load subject allocation data.', 'error')
   } finally {
     loading.value = false
@@ -317,26 +437,31 @@ const loadSubjects = async () => {
 }
 
 const validateRows = () => {
-  const invalid = rows.value.find((item) => Number(item.weekly_periods) < 0 || Number(item.max_periods_per_day) < 1 || Number(item.priority) < 1)
-  if (invalid) {
-    notify(`Please correct the allocation values for ${invalid.subject_name || 'a subject'}.`, 'warning')
+  if (!rows.value.length) {
+    notify('There are no subject allocations to save.', 'warning')
+    return false
+  }
+  if (validationIssues.value.length) {
+    notify(`Please correct ${validationIssues.value.length} allocation issue(s) before saving.`, 'warning')
     return false
   }
   return true
 }
 
 const saveAll = async () => {
-  if (!canSave.value || !validateRows()) return
+  if (!validateRows() || busy.value) return
   try {
-    await store.bulkSave({ ...filters, items: rows.value })
+    const items = normalizeRows(rows.value)
+    await store.bulkSave({ ...filters, items })
+    setRows(items)
     notify('Subject period allocations saved successfully.')
-    await loadSubjects()
   } catch (error) {
     notify(error.response?.data?.message || store.error || 'Failed to save subject allocations.', 'error')
   }
 }
 
 const openCopyDialog = () => {
+  if (!confirmDiscard()) return
   copyForm.from_academic_year_id = filters.academic_year_id
   copyForm.from_grade_id = null
   copyDialog.value = true
@@ -360,8 +485,8 @@ const copyGrade = async () => {
       to_stream_id: filters.stream_id,
     })
     copyDialog.value = false
-    notify('Grade allocation copied successfully.')
     await loadSubjects()
+    notify('Grade allocation copied successfully.')
   } catch (error) {
     notify(error.response?.data?.message || 'Failed to copy grade allocation.', 'error')
   } finally {
@@ -404,6 +529,10 @@ const importExcel = async (event) => {
     event.target.value = ''
     return notify('Please select academic year and grade before importing.', 'warning')
   }
+  if (!confirmDiscard()) {
+    event.target.value = ''
+    return
+  }
 
   transferring.value = true
   const formData = new FormData()
@@ -412,8 +541,8 @@ const importExcel = async (event) => {
 
   try {
     await api.post('/subject-period-allocations/import', formData)
-    notify('Allocation file imported successfully.')
     await loadSubjects()
+    notify('Allocation file imported successfully.')
   } catch (error) {
     notify(error.response?.data?.message || 'Failed to import allocation file.', 'error')
   } finally {
@@ -434,7 +563,25 @@ const downloadTemplate = async () => {
   }
 }
 
-onMounted(fetchMasters)
+const handleBeforeUnload = (event) => {
+  if (!isDirty.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+watch(rows, () => {
+  if (!suppressDirtyCheck.value && store.error) store.clearError()
+}, { deep: true })
+
+onBeforeRouteLeave(() => confirmDiscard())
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  fetchMasters()
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  store.clearError()
+})
 </script>
 
 <style scoped>
