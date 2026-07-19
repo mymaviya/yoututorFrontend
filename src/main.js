@@ -5,6 +5,7 @@ import { createApp, watch  } from 'vue'
 import App from './App.vue'
 import router from './router'
 import teacherTimetableRoute from './router/teacherTimetableRoute'
+import timetableSetupRoute from './router/timetableSetupRoute'
 import vuetify from './plugins/vuetify'
 import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
@@ -18,6 +19,7 @@ const app = createApp(App)
 const pinia = createPinia()
 
 router.addRoute(teacherTimetableRoute)
+router.addRoute(timetableSetupRoute)
 
 app.directive('math', mathDirective)
 app.component('MathContent', MathContent)
