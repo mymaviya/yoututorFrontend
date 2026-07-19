@@ -22,6 +22,13 @@ const routeAliases = {
   "bell-schedules": "bell.schedules",
   "bell.schedule": "bell.schedules",
   "bell.schedule.index": "bell.schedules",
+  "timetable-generator": "timetable.generator",
+  "timetable.generator.index": "timetable.generator",
+  "automatic.timetable.generator": "timetable.generator",
+  "timetable-templates": "timetable.templates",
+  "timetable-rules": "timetable.rules",
+  "timetable-rooms": "timetable.rooms",
+  "parallel-groups": "timetable.parallel-groups",
 };
 
 const normalizeRouteName = (routeName) => {
