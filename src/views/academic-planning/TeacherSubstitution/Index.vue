@@ -31,6 +31,7 @@
       class="mt-4"
       :loading="store.loading"
       :items="filteredItems"
+      :saving="store.saving"
       @assign="openSuggestionDrawer"
       @view="openTimeline"
       @approve="approve"
@@ -42,6 +43,7 @@
       :substitution="selectedSubstitution"
       :suggestions="store.suggestions"
       :loading="store.suggestionLoading"
+      :saving="store.saving"
       @assign="assignTeacher"
     />
 
@@ -53,7 +55,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 import { useTeacherSubstitutionStore } from '../../../stores/teacherSubstitution'
 
@@ -67,8 +69,16 @@ import Timeline from './components/Timeline.vue'
 
 const store = useTeacherSubstitutionStore()
 
+const formatLocalDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
 const filters = reactive({
-  date: new Date().toISOString().slice(0, 10),
+  date: formatLocalDate(new Date()),
   grade_id: null,
   status: null,
 })
@@ -76,11 +86,13 @@ const filters = reactive({
 const drawer = ref(false)
 const timelineDialog = ref(false)
 const selectedSubstitution = ref(null)
+const requestSequence = ref(0)
+let dateWatchTimer = null
 
 const filteredItems = computed(() => {
-  let items = [...store.items]
+  let items = Array.isArray(store.items) ? [...store.items] : []
 
-  if (filters.grade_id) {
+  if (filters.grade_id !== null && filters.grade_id !== '') {
     items = items.filter((item) => Number(item.grade_id) === Number(filters.grade_id))
   }
 
@@ -92,37 +104,49 @@ const filteredItems = computed(() => {
 })
 
 const loadDashboard = async () => {
-  await store.fetchDashboard(filters.date)
+  const sequence = ++requestSequence.value
+
+  try {
+    await store.fetchDashboard(filters.date)
+  } catch (error) {
+    if (sequence !== requestSequence.value) return
+  }
 }
 
 const filterStatus = (status) => {
-  filters.status = status
+  filters.status = filters.status === status ? null : status
 }
 
 const openSuggestionDrawer = async (item) => {
   selectedSubstitution.value = item
   drawer.value = true
-  store.clearSuggestions?.()
+  store.clearSuggestions()
 
-  await store.fetchSuggestions({
-    academic_year_id: item.academic_year_id,
-    absent_teacher_id: item.absent_teacher_id,
-    school_bell_id: item.school_bell_id,
-    date: item.substitution_date,
-    subject_id: item.subject_id,
-  })
+  try {
+    await store.fetchSuggestions({
+      academic_year_id: item.academic_year_id,
+      absent_teacher_id: item.absent_teacher_id,
+      school_bell_id: item.school_bell_id,
+      date: item.substitution_date,
+      subject_id: item.subject_id,
+    })
+  } catch (error) {
+    drawer.value = false
+    selectedSubstitution.value = null
+  }
 }
 
 const assignTeacher = async (teacherId) => {
-  if (!selectedSubstitution.value) return
+  if (!selectedSubstitution.value || !teacherId || store.saving) return
 
-  await store.assign(
-    selectedSubstitution.value.id,
-    teacherId
-  )
-
-  drawer.value = false
-  await loadDashboard()
+  try {
+    await store.assign(selectedSubstitution.value.id, teacherId)
+    drawer.value = false
+    selectedSubstitution.value = null
+    await loadDashboard()
+  } catch (error) {
+    // Store handles the user-facing error message.
+  }
 }
 
 const openTimeline = (item) => {
@@ -131,21 +155,51 @@ const openTimeline = (item) => {
 }
 
 const approve = async (item) => {
-  await store.approve(item.id)
-  await loadDashboard()
+  if (!item?.id || store.saving) return
+
+  try {
+    await store.approve(item.id)
+    await loadDashboard()
+  } catch (error) {
+    // Store handles the user-facing error message.
+  }
 }
 
 const cancel = async (item) => {
-  await store.cancel(item.id)
-  await loadDashboard()
+  if (!item?.id || store.saving) return
+
+  try {
+    await store.cancel(item.id)
+    await loadDashboard()
+  } catch (error) {
+    // Store handles the user-facing error message.
+  }
 }
 
 watch(
   () => filters.date,
   () => {
-    loadDashboard()
+    window.clearTimeout(dateWatchTimer)
+    dateWatchTimer = window.setTimeout(loadDashboard, 250)
   }
 )
 
+watch(drawer, (isOpen) => {
+  if (!isOpen) {
+    selectedSubstitution.value = null
+    store.clearSuggestions()
+  }
+})
+
+watch(timelineDialog, (isOpen) => {
+  if (!isOpen && !drawer.value) {
+    selectedSubstitution.value = null
+  }
+})
+
 onMounted(loadDashboard)
+
+onBeforeUnmount(() => {
+  window.clearTimeout(dateWatchTimer)
+})
 </script>
