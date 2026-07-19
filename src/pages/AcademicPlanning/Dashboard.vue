@@ -1,107 +1,202 @@
+<script setup>
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAcademicPlanningStore } from '../../stores/academicPlanning'
+import { useUIStore } from '../../stores/snackBar'
+
+const router = useRouter()
+const store = useAcademicPlanningStore()
+const ui = useUIStore()
+
+const checks = computed(() => store.readiness?.checks || {})
+
+const summaryCards = computed(() => [
+  {
+    label: 'Setup Readiness',
+    value: `${store.overallScore}%`,
+    icon: 'mdi-progress-check',
+    color: store.overallScore >= 80 ? 'success' : store.overallScore >= 50 ? 'warning' : 'error',
+  },
+  {
+    label: 'Published Timetables',
+    value: store.publishedCount,
+    icon: 'mdi-calendar-check',
+    color: 'success',
+  },
+  {
+    label: 'Draft Timetables',
+    value: store.draftCount,
+    icon: 'mdi-calendar-edit',
+    color: 'info',
+  },
+  {
+    label: 'Active Generations',
+    value: store.activeRuns.length,
+    icon: 'mdi-cog-sync',
+    color: store.activeRuns.length ? 'warning' : 'primary',
+  },
+  {
+    label: 'Live Conflicts',
+    value: store.conflictCount,
+    icon: 'mdi-alert-octagon-outline',
+    color: store.conflictCount ? 'error' : 'success',
+  },
+  {
+    label: 'Teachers Scheduled',
+    value: store.teacherCount,
+    icon: 'mdi-account-school',
+    color: 'primary',
+  },
+])
+
+const setupActions = [
+  {
+    title: 'Subject Allocation',
+    description: 'Set weekly periods, teachers and subject preferences.',
+    icon: 'mdi-book-clock-outline',
+    color: 'primary',
+    route: 'subject.allocation',
+  },
+  {
+    title: 'Teacher Availability',
+    description: 'Configure available and blocked teaching periods.',
+    icon: 'mdi-calendar-account-outline',
+    color: 'info',
+    route: 'teacher.availability',
+  },
+  {
+    title: 'Teacher Timetable',
+    description: 'Review the current timetable teacher-wise.',
+    icon: 'mdi-account-clock-outline',
+    color: 'success',
+    route: 'teacher.timetable',
+  },
+  {
+    title: 'Teacher Substitution',
+    description: 'Manage temporary teacher replacements.',
+    icon: 'mdi-account-switch-outline',
+    color: 'warning',
+    route: 'teacher.substitution',
+  },
+  {
+    title: 'Bell Schedule',
+    description: 'Maintain teaching periods, breaks and dispersal.',
+    icon: 'mdi-bell-ring-outline',
+    color: 'secondary',
+    route: 'bell.schedules',
+  },
+]
+
+const statusColor = (status) => ({
+  published: 'success',
+  completed: 'success',
+  running: 'info',
+  queued: 'warning',
+  partial: 'warning',
+  draft: 'info',
+  archived: 'grey',
+  failed: 'error',
+  cancelled: 'grey',
+}[status] || 'primary')
+
+const formatDate = (value) => {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
+}
+
+const timetableClass = (item) => {
+  const parts = [item.grade?.name, item.section?.name, item.stream?.name].filter(Boolean)
+  return parts.join(' · ') || item.name || 'Timetable'
+}
+
+const go = (routeName) => {
+  if (!router.hasRoute(routeName)) {
+    ui.showSnackbar('This screen is not available yet.', 'warning')
+    return
+  }
+  router.push({ name: routeName })
+}
+
+const refresh = async () => {
+  await store.fetchDashboard({ silent: true })
+  ui.showSnackbar('Timetable dashboard refreshed.')
+}
+
+const cancelRun = async (run) => {
+  try {
+    await store.cancelGenerationRun(run.id)
+    ui.showSnackbar('Generation cancellation requested.')
+  } catch (error) {
+    ui.showSnackbar(error.response?.data?.message || 'Unable to cancel generation.', 'error')
+  }
+}
+
+const retryRun = async (run) => {
+  try {
+    await store.retryGenerationRun(run.id)
+    ui.showSnackbar('Generation retry queued.')
+  } catch (error) {
+    ui.showSnackbar(error.response?.data?.message || 'Unable to retry generation.', 'error')
+  }
+}
+
+onMounted(() => store.fetchDashboard())
+</script>
+
 <template>
-  <v-container fluid>
-    <v-row class="mb-4">
-      <v-col cols="12">
-        <div class="d-flex align-center justify-space-between flex-wrap ga-3">
-          <div>
-            <h2 class="text-h5 font-weight-bold">Academic Planning</h2>
-            <p class="text-body-2 text-medium-emphasis mb-0">
-              Timetable readiness, setup status and quick actions
-            </p>
-          </div>
-
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-refresh"
-            :loading="store.loading"
-            @click="store.fetchDashboard"
-          >
-            Refresh
-          </v-btn>
+  <div>
+    <div class="d-flex align-center justify-space-between flex-wrap ga-3 mb-6">
+      <div>
+        <div class="d-flex align-center ga-2 mb-1">
+          <v-avatar color="primary" variant="tonal" size="42">
+            <v-icon>mdi-calendar-school</v-icon>
+          </v-avatar>
+          <h1 class="text-h5 font-weight-bold">Academic Planning & Timetable</h1>
         </div>
-      </v-col>
-    </v-row>
+        <p class="text-body-2 text-medium-emphasis mb-0">
+          Monitor setup readiness, timetable lifecycle, generation progress and conflicts.
+        </p>
+      </div>
 
-    <v-alert
-      v-if="store.error"
-      type="error"
-      variant="tonal"
-      class="mb-4"
-    >
+      <v-btn
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-refresh"
+        :loading="store.loading || store.refreshing"
+        @click="refresh"
+      >
+        Refresh
+      </v-btn>
+    </div>
+
+    <v-alert v-if="store.error" type="error" variant="tonal" class="mb-5">
       {{ store.error }}
     </v-alert>
 
+    <v-alert
+      v-else-if="store.partialErrors.length"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      class="mb-5"
+      closable
+    >
+      Some dashboard sections could not be loaded. The available information is shown below.
+    </v-alert>
+
     <v-row>
-      <v-col cols="12" md="4">
-        <v-card class="h-100">
-          <v-card-title>Readiness</v-card-title>
-          <v-card-text class="text-center">
-            <v-progress-circular
-              :model-value="store.overallScore"
-              size="120"
-              width="12"
-              color="primary"
-            >
-              <strong>{{ store.overallScore }}%</strong>
-            </v-progress-circular>
-
-            <div class="mt-4 text-body-2 text-medium-emphasis">
-              Overall setup readiness
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <v-col cols="12" md="8">
-        <v-card class="h-100">
-          <v-card-title>Setup Checks</v-card-title>
+      <v-col v-for="card in summaryCards" :key="card.label" cols="12" sm="6" lg="2">
+        <v-card class="h-100 rounded-xl" variant="outlined">
           <v-card-text>
-            <v-row>
-              <v-col
-                v-for="(value, key) in checks"
-                :key="key"
-                cols="12"
-                sm="6"
-                md="4"
-              >
-                <v-chip
-                  class="w-100 justify-center"
-                  :color="value ? 'success' : 'warning'"
-                  variant="tonal"
-                >
-                  <v-icon start>
-                    {{ value ? 'mdi-check-circle' : 'mdi-alert-circle' }}
-                  </v-icon>
-                  {{ formatLabel(key) }}
-                </v-chip>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <v-row class="mt-2">
-      <v-col
-        v-for="card in statCards"
-        :key="card.key"
-        cols="12"
-        sm="6"
-        md="3"
-      >
-        <v-card>
-          <v-card-text>
-            <div class="d-flex align-center justify-space-between">
+            <div class="d-flex align-start justify-space-between ga-3">
               <div>
-                <div class="text-body-2 text-medium-emphasis">
-                  {{ card.label }}
-                </div>
-                <div class="text-h5 font-weight-bold">
-                  {{ card.value }}
-                </div>
+                <div class="text-caption text-medium-emphasis mb-2">{{ card.label }}</div>
+                <div class="text-h5 font-weight-bold">{{ card.value }}</div>
               </div>
-
-              <v-avatar color="primary" variant="tonal">
+              <v-avatar :color="card.color" variant="tonal" size="42">
                 <v-icon>{{ card.icon }}</v-icon>
               </v-avatar>
             </div>
@@ -111,127 +206,217 @@
     </v-row>
 
     <v-row class="mt-2">
-      <v-col cols="12" md="8">
-        <v-card>
-          <v-card-title>Warnings</v-card-title>
+      <v-col cols="12" lg="4">
+        <v-card class="h-100 rounded-xl" variant="outlined">
+          <v-card-title class="d-flex align-center justify-space-between">
+            <span>Setup Readiness</span>
+            <v-chip :color="store.overallScore >= 80 ? 'success' : 'warning'" size="small" variant="tonal">
+              {{ store.overallScore }}%
+            </v-chip>
+          </v-card-title>
           <v-card-text>
-            <v-alert
-              v-if="!store.warnings.length"
-              type="success"
-              variant="tonal"
-            >
-              No setup warnings found.
-            </v-alert>
-
-            <v-list v-else density="compact">
-              <v-list-item
-                v-for="(warning, index) in store.warnings"
-                :key="index"
-                prepend-icon="mdi-alert"
+            <div class="text-center mb-5">
+              <v-progress-circular
+                :model-value="store.overallScore"
+                :color="store.overallScore >= 80 ? 'success' : 'warning'"
+                size="120"
+                width="12"
               >
-                <v-list-item-title>{{ warning }}</v-list-item-title>
-              </v-list-item>
-            </v-list>
+                <strong>{{ store.overallScore }}%</strong>
+              </v-progress-circular>
+            </div>
+
+            <div class="d-flex flex-wrap ga-2">
+              <v-chip
+                v-for="(value, key) in checks"
+                :key="key"
+                :color="value ? 'success' : 'warning'"
+                variant="tonal"
+                size="small"
+              >
+                <v-icon start size="16">{{ value ? 'mdi-check-circle' : 'mdi-alert-circle' }}</v-icon>
+                {{ String(key).replaceAll('_', ' ') }}
+              </v-chip>
+            </div>
           </v-card-text>
         </v-card>
       </v-col>
 
-      <v-col cols="12" md="4">
-        <v-card>
-          <v-card-title>Quick Actions</v-card-title>
-          <v-card-text class="d-flex flex-column ga-3">
-            <v-btn color="primary" block prepend-icon="mdi-robot">
-              Generate Timetable
-            </v-btn>
-
-            <v-btn color="info" block variant="tonal" prepend-icon="mdi-check-decagram">
-              Validate Timetable
-            </v-btn>
-
-            <v-btn color="success" block variant="tonal" prepend-icon="mdi-publish">
-              Publish
-            </v-btn>
-
-            <v-btn color="warning" block variant="tonal" prepend-icon="mdi-account-switch">
-              Teacher Substitution
-            </v-btn>
+      <v-col cols="12" lg="8">
+        <v-card class="h-100 rounded-xl" variant="outlined">
+          <v-card-title>Timetable Setup</v-card-title>
+          <v-card-subtitle>Complete the essential configuration before generation.</v-card-subtitle>
+          <v-card-text>
+            <v-row>
+              <v-col v-for="action in setupActions" :key="action.title" cols="12" sm="6">
+                <v-card
+                  class="setup-card h-100 rounded-lg"
+                  variant="tonal"
+                  :color="action.color"
+                  @click="go(action.route)"
+                >
+                  <v-card-text class="d-flex align-start ga-3">
+                    <v-avatar :color="action.color" variant="flat" size="42">
+                      <v-icon color="white">{{ action.icon }}</v-icon>
+                    </v-avatar>
+                    <div>
+                      <div class="font-weight-bold">{{ action.title }}</div>
+                      <div class="text-caption mt-1">{{ action.description }}</div>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
           </v-card-text>
         </v-card>
       </v-col>
     </v-row>
-  </v-container>
+
+    <v-row class="mt-2">
+      <v-col cols="12" lg="7">
+        <v-card class="rounded-xl" variant="outlined">
+          <v-card-title class="d-flex align-center justify-space-between">
+            <span>Recent Timetables</span>
+            <v-chip size="small" variant="tonal">{{ store.weeklyTimetables.length }} loaded</v-chip>
+          </v-card-title>
+          <v-divider />
+
+          <v-table density="comfortable">
+            <thead>
+              <tr>
+                <th>Timetable</th>
+                <th>Class</th>
+                <th>Status</th>
+                <th>Version</th>
+                <th>Effective</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in store.recentTimetables" :key="item.id">
+                <td>
+                  <div class="font-weight-medium">{{ item.name || `Timetable #${item.id}` }}</div>
+                  <div class="text-caption text-medium-emphasis">#{{ item.id }}</div>
+                </td>
+                <td>{{ timetableClass(item) }}</td>
+                <td>
+                  <v-chip :color="statusColor(item.status)" size="small" variant="tonal">
+                    {{ item.status || 'unknown' }}
+                  </v-chip>
+                </td>
+                <td>v{{ item.version || 1 }}</td>
+                <td>{{ item.effective_from || '—' }}</td>
+              </tr>
+              <tr v-if="!store.recentTimetables.length">
+                <td colspan="5" class="text-center text-medium-emphasis py-8">
+                  No timetable records found.
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card>
+      </v-col>
+
+      <v-col cols="12" lg="5">
+        <v-card class="rounded-xl" variant="outlined">
+          <v-card-title>Generation Activity</v-card-title>
+          <v-divider />
+          <v-list v-if="store.recentRuns.length" lines="three">
+            <template v-for="(run, index) in store.recentRuns" :key="run.id">
+              <v-list-item>
+                <template #prepend>
+                  <v-avatar :color="statusColor(run.status)" variant="tonal">
+                    <v-icon>{{ run.mode === 'batch' ? 'mdi-calendar-multiple' : 'mdi-calendar-cog' }}</v-icon>
+                  </v-avatar>
+                </template>
+
+                <v-list-item-title class="d-flex align-center ga-2">
+                  Run #{{ run.id }}
+                  <v-chip :color="statusColor(run.status)" size="x-small" variant="tonal">
+                    {{ run.status }}
+                  </v-chip>
+                </v-list-item-title>
+                <v-list-item-subtitle>
+                  {{ run.mode }} · {{ run.is_preview ? 'Preview' : 'Final' }} · {{ formatDate(run.created_at) }}
+                </v-list-item-subtitle>
+
+                <div class="mt-2">
+                  <v-progress-linear
+                    :model-value="run.progress_percentage || 0"
+                    :color="statusColor(run.status)"
+                    height="6"
+                    rounded
+                  />
+                  <div class="text-caption text-medium-emphasis mt-1">
+                    {{ run.processed_items || 0 }}/{{ run.requested_items || 1 }} processed ·
+                    {{ run.progress_percentage || 0 }}%
+                  </div>
+                </div>
+
+                <template #append>
+                  <div class="d-flex ga-1">
+                    <v-btn
+                      v-if="['queued', 'running'].includes(run.status)"
+                      icon="mdi-stop-circle-outline"
+                      size="small"
+                      variant="text"
+                      color="error"
+                      @click="cancelRun(run)"
+                    />
+                    <v-btn
+                      v-else-if="['failed', 'partial', 'cancelled'].includes(run.status)"
+                      icon="mdi-replay"
+                      size="small"
+                      variant="text"
+                      color="primary"
+                      @click="retryRun(run)"
+                    />
+                  </div>
+                </template>
+              </v-list-item>
+              <v-divider v-if="index < store.recentRuns.length - 1" />
+            </template>
+          </v-list>
+          <div v-else class="text-center text-medium-emphasis py-10">
+            No generation activity found.
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row class="mt-2">
+      <v-col cols="12">
+        <v-card class="rounded-xl" variant="outlined">
+          <v-card-title>Readiness Warnings</v-card-title>
+          <v-card-text>
+            <v-alert v-if="!store.warnings.length" type="success" variant="tonal">
+              All available setup checks passed.
+            </v-alert>
+            <v-row v-else>
+              <v-col v-for="(warning, index) in store.warnings" :key="index" cols="12" md="6">
+                <v-alert type="warning" variant="tonal" density="compact">
+                  {{ warning }}
+                </v-alert>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+  </div>
 </template>
 
-<script setup>
-import { computed, onMounted } from 'vue'
-import { useAcademicPlanningStore } from '../../stores/academicPlanning'
-
-const store = useAcademicPlanningStore()
-
-const checks = computed(() => store.readiness?.checks || {})
-
-const statCards = computed(() => {
-  const s = store.statistics
-
-  return [
-    {
-      key: 'teachers',
-      label: 'Teachers',
-      value: s.teachers || 0,
-      icon: 'mdi-account-school',
-    },
-    {
-      key: 'teacher_assignments',
-      label: 'Teacher Assignments',
-      value: s.teacher_assignments || 0,
-      icon: 'mdi-account-check',
-    },
-    {
-      key: 'subject_allocations',
-      label: 'Subject Allocations',
-      value: s.subject_allocations || 0,
-      icon: 'mdi-book-clock',
-    },
-    {
-      key: 'rooms',
-      label: 'Rooms',
-      value: s.rooms || 0,
-      icon: 'mdi-door',
-    },
-    {
-      key: 'templates',
-      label: 'Templates',
-      value: s.templates || 0,
-      icon: 'mdi-calendar-range',
-    },
-    {
-      key: 'bell_schedules',
-      label: 'Bell Schedules',
-      value: s.bell_schedules || 0,
-      icon: 'mdi-bell-ring',
-    },
-    {
-      key: 'rules',
-      label: 'Rules',
-      value: s.rules || 0,
-      icon: 'mdi-ruler',
-    },
-    {
-      key: 'parallel_groups',
-      label: 'Parallel Groups',
-      value: s.parallel_groups || 0,
-      icon: 'mdi-vector-combine',
-    },
-  ]
-})
-
-const formatLabel = (value) => {
-  return String(value)
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase())
+<style scoped>
+.setup-card {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-onMounted(() => {
-  store.fetchDashboard()
-})
-</script>
+.setup-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+th {
+  white-space: nowrap;
+}
+</style>
