@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import api from '../plugins/api'
-import { useUIStore } from '../stores/snackBar'
+import { useUIStore } from './snackBar'
+
+const extractPayload = (response) => response?.data?.data || response?.data || {}
+
+const extractErrorMessage = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback
 
 export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabilityException', {
   state: () => ({
@@ -11,50 +16,88 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
     week: null,
     loading: false,
     saving: false,
+    deleting: false,
+    moving: false,
     error: null,
+    activeRequestId: 0,
   }),
 
   getters: {
-    leaveExceptions: (state) => state.exceptions.filter((item) => item.status === 'leave'),
+    leaveExceptions: (state) =>
+      state.exceptions.filter((item) => item.status === 'leave'),
+
+    activeExceptions: (state) =>
+      state.exceptions.filter((item) => item.is_active !== false),
   },
 
   actions: {
     async fetchDashboard(date = null) {
+      const requestId = ++this.activeRequestId
+
       this.loading = true
       this.error = null
 
       try {
-        const { data } = await api.get('/teacher-availability-exceptions/dashboard', {
-          params: { date },
+        const response = await api.get('/teacher-availability-exceptions/dashboard', {
+          params: date ? { date } : {},
         })
 
-        this.teachers = data.data?.teachers || []
-        this.bells = data.data?.bells || []
-        this.exceptions = data.data?.exceptions || []
-        this.stats = data.data?.stats || {}
-        this.week = data.data?.week || null
+        if (requestId !== this.activeRequestId) return null
+
+        const payload = extractPayload(response)
+
+        this.teachers = Array.isArray(payload.teachers) ? payload.teachers : []
+        this.bells = Array.isArray(payload.bells) ? payload.bells : []
+        this.exceptions = Array.isArray(payload.exceptions) ? payload.exceptions : []
+        this.stats = payload.stats && typeof payload.stats === 'object' ? payload.stats : {}
+        this.week = payload.week || null
+
+        return payload
       } catch (error) {
-        this.error = error.response?.data?.message || 'Failed to load teacher availability dashboard.'
+        if (requestId === this.activeRequestId) {
+          this.error = extractErrorMessage(
+            error,
+            'Failed to load teacher availability dashboard.'
+          )
+        }
+
         throw error
       } finally {
-        this.loading = false
+        if (requestId === this.activeRequestId) {
+          this.loading = false
+        }
       }
     },
 
-    async save(payload, id = null) {
+    async save(payload, id = null, options = {}) {
       const ui = useUIStore()
+      const { silent = false } = options
+
       this.saving = true
+      this.error = null
 
       try {
-        if (id) {
-          await api.put(`/teacher-availability-exceptions/${id}`, payload)
-        } else {
-          await api.post('/teacher-availability-exceptions', payload)
+        const response = id
+          ? await api.put(`/teacher-availability-exceptions/${id}`, payload)
+          : await api.post('/teacher-availability-exceptions', payload)
+
+        if (!silent) {
+          ui.showSnackbar(
+            id
+              ? 'Teacher availability exception updated successfully.'
+              : 'Teacher availability exception created successfully.'
+          )
         }
 
-        ui.showSnackbar('Teacher availability exception saved successfully.')
+        return extractPayload(response)
       } catch (error) {
-        ui.showSnackbar(error.response?.data?.message || 'Failed to save exception.', 'error')
+        const message = extractErrorMessage(error, 'Failed to save exception.')
+        this.error = message
+
+        if (!silent) {
+          ui.showSnackbar(message, 'error')
+        }
+
         throw error
       } finally {
         this.saving = false
@@ -64,38 +107,59 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
     async delete(id, date = null) {
       const ui = useUIStore()
 
+      this.deleting = true
+      this.error = null
+
       try {
         await api.delete(`/teacher-availability-exceptions/${id}`)
         ui.showSnackbar('Exception deleted successfully.')
         await this.fetchDashboard(date)
       } catch (error) {
-        ui.showSnackbar(error.response?.data?.message || 'Failed to delete exception.', 'error')
+        const message = extractErrorMessage(error, 'Failed to delete exception.')
+        this.error = message
+        ui.showSnackbar(message, 'error')
         throw error
+      } finally {
+        this.deleting = false
       }
     },
 
     async moveException(id, payload) {
       const ui = useUIStore()
 
+      this.moving = true
+      this.error = null
+
       try {
-        const { data } = await api.patch(
+        const response = await api.patch(
           `/teacher-availability-exceptions/${id}/move`,
           payload
         )
 
         ui.showSnackbar('Exception moved successfully.')
-        return data.data
+        return extractPayload(response)
       } catch (error) {
-        ui.showSnackbar(
-          error.response?.data?.message || 'Failed to move exception.',
-          'error'
-        )
-
+        const message = extractErrorMessage(error, 'Failed to move exception.')
+        this.error = message
+        ui.showSnackbar(message, 'error')
         throw error
+      } finally {
+        this.moving = false
       }
     },
 
+    reset() {
+      this.activeRequestId += 1
+      this.teachers = []
+      this.bells = []
+      this.exceptions = []
+      this.stats = {}
+      this.week = null
+      this.loading = false
+      this.saving = false
+      this.deleting = false
+      this.moving = false
+      this.error = null
+    },
   },
 })
-
-
