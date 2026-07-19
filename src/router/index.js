@@ -800,7 +800,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           permission: 'academic.planning.dashboard',
-          feature_key: 'academic.planning',
+          featureKey: 'academic_planning',
           title: 'Academic Planning',
         },
       },
@@ -811,7 +811,7 @@ const routes = [
         meta: {
           requiresAuth: true,
           permission: 'subject.allocation',
-          feature_key: 'academic.planning',
+          featureKey: 'academic_planning',
           title: 'Subject Allocation',
         },
       },
@@ -822,19 +822,19 @@ const routes = [
         meta: {
           requiresAuth: true,
           permission: 'teacher.availability',
-          feature_key: 'academic.planning',
+          featureKey: 'academic_planning',
           title: 'Teacher Availability',
         },
       },
       {
         path: '/academic-planning/teacher-substitutions',
-        name: 'teacher.substitutions',
+        name: 'teacher.substitution',
         component: () => import('../views/academic-planning/TeacherSubstitution/Index.vue'),
         meta: {
           title: 'Teacher Substitution',
           requiresAuth: true,
-          permission: 'teacher.availability',
-          feature_key: 'academic.planning',
+          permission: 'teacher.substitution',
+          featureKey: 'academic_planning',
         },
       },
       {
@@ -845,9 +845,8 @@ const routes = [
         meta: {
           title: 'Teacher Timetable',
           requiresAuth: true,
-          // permission: 'teacher.timetable',
-          permission: 'teacher.availability',
-          feature_key: 'academic.planning',
+          permission: 'teacher.timetable',
+          featureKey: 'academic_planning',
         },
       },
 
