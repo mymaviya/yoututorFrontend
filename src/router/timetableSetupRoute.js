@@ -36,6 +36,16 @@ export default {
       },
     },
     {
+      path: 'academic-planning/timetable-reports',
+      name: 'timetable.reports',
+      component: () => import('../pages/AcademicPlanning/TimetableReports/ReportsPage.vue'),
+      meta: {
+        title: 'Timetable Reports & Analytics',
+        requiresAuth: true,
+        featureKey: 'academic_planning',
+      },
+    },
+    {
       path: 'academic-planning/timetable-templates',
       name: 'timetable.templates',
       component: () => import('../pages/AcademicPlanning/TimetableSetup/TemplatesPage.vue'),
