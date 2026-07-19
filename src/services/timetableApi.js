@@ -80,6 +80,23 @@ const timetableApi = {
     return unwrap(response)
   },
 
+  async preview(payload, optimized = true) {
+    const endpoint = optimized ? '/timetable-optimizer/preview' : '/timetable-generator/preview'
+    const response = await api.post(endpoint, payload)
+    return unwrap(response)
+  },
+
+  async generate(payload, { optimized = true, async = false } = {}) {
+    const endpoint = optimized ? '/timetable-optimizer/generate' : '/timetable-generator/generate'
+    const response = await api.post(endpoint, { ...payload, ...(optimized ? {} : { async }) })
+    return unwrap(response)
+  },
+
+  async queuePreview(payload) {
+    const response = await api.post('/timetable-generator/preview', { ...payload, async: true })
+    return unwrap(response)
+  },
+
   async publish(id) {
     const response = await api.post(`/weekly-timetables/${id}/publish`)
     return unwrap(response)
