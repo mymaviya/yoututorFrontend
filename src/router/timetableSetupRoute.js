@@ -16,6 +16,16 @@ export default {
       },
     },
     {
+      path: 'academic-planning/timetable-batch-generator',
+      name: 'timetable.batch-generator',
+      component: () => import('../pages/AcademicPlanning/TimetableGenerator/BatchGeneratorPage.vue'),
+      meta: {
+        title: 'Batch Timetable Generator',
+        requiresAuth: true,
+        featureKey: 'academic_planning',
+      },
+    },
+    {
       path: 'academic-planning/timetable-templates',
       name: 'timetable.templates',
       component: () => import('../pages/AcademicPlanning/TimetableSetup/TemplatesPage.vue'),
