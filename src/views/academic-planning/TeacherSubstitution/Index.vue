@@ -30,8 +30,8 @@
       v-else
       class="mt-4"
       :loading="store.loading"
-      :items="filteredItems"
       :saving="store.saving"
+      :items="filteredItems"
       @assign="openSuggestionDrawer"
       @view="openTimeline"
       @approve="approve"
@@ -69,7 +69,7 @@ import Timeline from './components/Timeline.vue'
 
 const store = useTeacherSubstitutionStore()
 
-const formatLocalDate = (date) => {
+const formatLocalDate = (date = new Date()) => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -78,7 +78,7 @@ const formatLocalDate = (date) => {
 }
 
 const filters = reactive({
-  date: formatLocalDate(new Date()),
+  date: formatLocalDate(),
   grade_id: null,
   status: null,
 })
@@ -86,14 +86,15 @@ const filters = reactive({
 const drawer = ref(false)
 const timelineDialog = ref(false)
 const selectedSubstitution = ref(null)
-const requestSequence = ref(0)
 let dateWatchTimer = null
 
 const filteredItems = computed(() => {
   let items = Array.isArray(store.items) ? [...store.items] : []
 
   if (filters.grade_id !== null && filters.grade_id !== '') {
-    items = items.filter((item) => Number(item.grade_id) === Number(filters.grade_id))
+    items = items.filter(
+      (item) => Number(item.grade_id) === Number(filters.grade_id)
+    )
   }
 
   if (filters.status) {
@@ -103,15 +104,7 @@ const filteredItems = computed(() => {
   return items
 })
 
-const loadDashboard = async () => {
-  const sequence = ++requestSequence.value
-
-  try {
-    await store.fetchDashboard(filters.date)
-  } catch (error) {
-    if (sequence !== requestSequence.value) return
-  }
-}
+const loadDashboard = () => store.fetchDashboard(filters.date)
 
 const filterStatus = (status) => {
   filters.status = filters.status === status ? null : status
@@ -119,33 +112,32 @@ const filterStatus = (status) => {
 
 const openSuggestionDrawer = async (item) => {
   selectedSubstitution.value = item
-  drawer.value = true
   store.clearSuggestions()
+  drawer.value = true
 
-  try {
-    await store.fetchSuggestions({
-      academic_year_id: item.academic_year_id,
-      absent_teacher_id: item.absent_teacher_id,
-      school_bell_id: item.school_bell_id,
-      date: item.substitution_date,
-      subject_id: item.subject_id,
-    })
-  } catch (error) {
+  const loaded = await store.fetchSuggestions({
+    academic_year_id: item.academic_year_id,
+    absent_teacher_id: item.absent_teacher_id,
+    school_bell_id: item.school_bell_id,
+    date: item.substitution_date || filters.date,
+    subject_id: item.subject_id,
+  })
+
+  if (!loaded) {
     drawer.value = false
-    selectedSubstitution.value = null
   }
 }
 
 const assignTeacher = async (teacherId) => {
-  if (!selectedSubstitution.value || !teacherId || store.saving) return
+  if (!selectedSubstitution.value || store.saving) return
 
   try {
     await store.assign(selectedSubstitution.value.id, teacherId)
     drawer.value = false
     selectedSubstitution.value = null
     await loadDashboard()
-  } catch (error) {
-    // Store handles the user-facing error message.
+  } catch {
+    // Store already displays the error.
   }
 }
 
@@ -155,24 +147,24 @@ const openTimeline = (item) => {
 }
 
 const approve = async (item) => {
-  if (!item?.id || store.saving) return
+  if (store.saving) return
 
   try {
     await store.approve(item.id)
     await loadDashboard()
-  } catch (error) {
-    // Store handles the user-facing error message.
+  } catch {
+    // Store already displays the error.
   }
 }
 
 const cancel = async (item) => {
-  if (!item?.id || store.saving) return
+  if (store.saving) return
 
   try {
     await store.cancel(item.id)
     await loadDashboard()
-  } catch (error) {
-    // Store handles the user-facing error message.
+  } catch {
+    // Store already displays the error.
   }
 }
 
@@ -186,13 +178,13 @@ watch(
 
 watch(drawer, (isOpen) => {
   if (!isOpen) {
-    selectedSubstitution.value = null
     store.clearSuggestions()
+    selectedSubstitution.value = null
   }
 })
 
 watch(timelineDialog, (isOpen) => {
-  if (!isOpen && !drawer.value) {
+  if (!isOpen) {
     selectedSubstitution.value = null
   }
 })
