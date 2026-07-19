@@ -26,6 +26,16 @@ export default {
       },
     },
     {
+      path: 'academic-planning/timetable-editor',
+      name: 'timetable.editor',
+      component: () => import('../pages/AcademicPlanning/TimetableEditor/EditorPage.vue'),
+      meta: {
+        title: 'Weekly Timetable Editor',
+        requiresAuth: true,
+        featureKey: 'academic_planning',
+      },
+    },
+    {
       path: 'academic-planning/timetable-templates',
       name: 'timetable.templates',
       component: () => import('../pages/AcademicPlanning/TimetableSetup/TemplatesPage.vue'),
