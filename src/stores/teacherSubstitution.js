@@ -2,9 +2,8 @@ import { defineStore } from 'pinia'
 import api from '../plugins/api'
 import { useUIStore } from '../stores/snackBar'
 
-const errorMessage = (error, fallback) => (
-  error?.response?.data?.message || fallback
-)
+const getErrorMessage = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback
 
 export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
   state: () => ({
@@ -16,6 +15,7 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
     loading: false,
     saving: false,
     suggestionLoading: false,
+    dashboardRequestId: 0,
   }),
 
   getters: {
@@ -31,6 +31,7 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
   actions: {
     async fetchDashboard(date = null, academicYearId = null) {
       const ui = useUIStore()
+      const requestId = ++this.dashboardRequestId
       this.loading = true
 
       try {
@@ -41,22 +42,29 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
           },
         })
 
+        if (requestId !== this.dashboardRequestId) return false
+
         this.stats = data?.stats || data?.summary || {}
         this.items = Array.isArray(data?.items) ? data.items : []
         this.analytics = data?.analytics || {}
 
-        return data
+        return true
       } catch (error) {
-        this.stats = {}
-        this.items = []
-        this.analytics = {}
-        ui.showSnackbar(
-          errorMessage(error, 'Failed to load substitution dashboard.'),
-          'error'
-        )
-        throw error
+        if (requestId === this.dashboardRequestId) {
+          this.stats = {}
+          this.items = []
+          this.analytics = {}
+          ui.showSnackbar(
+            getErrorMessage(error, 'Failed to load substitution dashboard.'),
+            'error'
+          )
+        }
+
+        return false
       } finally {
-        this.loading = false
+        if (requestId === this.dashboardRequestId) {
+          this.loading = false
+        }
       }
     },
 
@@ -71,37 +79,36 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
           },
         })
 
-        this.pendingItems = Array.isArray(data) ? data : []
-        return this.pendingItems
+        this.pendingItems = Array.isArray(data) ? data : data?.data || []
+        return true
       } catch (error) {
         this.pendingItems = []
         ui.showSnackbar(
-          errorMessage(error, 'Failed to load pending substitutions.'),
+          getErrorMessage(error, 'Failed to load pending substitutions.'),
           'error'
         )
-        throw error
+        return false
       }
     },
 
     async fetchSuggestions(params) {
       const ui = useUIStore()
       this.suggestionLoading = true
-      this.suggestions = []
 
       try {
         const { data } = await api.get('/teacher-substitutions/suggestions', {
           params,
         })
 
-        this.suggestions = Array.isArray(data) ? data : []
-        return this.suggestions
+        this.suggestions = Array.isArray(data) ? data : data?.data || []
+        return true
       } catch (error) {
         this.suggestions = []
         ui.showSnackbar(
-          errorMessage(error, 'Failed to load substitute suggestions.'),
+          getErrorMessage(error, 'Failed to load substitute suggestions.'),
           'error'
         )
-        throw error
+        return false
       } finally {
         this.suggestionLoading = false
       }
@@ -118,10 +125,10 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
       try {
         const { data } = await api.post('/teacher-substitutions', payload)
         ui.showSnackbar(data?.message || 'Substitution created successfully.')
-        return data?.data
+        return data?.data || null
       } catch (error) {
         ui.showSnackbar(
-          errorMessage(error, 'Failed to create substitution.'),
+          getErrorMessage(error, 'Failed to create substitution.'),
           'error'
         )
         throw error
@@ -140,10 +147,10 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
         })
 
         ui.showSnackbar(data?.message || 'Substitute assigned successfully.')
-        return data?.data
+        return data?.data || null
       } catch (error) {
         ui.showSnackbar(
-          errorMessage(error, 'Failed to assign substitute.'),
+          getErrorMessage(error, 'Failed to assign substitute.'),
           'error'
         )
         throw error
@@ -159,10 +166,10 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
       try {
         const { data } = await api.post(`/teacher-substitutions/${id}/approve`)
         ui.showSnackbar(data?.message || 'Substitution approved.')
-        return data?.data
+        return data?.data || null
       } catch (error) {
         ui.showSnackbar(
-          errorMessage(error, 'Failed to approve substitution.'),
+          getErrorMessage(error, 'Failed to approve substitution.'),
           'error'
         )
         throw error
@@ -181,16 +188,28 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
         })
 
         ui.showSnackbar(data?.message || 'Substitution cancelled.')
-        return data?.data
+        return data?.data || null
       } catch (error) {
         ui.showSnackbar(
-          errorMessage(error, 'Failed to cancel substitution.'),
+          getErrorMessage(error, 'Failed to cancel substitution.'),
           'error'
         )
         throw error
       } finally {
         this.saving = false
       }
+    },
+
+    reset() {
+      this.stats = {}
+      this.analytics = {}
+      this.items = []
+      this.pendingItems = []
+      this.suggestions = []
+      this.loading = false
+      this.saving = false
+      this.suggestionLoading = false
+      this.dashboardRequestId += 1
     },
   },
 })
