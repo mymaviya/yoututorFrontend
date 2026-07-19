@@ -1,5 +1,6 @@
 export const groupIcons = {
   Academic: "mdi-school",
+  "Academic Planning": "mdi-calendar-school",
   Teachers: "mdi-account-tie",
   "Question Bank": "mdi-help-box-multiple",
   Papers: "mdi-file-document-multiple",
@@ -7,9 +8,22 @@ export const groupIcons = {
   Reports: "mdi-chart-box",
   Examinations: "mdi-laptop",
   Administration: "mdi-account-cog",
+  "School Management": "mdi-office-building-cog",
+  "School Operations": "mdi-school-outline",
   Security: "mdi-shield-check",
   Manage: "mdi-cogs",
   Imports: "mdi-file-import",
+};
+
+const routeAliases = {
+  "bell-schedules": "bell.schedules",
+  "bell.schedule": "bell.schedules",
+  "bell.schedule.index": "bell.schedules",
+};
+
+const normalizeRouteName = (routeName) => {
+  if (!routeName) return null;
+  return routeAliases[routeName] || routeName;
 };
 
 export function buildSidebarMenus(menus = [], badgeCounts = {}) {
@@ -20,13 +34,15 @@ export function buildSidebarMenus(menus = [], badgeCounts = {}) {
     .filter((menu) => menu.is_active && menu.show_in_sidebar !== false)
     .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
     .forEach((menu) => {
-      const dynamicBadge = badgeCounts[menu.route_name];
+      const routeName = normalizeRouteName(menu.route_name);
+      const dynamicBadge = badgeCounts[routeName] ?? badgeCounts[menu.route_name];
 
       const item = {
         title: menu.title,
         icon: menu.icon || "mdi-circle-small",
-        routeName: menu.route_name,
+        routeName,
         permission: menu.permission_slug,
+        featureKey: menu.feature_key || menu.featureKey || null,
         order: Number(menu.sort_order || 0),
 
         badge:
