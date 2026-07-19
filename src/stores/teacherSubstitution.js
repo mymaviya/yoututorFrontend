@@ -2,6 +2,10 @@ import { defineStore } from 'pinia'
 import api from '../plugins/api'
 import { useUIStore } from '../stores/snackBar'
 
+const errorMessage = (error, fallback) => (
+  error?.response?.data?.message || fallback
+)
+
 export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
   state: () => ({
     stats: {},
@@ -26,6 +30,7 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
 
   actions: {
     async fetchDashboard(date = null, academicYearId = null) {
+      const ui = useUIStore()
       this.loading = true
 
       try {
@@ -36,34 +41,67 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
           },
         })
 
-        this.stats = data.stats || data.summary || {}
-        this.items = data.items || []
-        this.analytics = data.analytics || {}
+        this.stats = data?.stats || data?.summary || {}
+        this.items = Array.isArray(data?.items) ? data.items : []
+        this.analytics = data?.analytics || {}
+
+        return data
+      } catch (error) {
+        this.stats = {}
+        this.items = []
+        this.analytics = {}
+        ui.showSnackbar(
+          errorMessage(error, 'Failed to load substitution dashboard.'),
+          'error'
+        )
+        throw error
       } finally {
         this.loading = false
       }
     },
 
     async fetchPending(date = null, academicYearId = null) {
-      const { data } = await api.get('/teacher-substitutions/pending', {
-        params: {
-          date,
-          academic_year_id: academicYearId,
-        },
-      })
+      const ui = useUIStore()
 
-      this.pendingItems = data || []
+      try {
+        const { data } = await api.get('/teacher-substitutions/pending', {
+          params: {
+            date,
+            academic_year_id: academicYearId,
+          },
+        })
+
+        this.pendingItems = Array.isArray(data) ? data : []
+        return this.pendingItems
+      } catch (error) {
+        this.pendingItems = []
+        ui.showSnackbar(
+          errorMessage(error, 'Failed to load pending substitutions.'),
+          'error'
+        )
+        throw error
+      }
     },
 
     async fetchSuggestions(params) {
+      const ui = useUIStore()
       this.suggestionLoading = true
+      this.suggestions = []
 
       try {
         const { data } = await api.get('/teacher-substitutions/suggestions', {
           params,
         })
 
-        this.suggestions = data || []
+        this.suggestions = Array.isArray(data) ? data : []
+        return this.suggestions
+      } catch (error) {
+        this.suggestions = []
+        ui.showSnackbar(
+          errorMessage(error, 'Failed to load substitute suggestions.'),
+          'error'
+        )
+        throw error
       } finally {
         this.suggestionLoading = false
       }
@@ -79,11 +117,11 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
 
       try {
         const { data } = await api.post('/teacher-substitutions', payload)
-        ui.showSnackbar(data.message || 'Substitution created successfully.')
-        return data.data
+        ui.showSnackbar(data?.message || 'Substitution created successfully.')
+        return data?.data
       } catch (error) {
         ui.showSnackbar(
-          error.response?.data?.message || 'Failed to create substitution.',
+          errorMessage(error, 'Failed to create substitution.'),
           'error'
         )
         throw error
@@ -101,11 +139,11 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
           substitute_teacher_id: substituteTeacherId,
         })
 
-        ui.showSnackbar(data.message || 'Substitute assigned successfully.')
-        return data.data
+        ui.showSnackbar(data?.message || 'Substitute assigned successfully.')
+        return data?.data
       } catch (error) {
         ui.showSnackbar(
-          error.response?.data?.message || 'Failed to assign substitute.',
+          errorMessage(error, 'Failed to assign substitute.'),
           'error'
         )
         throw error
@@ -120,11 +158,11 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
 
       try {
         const { data } = await api.post(`/teacher-substitutions/${id}/approve`)
-        ui.showSnackbar(data.message || 'Substitution approved.')
-        return data.data
+        ui.showSnackbar(data?.message || 'Substitution approved.')
+        return data?.data
       } catch (error) {
         ui.showSnackbar(
-          error.response?.data?.message || 'Failed to approve substitution.',
+          errorMessage(error, 'Failed to approve substitution.'),
           'error'
         )
         throw error
@@ -142,11 +180,11 @@ export const useTeacherSubstitutionStore = defineStore('teacherSubstitution', {
           remarks,
         })
 
-        ui.showSnackbar(data.message || 'Substitution cancelled.')
-        return data.data
+        ui.showSnackbar(data?.message || 'Substitution cancelled.')
+        return data?.data
       } catch (error) {
         ui.showSnackbar(
-          error.response?.data?.message || 'Failed to cancel substitution.',
+          errorMessage(error, 'Failed to cancel substitution.'),
           'error'
         )
         throw error
