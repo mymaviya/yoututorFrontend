@@ -1,0 +1,119 @@
+<script setup>
+const props = defineProps({
+  title: {
+    type: String,
+    default: 'Teacher Timetable',
+  },
+  subtitle: {
+    type: String,
+    default: 'View weekly teaching assignments and free periods.',
+  },
+  refreshing: {
+    type: Boolean,
+    default: false,
+  },
+  exporting: {
+    type: Boolean,
+    default: false,
+  },
+  printing: {
+    type: Boolean,
+    default: false,
+  },
+  showPrint: {
+    type: Boolean,
+    default: true,
+  },
+  showExport: {
+    type: Boolean,
+    default: true,
+  },
+})
+
+const emit = defineEmits(['refresh', 'print', 'export'])
+</script>
+
+<template>
+  <v-card class="timetable-toolbar" rounded="xl" variant="flat">
+    <v-card-text class="pa-4 pa-md-5">
+      <div class="d-flex flex-column flex-lg-row align-lg-center justify-space-between ga-4">
+        <div class="min-width-0">
+          <div class="d-flex align-center ga-3 mb-1">
+            <v-avatar color="primary" variant="tonal" rounded="lg" size="42">
+              <v-icon icon="mdi-calendar-clock" />
+            </v-avatar>
+
+            <div class="min-width-0">
+              <h1 class="text-h6 text-md-h5 font-weight-bold text-truncate">
+                {{ props.title }}
+              </h1>
+              <p class="text-body-2 text-medium-emphasis mb-0">
+                {{ props.subtitle }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-actions d-flex flex-wrap align-center ga-2">
+          <slot name="actions" />
+
+          <v-btn
+            v-if="props.showExport"
+            variant="tonal"
+            prepend-icon="mdi-file-export-outline"
+            :loading="props.exporting"
+            :disabled="props.refreshing || props.printing"
+            @click="emit('export')"
+          >
+            Export
+          </v-btn>
+
+          <v-btn
+            v-if="props.showPrint"
+            variant="tonal"
+            prepend-icon="mdi-printer-outline"
+            :loading="props.printing"
+            :disabled="props.refreshing || props.exporting"
+            @click="emit('print')"
+          >
+            Print
+          </v-btn>
+
+          <v-btn
+            color="primary"
+            prepend-icon="mdi-refresh"
+            :loading="props.refreshing"
+            :disabled="props.exporting || props.printing"
+            @click="emit('refresh')"
+          >
+            Refresh
+          </v-btn>
+        </div>
+      </div>
+    </v-card-text>
+  </v-card>
+</template>
+
+<style scoped>
+.timetable-toolbar {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgb(var(--v-theme-surface));
+}
+
+.min-width-0 {
+  min-width: 0;
+}
+
+@media (max-width: 599px) {
+  .toolbar-actions,
+  .toolbar-actions :deep(.v-btn) {
+    width: 100%;
+  }
+}
+
+@media print {
+  .timetable-toolbar {
+    display: none;
+  }
+}
+</style>
