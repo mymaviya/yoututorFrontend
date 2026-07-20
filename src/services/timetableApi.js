@@ -2,6 +2,42 @@ import api from '../plugins/api'
 
 const unwrap = (response) => response?.data?.data ?? response?.data ?? null
 
+const detailedErrorMessage = (error, fallback) => {
+  const data = error?.response?.data
+  const errors = data?.errors
+
+  if (!errors || typeof errors !== 'object') {
+    return data?.message || fallback
+  }
+
+  const messages = Object.values(errors)
+    .flatMap((value) => Array.isArray(value) ? value : [value])
+    .flatMap((value) => {
+      if (Array.isArray(value)) return value
+      if (value && typeof value === 'object') return Object.values(value).flat()
+      return [value]
+    })
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+
+  const uniqueMessages = [...new Set(messages)]
+
+  return uniqueMessages.length
+    ? uniqueMessages.join('\n')
+    : data?.message || fallback
+}
+
+const enrichError = (error, fallback) => {
+  const message = detailedErrorMessage(error, fallback)
+
+  if (error?.response?.data) {
+    error.response.data.message = message
+  }
+
+  error.detailedMessage = message
+  return error
+}
+
 const resource = (base) => ({
   async list(params = {}) {
     const response = await api.get(base, { params })
@@ -87,29 +123,51 @@ const timetableApi = {
 
   async preview(payload, optimized = true) {
     const endpoint = optimized ? '/timetable-optimizer/preview' : '/timetable-generator/preview'
-    const response = await api.post(endpoint, payload)
-    return unwrap(response)
+
+    try {
+      const response = await api.post(endpoint, payload)
+      return unwrap(response)
+    } catch (error) {
+      throw enrichError(error, 'Unable to create timetable preview.')
+    }
   },
 
   async generate(payload, { optimized = true, async = false } = {}) {
     const endpoint = optimized ? '/timetable-optimizer/generate' : '/timetable-generator/generate'
-    const response = await api.post(endpoint, { ...payload, ...(optimized ? {} : { async }) })
-    return unwrap(response)
+
+    try {
+      const response = await api.post(endpoint, { ...payload, ...(optimized ? {} : { async }) })
+      return unwrap(response)
+    } catch (error) {
+      throw enrichError(error, 'Unable to generate timetable.')
+    }
   },
 
   async queuePreview(payload) {
-    const response = await api.post('/timetable-generator/preview', { ...payload, async: true })
-    return unwrap(response)
+    try {
+      const response = await api.post('/timetable-generator/preview', { ...payload, async: true })
+      return unwrap(response)
+    } catch (error) {
+      throw enrichError(error, 'Unable to queue timetable preview.')
+    }
   },
 
   async batchPreview(payload, async = true) {
-    const response = await api.post('/timetable-batch-generator/preview', { ...payload, async })
-    return unwrap(response)
+    try {
+      const response = await api.post('/timetable-batch-generator/preview', { ...payload, async })
+      return unwrap(response)
+    } catch (error) {
+      throw enrichError(error, 'Unable to create batch timetable preview.')
+    }
   },
 
   async batchGenerate(payload, async = true) {
-    const response = await api.post('/timetable-batch-generator/generate', { ...payload, async })
-    return unwrap(response)
+    try {
+      const response = await api.post('/timetable-batch-generator/generate', { ...payload, async })
+      return unwrap(response)
+    } catch (error) {
+      throw enrichError(error, 'Unable to generate batch timetables.')
+    }
   },
 
   async grid(id) {
