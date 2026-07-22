@@ -181,7 +181,7 @@ const timetableApi = {
   },
 
   async updateEntry(timetableId, entryId, payload) {
-    const response = await api.put(`/weekly-timetables/${timetableId}/entries/${entryId}`, payload)
+    const response = await api.put(`${'/weekly-timetables'}/${timetableId}/entries/${entryId}`, payload)
     return unwrap(response)
   },
 
@@ -205,8 +205,8 @@ const timetableApi = {
     return unwrap(response)
   },
 
-  async classReport(id) {
-    const response = await api.get(`/timetable-reports/classes/${id}`)
+  async classReport(id, params = {}) {
+    const response = await api.get(`/timetable-reports/classes/${id}`, { params })
     return unwrap(response)
   },
 
