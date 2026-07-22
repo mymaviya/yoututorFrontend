@@ -8,7 +8,7 @@
             <v-chip v-if="isDirty" color="warning" size="small" variant="tonal">Unsaved changes</v-chip>
           </div>
           <div class="text-body-2 text-medium-emphasis">
-            Bulk edit weekly periods and timetable preferences.
+            Bulk edit weekly periods and timetable preferences for {{ selectedAcademicYear?.name || 'the selected session' }}.
           </div>
         </div>
 
@@ -67,23 +67,18 @@
       <v-divider />
 
       <v-card-text class="pa-4 pa-md-5">
-        <v-row>
-          <v-col cols="12" sm="6" md="3">
-            <v-select
-              v-model="filters.academic_year_id"
-              :items="academicYears"
-              item-title="name"
-              item-value="id"
-              label="Academic Year"
-              density="comfortable"
-              variant="outlined"
-              hide-details
-              :disabled="busy"
-              @update:model-value="onContextFilterChange"
-            />
-          </v-col>
+        <v-alert
+          v-if="!selectedAcademicYearId"
+          type="warning"
+          variant="tonal"
+          class="mb-4"
+          title="Academic session required"
+        >
+          Select an academic session from the app bar before managing subject period allocations.
+        </v-alert>
 
-          <v-col cols="12" sm="6" md="3">
+        <v-row>
+          <v-col cols="12" sm="6" md="4">
             <v-select
               v-model="filters.grade_id"
               :items="grades"
@@ -93,12 +88,12 @@
               density="comfortable"
               variant="outlined"
               hide-details
-              :disabled="busy"
+              :disabled="busy || !selectedAcademicYearId"
               @update:model-value="onGradeChange"
             />
           </v-col>
 
-          <v-col cols="12" sm="6" md="3">
+          <v-col cols="12" sm="6" md="4">
             <v-select
               v-model="filters.section_id"
               :items="sections"
@@ -114,7 +109,7 @@
             />
           </v-col>
 
-          <v-col cols="12" sm="6" md="3">
+          <v-col cols="12" sm="6" md="4">
             <v-select
               v-model="filters.stream_id"
               :items="streams"
@@ -227,7 +222,7 @@
         <v-card-title>Copy Grade Allocation</v-card-title>
         <v-card-text>
           <v-alert type="info" variant="tonal" class="mb-4">
-            Allocations will be copied into the currently selected academic year, grade, section and stream.
+            Allocations will be copied into {{ selectedAcademicYear?.name || 'the globally selected session' }} and the currently selected grade, section and stream.
           </v-alert>
           <v-row>
             <v-col cols="12" md="6">
@@ -252,8 +247,10 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import api from '../../../plugins/api'
+import { useAppStore } from '../../../stores/app'
 import { useSubjectPeriodAllocationStore } from '../../../stores/subjectPeriodAllocation'
 
+const appStore = useAppStore()
 const store = useSubjectPeriodAllocationStore()
 const loading = ref(false)
 const copying = ref(false)
@@ -265,7 +262,9 @@ const copyDialog = ref(false)
 const baseline = ref('[]')
 const suppressDirtyCheck = ref(false)
 
-const academicYears = ref([])
+const academicYears = computed(() => appStore.academicYears)
+const selectedAcademicYearId = computed(() => appStore.selectedAcademicYearId)
+const selectedAcademicYear = computed(() => appStore.selectedAcademicYear)
 const grades = ref([])
 const sections = ref([])
 const streams = ref([])
@@ -370,22 +369,17 @@ const setRows = (items) => {
 const fetchMasters = async () => {
   try {
     const results = await Promise.allSettled([
-      api.get('/academic-years'),
       api.get('/grades'),
       api.get('/streams'),
       api.get('/teachers', { params: { per_page: 999 } }),
     ])
 
-    academicYears.value = results[0].status === 'fulfilled' ? extractList(results[0].value) : []
-    grades.value = results[1].status === 'fulfilled' ? extractList(results[1].value) : []
-    streams.value = results[2].status === 'fulfilled' ? extractList(results[2].value) : []
-    teachers.value = results[3].status === 'fulfilled' ? extractList(results[3].value) : []
+    grades.value = results[0].status === 'fulfilled' ? extractList(results[0].value) : []
+    streams.value = results[1].status === 'fulfilled' ? extractList(results[1].value) : []
+    teachers.value = results[2].status === 'fulfilled' ? extractList(results[2].value) : []
 
     const failedLoads = results.filter((result) => result.status === 'rejected').length
     if (failedLoads) notify(`${failedLoads} filter source(s) could not be loaded.`, 'warning')
-
-    const activeYear = academicYears.value.find((item) => item.is_active)
-    filters.academic_year_id = activeYear?.id || academicYears.value[0]?.id || null
   } catch (error) {
     notify(error.response?.data?.message || 'Failed to load allocation filters.', 'error')
   }
@@ -418,7 +412,7 @@ const loadSubjectsWithConfirmation = async () => {
 
 const loadSubjects = async () => {
   if (!filters.academic_year_id || !filters.grade_id) {
-    notify('Please select academic year and grade first.', 'warning')
+    notify('Please select an academic session from the app bar and choose a grade first.', 'warning')
     return
   }
 
@@ -527,7 +521,7 @@ const importExcel = async (event) => {
   if (!file) return
   if (!filters.academic_year_id || !filters.grade_id) {
     event.target.value = ''
-    return notify('Please select academic year and grade before importing.', 'warning')
+    return notify('Please select an academic session from the app bar and choose a grade before importing.', 'warning')
   }
   if (!confirmDiscard()) {
     event.target.value = ''
@@ -572,6 +566,27 @@ const handleBeforeUnload = (event) => {
 watch(rows, () => {
   if (!suppressDirtyCheck.value && store.error) store.clearError()
 }, { deep: true })
+
+watch(selectedAcademicYearId, (yearId, previousYearId) => {
+  if (Number(yearId) === Number(previousYearId)) return
+
+  if (isDirty.value && !window.confirm('You have unsaved subject allocation changes. Change the academic session and discard them?')) {
+    if (previousYearId) appStore.setAcademicYear(previousYearId)
+    return
+  }
+
+  filters.academic_year_id = yearId || null
+  filters.grade_id = null
+  filters.section_id = null
+  filters.stream_id = null
+  sections.value = []
+  setRows([])
+  message.value = ''
+}, { immediate: true })
+
+watch(() => appStore.refreshKey, () => {
+  if (!isDirty.value) fetchMasters()
+})
 
 onBeforeRouteLeave(() => confirmDiscard())
 onMounted(() => {
