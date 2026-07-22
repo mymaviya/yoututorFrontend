@@ -11,15 +11,32 @@
               <h1 class="text-h4 font-weight-bold">Timetable Reports & Analytics</h1>
               <p class="text-body-2 text-medium-emphasis mb-0">
                 Review class, teacher and room schedules, workload balance and live conflicts.
+                <span v-if="selectedAcademicYear"> Session: <strong>{{ selectedAcademicYear.name }}</strong>.</span>
               </p>
             </div>
           </div>
-          <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="refreshCurrent">
+          <v-btn
+            variant="tonal"
+            prepend-icon="mdi-refresh"
+            :loading="loading"
+            :disabled="!selectedAcademicYearId"
+            @click="refreshCurrent"
+          >
             Refresh
           </v-btn>
         </div>
       </v-card-text>
     </v-card>
+
+    <v-alert
+      v-if="!selectedAcademicYearId"
+      type="warning"
+      variant="tonal"
+      class="mb-5"
+      title="Academic session required"
+    >
+      Select an academic session from the app bar to view timetable reports.
+    </v-alert>
 
     <v-card rounded="xl" elevation="0" border class="mb-5">
       <v-tabs v-model="tab" color="primary" grow show-arrows>
@@ -40,17 +57,15 @@
           </v-card-title>
           <v-divider />
           <v-card-text class="pa-5">
-            <v-select
-              v-model="academicYearId"
-              :items="academicYears"
-              item-title="name"
-              item-value="id"
-              label="Academic Year"
+            <v-text-field
+              :model-value="selectedAcademicYear?.name || ''"
+              label="Academic Session"
+              prepend-inner-icon="mdi-calendar-range"
               variant="outlined"
               density="comfortable"
-              clearable
+              readonly
+              :disabled="!selectedAcademicYearId"
               class="mb-2"
-              @update:model-value="onFilterChange"
             />
 
             <v-autocomplete
@@ -64,6 +79,7 @@
               density="comfortable"
               clearable
               :loading="mastersLoading"
+              :disabled="!selectedAcademicYearId"
               @update:model-value="loadSelectedReport"
             />
 
@@ -78,6 +94,7 @@
               density="comfortable"
               clearable
               :loading="mastersLoading"
+              :disabled="!selectedAcademicYearId"
               @update:model-value="loadSelectedReport"
             />
 
@@ -92,21 +109,22 @@
               density="comfortable"
               clearable
               :loading="mastersLoading"
+              :disabled="!selectedAcademicYearId"
               @update:model-value="loadSelectedReport"
             />
 
             <v-alert v-else type="info" variant="tonal" density="compact">
-              {{ tab === 'workload' ? 'Workload is calculated from all active timetable entries.' : 'Conflicts are detected live across active timetables.' }}
+              {{ tab === 'workload' ? 'Workload is calculated from timetable entries in the selected session.' : 'Conflicts are detected across timetables in the selected session.' }}
             </v-alert>
 
             <template v-if="['class', 'teacher', 'room'].includes(tab)">
               <v-divider class="my-4" />
               <div class="text-subtitle-2 mb-3">Export Report</div>
               <div class="d-flex ga-2">
-                <v-btn block color="success" variant="tonal" prepend-icon="mdi-file-excel" :disabled="!selectedId" :loading="exporting === 'excel'" @click="download('excel')">
+                <v-btn block color="success" variant="tonal" prepend-icon="mdi-file-excel" :disabled="!selectedId || !selectedAcademicYearId" :loading="exporting === 'excel'" @click="download('excel')">
                   Excel
                 </v-btn>
-                <v-btn block color="error" variant="tonal" prepend-icon="mdi-file-pdf-box" :disabled="!selectedId" :loading="exporting === 'pdf'" @click="download('pdf')">
+                <v-btn block color="error" variant="tonal" prepend-icon="mdi-file-pdf-box" :disabled="!selectedId || !selectedAcademicYearId" :loading="exporting === 'pdf'" @click="download('pdf')">
                   PDF
                 </v-btn>
               </div>
@@ -269,16 +287,16 @@ import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import api from '../../../plugins/api'
 import timetableApi from '../../../services/timetableApi'
 import { useUIStore } from '../../../stores/snackBar'
+import { useAppStore } from '../../../stores/app'
 
 const ui = useUIStore()
+const appStore = useAppStore()
 const tab = ref('class')
 const loading = ref(false)
 const mastersLoading = ref(false)
 const exporting = ref(null)
 const error = ref('')
 const selectedId = ref(null)
-const academicYearId = ref(null)
-const academicYears = ref([])
 const timetables = ref([])
 const teachers = ref([])
 const rooms = ref([])
@@ -286,6 +304,9 @@ const report = ref(null)
 const workload = ref({ teachers: [], teacher_count: 0, total_periods: 0 })
 const conflictReport = ref({ conflicts: [], conflict_count: 0 })
 const workloadSearch = ref('')
+
+const selectedAcademicYearId = computed(() => appStore.selectedAcademicYearId)
+const selectedAcademicYear = computed(() => appStore.selectedAcademicYear)
 
 const days = [
   { value: 1, title: 'Monday', short: 'Mon' }, { value: 2, title: 'Tuesday', short: 'Tue' },
@@ -346,33 +367,57 @@ const extractList = (response) => {
   return []
 }
 
-const fetchMasters = async () => {
-  mastersLoading.value = true
-  const results = await Promise.allSettled([
-    api.get('/academic-years'),
-    api.get('/teachers', { params: { per_page: 999 } }),
-    timetableApi.rooms.list({ per_page: 100 }),
-    timetableApi.weeklyTimetables({ per_page: 100 }),
-  ])
-  academicYears.value = results[0].status === 'fulfilled' ? extractList(results[0].value) : []
-  teachers.value = results[1].status === 'fulfilled' ? extractList(results[1].value) : []
-  rooms.value = results[2].status === 'fulfilled' ? (results[2].value?.data || results[2].value || []) : []
-  timetables.value = results[3].status === 'fulfilled' ? (results[3].value?.data || results[3].value || []) : []
-  academicYearId.value = academicYears.value.find(x => x.is_active)?.id || academicYears.value[0]?.id || null
-  mastersLoading.value = false
+const clearReportState = () => {
+  selectedId.value = null
+  report.value = null
+  workload.value = { teachers: [], teacher_count: 0, total_periods: 0 }
+  conflictReport.value = { conflicts: [], conflict_count: 0 }
+  error.value = ''
 }
 
+const fetchMasters = async () => {
+  mastersLoading.value = true
+  try {
+    if (!selectedAcademicYearId.value) {
+      timetables.value = []
+      teachers.value = []
+      rooms.value = []
+      return
+    }
+
+    const results = await Promise.allSettled([
+      api.get('/teachers', { params: { per_page: 999 } }),
+      timetableApi.rooms.list({ per_page: 100 }),
+      timetableApi.weeklyTimetables({
+        academic_year_id: selectedAcademicYearId.value,
+        per_page: 100,
+      }),
+    ])
+
+    teachers.value = results[0].status === 'fulfilled' ? extractList(results[0].value) : []
+    rooms.value = results[1].status === 'fulfilled' ? (results[1].value?.data || results[1].value || []) : []
+    timetables.value = results[2].status === 'fulfilled' ? (results[2].value?.data || results[2].value || []) : []
+  } finally {
+    mastersLoading.value = false
+  }
+}
+
+const reportParams = () => selectedAcademicYearId.value
+  ? { academic_year_id: selectedAcademicYearId.value }
+  : {}
+
 const loadSelectedReport = async () => {
-  if (!selectedId.value || !['class', 'teacher', 'room'].includes(tab.value)) {
+  if (!selectedAcademicYearId.value || !selectedId.value || !['class', 'teacher', 'room'].includes(tab.value)) {
     report.value = null
     return
   }
+
   loading.value = true
   error.value = ''
   try {
-    const params = academicYearId.value ? { academic_year_id: academicYearId.value } : {}
+    const params = reportParams()
     report.value = tab.value === 'class'
-      ? await timetableApi.classReport(selectedId.value)
+      ? await timetableApi.classReport(selectedId.value, params)
       : tab.value === 'teacher'
         ? await timetableApi.teacherReport(selectedId.value, params)
         : await timetableApi.roomReport(selectedId.value, params)
@@ -385,11 +430,17 @@ const loadSelectedReport = async () => {
 }
 
 const refreshCurrent = async () => {
+  if (!selectedAcademicYearId.value) {
+    clearReportState()
+    return
+  }
+
   if (['class', 'teacher', 'room'].includes(tab.value)) return loadSelectedReport()
+
   loading.value = true
   error.value = ''
   try {
-    const params = academicYearId.value ? { academic_year_id: academicYearId.value } : {}
+    const params = reportParams()
     if (tab.value === 'workload') workload.value = await timetableApi.workload(params) || {}
     else conflictReport.value = await timetableApi.conflicts(params) || {}
   } catch (e) {
@@ -399,7 +450,6 @@ const refreshCurrent = async () => {
   }
 }
 
-const onFilterChange = () => refreshCurrent()
 const timetableTitle = (item) => `${item.name || `Timetable #${item.id}`} · ${item.grade?.name || ''} ${item.section?.name || ''}`.trim()
 const roomTitle = (item) => item.code ? `${item.name} (${item.code})` : item.name
 const titleCase = (value) => String(value || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -411,12 +461,17 @@ const loadPercent = (value) => Math.min(100, (Number(value || 0) / maxLoad.value
 const loadColor = (value) => Number(value) >= 35 ? 'error' : Number(value) >= 28 ? 'warning' : 'success'
 
 const download = async (format) => {
-  if (!selectedId.value) return
+  if (!selectedId.value || !selectedAcademicYearId.value) return
+
   exporting.value = format
   try {
     const type = tab.value === 'class' ? 'classes' : `${tab.value}s`
-    const params = tab.value === 'class' || !academicYearId.value ? {} : { academic_year_id: academicYearId.value }
-    const response = await timetableApi.downloadReport(type, selectedId.value, format, params)
+    const response = await timetableApi.downloadReport(
+      type,
+      selectedId.value,
+      format,
+      reportParams(),
+    )
     const disposition = response.headers?.['content-disposition'] || ''
     const match = disposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i)
     const filename = match ? decodeURIComponent(match[1].replace(/\"/g, '')) : `timetable-${tab.value}.${format === 'excel' ? 'xlsx' : 'pdf'}`
@@ -435,6 +490,18 @@ const download = async (format) => {
     exporting.value = null
   }
 }
+
+watch(selectedAcademicYearId, async (next, previous) => {
+  if (Number(next || 0) === Number(previous || 0)) return
+  clearReportState()
+  await fetchMasters()
+  if (tab.value === 'workload' || tab.value === 'conflicts') await refreshCurrent()
+})
+
+watch(() => appStore.refreshKey, async () => {
+  await fetchMasters()
+  await refreshCurrent()
+})
 
 onMounted(async () => {
   await fetchMasters()
