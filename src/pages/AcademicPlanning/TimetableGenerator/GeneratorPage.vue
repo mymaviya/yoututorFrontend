@@ -10,13 +10,18 @@
               <p class="text-body-2 text-medium-emphasis mb-0">Configure one class, preview the schedule, optimize difficult slots and generate a production-ready draft.</p>
             </div>
           </div>
-          <div class="d-flex ga-2">
+          <div class="d-flex flex-wrap ga-2">
+            <v-chip color="primary" variant="tonal" prepend-icon="mdi-calendar-range">{{ selectedAcademicYear?.name || 'No session selected' }}</v-chip>
             <v-chip color="success" variant="tonal" prepend-icon="mdi-shield-check">Conflict aware</v-chip>
             <v-chip color="deep-purple" variant="tonal" prepend-icon="mdi-auto-fix">Optimized</v-chip>
           </div>
         </div>
       </v-card-text>
     </v-card>
+
+    <v-alert v-if="!selectedAcademicYearId" type="warning" variant="tonal" class="mb-5">
+      Select an academic session from the app bar before creating a timetable preview.
+    </v-alert>
 
     <v-alert v-if="message" :type="messageType" variant="tonal" closable class="mb-5" @click:close="message = ''">
       {{ message }}
@@ -38,31 +43,41 @@
           <v-card-text class="pa-5">
             <v-form ref="formRef">
               <div class="section-label">1. Academic context</div>
-              <v-select v-model="form.academic_year_id" :items="academicYears" item-title="name" item-value="id" label="Academic year" variant="outlined" density="comfortable" :rules="requiredRules" />
-              <v-select v-model="form.grade_id" :items="grades" item-title="name" item-value="id" label="Grade" variant="outlined" density="comfortable" :rules="requiredRules" @update:model-value="onGradeChange" />
+              <v-text-field
+                :model-value="selectedAcademicYear?.name || ''"
+                label="Academic session"
+                variant="outlined"
+                density="comfortable"
+                prepend-inner-icon="mdi-calendar-range"
+                readonly
+                :error="!selectedAcademicYearId"
+                :hint="selectedAcademicYearId ? 'Controlled from the app bar' : 'Select a session from the app bar'"
+                persistent-hint
+              />
+              <v-select v-model="form.grade_id" :items="grades" item-title="name" item-value="id" label="Grade" variant="outlined" density="comfortable" :rules="requiredRules" :disabled="!selectedAcademicYearId" @update:model-value="onGradeChange" />
               <v-row>
-                <v-col cols="12" sm="6"><v-select v-model="form.section_id" :items="sections" item-title="display_name" item-value="id" label="Section" variant="outlined" density="comfortable" clearable :disabled="!form.grade_id" /></v-col>
-                <v-col cols="12" sm="6"><v-select v-model="form.stream_id" :items="streams" item-title="name" item-value="id" label="Stream" variant="outlined" density="comfortable" clearable /></v-col>
+                <v-col cols="12" sm="6"><v-select v-model="form.section_id" :items="sections" item-title="display_name" item-value="id" label="Section" variant="outlined" density="comfortable" clearable :disabled="!form.grade_id || !selectedAcademicYearId" /></v-col>
+                <v-col cols="12" sm="6"><v-select v-model="form.stream_id" :items="streams" item-title="name" item-value="id" label="Stream" variant="outlined" density="comfortable" clearable :disabled="!selectedAcademicYearId" /></v-col>
               </v-row>
 
               <div class="section-label mt-2">2. Timetable structure</div>
-              <v-select v-model="form.timetable_template_id" :items="templates" item-title="name" item-value="id" label="Active template" variant="outlined" density="comfortable" :rules="requiredRules">
+              <v-select v-model="form.timetable_template_id" :items="templates" item-title="name" item-value="id" label="Active template" variant="outlined" density="comfortable" :rules="requiredRules" :disabled="!selectedAcademicYearId">
                 <template #item="{ props, item }"><v-list-item v-bind="props" :subtitle="`${titleCase(item.raw.type)}${item.raw.is_default ? ' · Default' : ''}`" /></template>
               </v-select>
-              <v-text-field v-model.trim="form.name" label="Timetable name" variant="outlined" density="comfortable" placeholder="Example: Grade 8-A Regular Timetable" counter="150" />
+              <v-text-field v-model.trim="form.name" label="Timetable name" variant="outlined" density="comfortable" placeholder="Example: Grade 8-A Regular Timetable" counter="150" :disabled="!selectedAcademicYearId" />
               <v-row>
-                <v-col cols="12" sm="6"><v-select v-model.number="form.working_days" :items="workingDayOptions" label="Working days" variant="outlined" density="comfortable" /></v-col>
-                <v-col cols="12" sm="6"><v-text-field v-model="form.effective_from" type="date" label="Effective from" variant="outlined" density="comfortable" /></v-col>
+                <v-col cols="12" sm="6"><v-select v-model.number="form.working_days" :items="workingDayOptions" label="Working days" variant="outlined" density="comfortable" :disabled="!selectedAcademicYearId" /></v-col>
+                <v-col cols="12" sm="6"><v-text-field v-model="form.effective_from" type="date" label="Effective from" variant="outlined" density="comfortable" :disabled="!selectedAcademicYearId" /></v-col>
               </v-row>
 
               <div class="section-label mt-2">3. Generation strategy</div>
               <v-card variant="tonal" color="deep-purple" rounded="lg" class="mb-4">
                 <v-card-text>
                   <div class="d-flex justify-space-between align-center mb-2"><div><div class="font-weight-bold">Optimization attempts</div><div class="text-caption">More attempts can improve difficult timetables.</div></div><v-chip color="deep-purple">{{ form.optimization_attempts }}</v-chip></div>
-                  <v-slider v-model="form.optimization_attempts" :min="1" :max="10" :step="1" hide-details color="deep-purple" thumb-label />
+                  <v-slider v-model="form.optimization_attempts" :min="1" :max="10" :step="1" hide-details color="deep-purple" thumb-label :disabled="!selectedAcademicYearId" />
                 </v-card-text>
               </v-card>
-              <v-switch v-model="form.allow_partial" color="warning" inset label="Allow partial timetable when a complete solution is impossible" />
+              <v-switch v-model="form.allow_partial" color="warning" inset label="Allow partial timetable when a complete solution is impossible" :disabled="!selectedAcademicYearId" />
             </v-form>
 
             <v-alert :type="readiness.type" variant="tonal" density="compact" class="mb-4">
@@ -152,30 +167,34 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../../plugins/api'
 import timetableApi from '../../../services/timetableApi'
+import { useAppStore } from '../../../stores/app'
 
 const router = useRouter()
+const appStore = useAppStore()
 const formRef = ref(null)
-const academicYears = ref([]), grades = ref([]), sections = ref([]), streams = ref([]), templates = ref([]), teachers = ref([]), bells = ref([])
+const grades = ref([]), sections = ref([]), streams = ref([]), templates = ref([]), teachers = ref([]), bells = ref([])
 const previewing = ref(false), generating = ref(false), result = ref(null), message = ref(''), messageType = ref('success'), successDialog = ref(false), generatedId = ref(null)
-const form = reactive({ academic_year_id: null, grade_id: null, section_id: null, stream_id: null, timetable_template_id: null, name: '', effective_from: new Date().toISOString().slice(0, 10), working_days: 6, allow_partial: false, optimization_attempts: 4 })
+const form = reactive({ grade_id: null, section_id: null, stream_id: null, timetable_template_id: null, name: '', effective_from: new Date().toISOString().slice(0, 10), working_days: 6, allow_partial: false, optimization_attempts: 4 })
 const requiredRules = [(v) => Boolean(v) || 'This field is required.']
 const workingDayOptions = [5, 6, 7].map((value) => ({ title: `${value} days`, value }))
 const days = [{ title: 'Monday', value: 1 }, { title: 'Tuesday', value: 2 }, { title: 'Wednesday', value: 3 }, { title: 'Thursday', value: 4 }, { title: 'Friday', value: 5 }, { title: 'Saturday', value: 6 }, { title: 'Sunday', value: 7 }]
 
+const selectedAcademicYearId = computed(() => appStore.selectedAcademicYearId)
+const selectedAcademicYear = computed(() => appStore.selectedAcademicYear)
 const extractList = (response) => { const payload = response?.data; if (Array.isArray(payload)) return payload; if (Array.isArray(payload?.data)) return payload.data; if (Array.isArray(payload?.data?.data)) return payload.data.data; return [] }
 const visibleDays = computed(() => days.slice(0, Number(form.working_days || 6)))
 const teachingBells = computed(() => bells.value.filter((bell) => bell.is_teaching_period !== false && !bell.is_break && !bell.is_dispersal))
 const subjectSummary = computed(() => result.value?.subject_summary || [])
 const warnings = computed(() => result.value?.warnings || [])
 const entries = computed(() => result.value?.entries || [])
-const setupProgress = computed(() => Math.round(([form.academic_year_id, form.grade_id, form.timetable_template_id, form.working_days].filter(Boolean).length / 4) * 100))
+const setupProgress = computed(() => Math.round(([selectedAcademicYearId.value, form.grade_id, form.timetable_template_id, form.working_days].filter(Boolean).length / 4) * 100))
 const canPreview = computed(() => setupProgress.value === 100 && !previewing.value && !generating.value)
 const canGenerate = computed(() => canPreview.value && Boolean(result.value))
-const readiness = computed(() => setupProgress.value < 100 ? { type: 'info', title: 'Complete the setup', text: 'Academic year, grade, template and working days are required.' } : !result.value ? { type: 'success', title: 'Ready for preview', text: 'The generator can now evaluate allocations, availability and timetable rules.' } : warnings.value.length ? { type: 'warning', title: 'Preview needs review', text: `${warnings.value.length} warning(s) were reported. You may still generate when partial scheduling is allowed.` } : { type: 'success', title: 'Ready to generate', text: 'The preview has no reported warnings and can be saved as a draft.' })
+const readiness = computed(() => !selectedAcademicYearId.value ? { type: 'warning', title: 'Select an academic session', text: 'Choose the working session from the app bar before configuring the timetable.' } : setupProgress.value < 100 ? { type: 'info', title: 'Complete the setup', text: 'Grade, template and working days are required.' } : !result.value ? { type: 'success', title: 'Ready for preview', text: 'The generator can now evaluate allocations, availability and timetable rules.' } : warnings.value.length ? { type: 'warning', title: 'Preview needs review', text: `${warnings.value.length} warning(s) were reported. You may still generate when partial scheduling is allowed.` } : { type: 'success', title: 'Ready to generate', text: 'The preview has no reported warnings and can be saved as a draft.' })
 const resultCards = computed(() => [
   { label: 'Requested', value: result.value?.requested_periods || 0, icon: 'mdi-calendar-clock', color: 'primary' },
   { label: 'Scheduled', value: result.value?.scheduled_periods || 0, icon: 'mdi-calendar-check', color: 'success' },
@@ -191,21 +210,30 @@ const teacherName = (id) => teachers.value.find((item) => Number(item.id) === Nu
 const slotEntries = (weekday, bellId) => entries.value.filter((entry) => Number(entry.weekday) === Number(weekday) && Number(entry.school_bell_id) === Number(bellId))
 const entryKey = (entry) => `${entry.weekday}-${entry.school_bell_id}-${entry.subject_id}-${entry.teacher_id || 0}-${entry.parallel_group_id || 0}`
 const coverage = (subject) => subject.requested ? Math.round((Number(subject.scheduled || 0) / Number(subject.requested)) * 100) : 100
-const payload = () => Object.fromEntries(Object.entries({ ...form, optimization_attempts: Number(form.optimization_attempts), working_days: Number(form.working_days) }).filter(([, value]) => value !== null && value !== ''))
+const payload = () => Object.fromEntries(Object.entries({ ...form, academic_year_id: selectedAcademicYearId.value, optimization_attempts: Number(form.optimization_attempts), working_days: Number(form.working_days) }).filter(([, value]) => value !== null && value !== ''))
 const notify = (text, type = 'success') => { message.value = text; messageType.value = type }
+
+const resetSessionState = () => {
+  form.grade_id = null
+  form.section_id = null
+  form.stream_id = null
+  sections.value = []
+  result.value = null
+  successDialog.value = false
+  generatedId.value = null
+  message.value = ''
+}
 
 const loadMasters = async () => {
   const responses = await Promise.allSettled([
-    api.get('/academic-years'), api.get('/grades'), api.get('/streams'), api.get('/teachers', { params: { per_page: 999 } }), api.get('/bell-schedules/preview'), timetableApi.templates.list({ is_active: true, per_page: 100 }),
+    api.get('/grades'), api.get('/streams'), api.get('/teachers', { params: { per_page: 999 } }), api.get('/bell-schedules/preview'), timetableApi.templates.list({ is_active: true, per_page: 100 }),
   ])
-  academicYears.value = responses[0].status === 'fulfilled' ? extractList(responses[0].value) : []
-  grades.value = responses[1].status === 'fulfilled' ? extractList(responses[1].value) : []
-  streams.value = responses[2].status === 'fulfilled' ? extractList(responses[2].value) : []
-  teachers.value = responses[3].status === 'fulfilled' ? extractList(responses[3].value) : []
-  bells.value = responses[4].status === 'fulfilled' ? (responses[4].value?.data?.data || []) : []
-  const templatePayload = responses[5].status === 'fulfilled' ? responses[5].value : null
+  grades.value = responses[0].status === 'fulfilled' ? extractList(responses[0].value) : []
+  streams.value = responses[1].status === 'fulfilled' ? extractList(responses[1].value) : []
+  teachers.value = responses[2].status === 'fulfilled' ? extractList(responses[2].value) : []
+  bells.value = responses[3].status === 'fulfilled' ? (responses[3].value?.data?.data || []) : []
+  const templatePayload = responses[4].status === 'fulfilled' ? responses[4].value : null
   templates.value = templatePayload?.data || templatePayload || []
-  form.academic_year_id = academicYears.value.find((item) => item.is_active)?.id || academicYears.value[0]?.id || null
   form.timetable_template_id = templates.value.find((item) => item.is_default)?.id || templates.value[0]?.id || null
   const failed = responses.filter((item) => item.status === 'rejected').length
   if (failed) notify(`${failed} setup source(s) could not be loaded.`, 'warning')
@@ -219,16 +247,24 @@ const onGradeChange = async () => {
 
 const validate = async () => { const validation = await formRef.value?.validate(); return !validation || validation.valid }
 const preview = async () => {
+  if (!selectedAcademicYearId.value) return notify('Please select an academic session from the app bar.', 'warning')
   if (!(await validate())) return
   previewing.value = true; result.value = null
   try { result.value = await timetableApi.preview(payload(), true); notify('Optimized timetable preview created successfully.') } catch (error) { notify(error.response?.data?.message || 'Unable to create timetable preview.', 'error') } finally { previewing.value = false }
 }
 const generate = async () => {
+  if (!selectedAcademicYearId.value) return notify('Please select an academic session from the app bar.', 'warning')
   if (!(await validate())) return
   generating.value = true
   try { const data = await timetableApi.generate(payload(), { optimized: true }); result.value = data; generatedId.value = data?.weekly_timetable_id || null; successDialog.value = true; notify('Timetable generated and saved as a draft.') } catch (error) { notify(error.response?.data?.message || 'Unable to generate timetable.', 'error') } finally { generating.value = false }
 }
 const goDashboard = () => { successDialog.value = false; router.push({ name: 'academic.planning.dashboard' }) }
+
+watch(selectedAcademicYearId, resetSessionState)
+watch(() => appStore.refreshKey, () => {
+  result.value = null
+  loadMasters()
+})
 
 onMounted(loadMasters)
 </script>
