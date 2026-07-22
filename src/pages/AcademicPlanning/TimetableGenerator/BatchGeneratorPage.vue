@@ -8,7 +8,12 @@
               <v-icon size="28">mdi-calendar-multiple-check</v-icon>
             </v-avatar>
             <div>
-              <h1 class="text-h4 font-weight-bold">Batch Timetable Generator</h1>
+              <div class="d-flex flex-wrap align-center ga-2">
+                <h1 class="text-h4 font-weight-bold">Batch Timetable Generator</h1>
+                <v-chip color="primary" variant="tonal" prepend-icon="mdi-calendar-range">
+                  {{ appStore.selectedAcademicYear?.name || 'No session selected' }}
+                </v-chip>
+              </div>
               <p class="text-body-2 text-medium-emphasis mb-0">
                 Queue multiple classes, monitor progress live and resolve generation conflicts from one workspace.
               </p>
@@ -16,11 +21,15 @@
           </div>
           <div class="d-flex flex-wrap ga-2">
             <v-btn variant="tonal" prepend-icon="mdi-history" @click="scrollToHistory">Generation History</v-btn>
-            <v-btn color="primary" prepend-icon="mdi-playlist-plus" @click="addClass">Add Class</v-btn>
+            <v-btn color="primary" prepend-icon="mdi-playlist-plus" :disabled="!selectedAcademicYearId" @click="addClass">Add Class</v-btn>
           </div>
         </div>
       </v-card-text>
     </v-card>
+
+    <v-alert v-if="!selectedAcademicYearId" type="warning" variant="tonal" class="mb-5">
+      Select an academic session from the app bar before preparing a batch timetable.
+    </v-alert>
 
     <v-row>
       <v-col cols="12" xl="5">
@@ -28,7 +37,7 @@
           <v-card-title class="d-flex align-center justify-space-between pa-5">
             <div>
               <div class="font-weight-bold">Batch Setup</div>
-              <div class="text-caption text-medium-emphasis">Select shared settings and add up to 50 classes.</div>
+              <div class="text-caption text-medium-emphasis">Shared session: {{ appStore.selectedAcademicYear?.name || 'Not selected' }} · Add up to 50 classes.</div>
             </div>
             <v-chip color="primary" variant="tonal">{{ form.classes.length }}/50 classes</v-chip>
           </v-card-title>
@@ -40,25 +49,33 @@
 
             <v-row>
               <v-col cols="12" md="6">
-                <v-select v-model="form.academic_year_id" :items="academicYears" item-title="name" item-value="id"
-                  label="Academic Year" variant="outlined" density="comfortable" :rules="requiredRules" />
+                <v-text-field
+                  :model-value="appStore.selectedAcademicYear?.name || ''"
+                  label="Academic Session"
+                  prepend-inner-icon="mdi-calendar-range"
+                  variant="outlined"
+                  density="comfortable"
+                  readonly
+                  :error="!selectedAcademicYearId"
+                  :error-messages="!selectedAcademicYearId ? ['Select a session from the app bar.'] : []"
+                />
               </v-col>
               <v-col cols="12" md="6">
                 <v-select v-model="form.timetable_template_id" :items="templates" item-title="name" item-value="id"
-                  label="Timetable Template" variant="outlined" density="comfortable" :rules="requiredRules" />
+                  label="Timetable Template" variant="outlined" density="comfortable" :rules="requiredRules" :disabled="!selectedAcademicYearId" />
               </v-col>
               <v-col cols="12" sm="6">
-                <v-text-field v-model="form.effective_from" type="date" label="Effective From" variant="outlined" density="comfortable" />
+                <v-text-field v-model="form.effective_from" type="date" label="Effective From" variant="outlined" density="comfortable" :disabled="!selectedAcademicYearId" />
               </v-col>
               <v-col cols="12" sm="6">
-                <v-select v-model="form.working_days" :items="workingDayOptions" label="Working Days" variant="outlined" density="comfortable" />
+                <v-select v-model="form.working_days" :items="workingDayOptions" label="Working Days" variant="outlined" density="comfortable" :disabled="!selectedAcademicYearId" />
               </v-col>
             </v-row>
 
             <div class="d-flex flex-wrap ga-3 mb-4">
-              <v-switch v-model="form.atomic" color="primary" inset hide-details label="Atomic batch" />
-              <v-switch v-model="form.continue_on_error" color="warning" inset hide-details label="Continue on error" />
-              <v-switch v-model="form.allow_partial" color="info" inset hide-details label="Allow partial" />
+              <v-switch v-model="form.atomic" color="primary" inset hide-details label="Atomic batch" :disabled="!selectedAcademicYearId" />
+              <v-switch v-model="form.continue_on_error" color="warning" inset hide-details label="Continue on error" :disabled="!selectedAcademicYearId" />
+              <v-switch v-model="form.allow_partial" color="info" inset hide-details label="Allow partial" :disabled="!selectedAcademicYearId" />
             </div>
 
             <v-alert type="info" variant="tonal" density="compact" class="mb-4">
@@ -67,7 +84,7 @@
 
             <div class="d-flex align-center justify-space-between mb-3">
               <div class="text-subtitle-1 font-weight-bold">Classes</div>
-              <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" :disabled="form.classes.length >= 50" @click="addClass">
+              <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" :disabled="!selectedAcademicYearId || form.classes.length >= 50" @click="addClass">
                 Add Class
               </v-btn>
             </div>
@@ -76,7 +93,7 @@
               <v-icon size="52" color="medium-emphasis">mdi-google-classroom</v-icon>
               <div class="text-h6 mt-3">No classes added</div>
               <div class="text-body-2 text-medium-emphasis mb-4">Add the classes you want to generate together.</div>
-              <v-btn color="primary" prepend-icon="mdi-plus" @click="addClass">Add First Class</v-btn>
+              <v-btn color="primary" prepend-icon="mdi-plus" :disabled="!selectedAcademicYearId" @click="addClass">Add First Class</v-btn>
             </div>
 
             <v-expansion-panels v-else variant="accordion" class="class-panels">
@@ -97,18 +114,18 @@
                   <v-row>
                     <v-col cols="12" sm="6">
                       <v-select v-model="item.grade_id" :items="grades" item-title="name" item-value="id" label="Grade"
-                        variant="outlined" density="comfortable" :rules="requiredRules" @update:model-value="onGradeChange(item)" />
+                        variant="outlined" density="comfortable" :rules="requiredRules" :disabled="!selectedAcademicYearId" @update:model-value="onGradeChange(item)" />
                     </v-col>
                     <v-col cols="12" sm="6">
                       <v-select v-model="item.section_id" :items="item.sections" item-title="display_name" item-value="id"
-                        label="Section" variant="outlined" density="comfortable" clearable :loading="item.loadingSections" />
+                        label="Section" variant="outlined" density="comfortable" clearable :loading="item.loadingSections" :disabled="!selectedAcademicYearId || !item.grade_id" />
                     </v-col>
                     <v-col cols="12" sm="6">
                       <v-select v-model="item.stream_id" :items="streams" item-title="name" item-value="id" label="Stream"
-                        variant="outlined" density="comfortable" clearable />
+                        variant="outlined" density="comfortable" clearable :disabled="!selectedAcademicYearId" />
                     </v-col>
                     <v-col cols="12" sm="6">
-                      <v-text-field v-model.trim="item.name" label="Timetable Name (optional)" variant="outlined" density="comfortable" counter="150" />
+                      <v-text-field v-model.trim="item.name" label="Timetable Name (optional)" variant="outlined" density="comfortable" counter="150" :disabled="!selectedAcademicYearId" />
                     </v-col>
                   </v-row>
                   <v-alert v-if="duplicateClassIndexes.has(index)" type="error" variant="tonal" density="compact">
@@ -176,11 +193,11 @@
 
         <v-card ref="historyCard" rounded="xl" elevation="0" border class="mt-4">
           <v-card-title class="d-flex flex-wrap align-center justify-space-between ga-3 pa-5">
-            <div><div class="font-weight-bold">Generation History</div><div class="text-caption text-medium-emphasis">Review outcomes, retries and class-level conflicts.</div></div>
+            <div><div class="font-weight-bold">Generation History</div><div class="text-caption text-medium-emphasis">Session: {{ appStore.selectedAcademicYear?.name || 'Not selected' }} · Review outcomes, retries and class-level conflicts.</div></div>
             <div class="d-flex flex-wrap ga-2">
               <v-select v-model="filters.status" :items="statusOptions" label="Status" variant="outlined" density="compact" hide-details clearable style="min-width:150px" />
               <v-select v-model="filters.mode" :items="modeOptions" label="Mode" variant="outlined" density="compact" hide-details clearable style="min-width:130px" />
-              <v-btn icon="mdi-refresh" variant="tonal" :loading="loadingRuns" @click="loadRuns" />
+              <v-btn icon="mdi-refresh" variant="tonal" :loading="loadingRuns" :disabled="!selectedAcademicYearId" @click="loadRuns" />
             </div>
           </v-card-title>
           <v-divider />
@@ -199,16 +216,16 @@
                 <v-tooltip v-if="['queued','running'].includes(item.status)" text="Cancel"><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-stop-circle-outline" size="small" variant="text" color="error" :loading="busyRunId === item.id" @click="cancelRun(item)" /></template></v-tooltip>
               </div>
             </template>
-            <template #no-data><div class="text-center py-12"><v-icon size="54" color="medium-emphasis">mdi-history</v-icon><div class="text-h6 mt-3">No generation runs found</div><div class="text-body-2 text-medium-emphasis">Queue a batch to start tracking generation activity.</div></div></template>
+            <template #no-data><div class="text-center py-12"><v-icon size="54" color="medium-emphasis">mdi-history</v-icon><div class="text-h6 mt-3">No generation runs found</div><div class="text-body-2 text-medium-emphasis">Queue a batch for the selected session to start tracking generation activity.</div></div></template>
           </v-data-table>
         </v-card>
       </v-col>
     </v-row>
 
     <v-navigation-drawer v-model="detailDrawer" location="right" temporary width="520">
-      <div class="pa-5 d-flex align-center justify-space-between"><div><div class="text-h6 font-weight-bold">Run #{{ selectedRun?.id }}</div><div class="text-caption text-medium-emphasis">Generation details and diagnostics</div></div><v-btn icon="mdi-close" variant="text" @click="detailDrawer = false" /></div>
+      <div class="pa-5 d-flex align-center justify-space-between"><div><div class="text-h6 font-weight-bold">Run #{{ selectedRun?.id }}</div><div class="text-caption text-medium-emphasis">Generation run details</div></div><v-btn icon="mdi-close" variant="text" @click="detailDrawer = false" /></div>
       <v-divider />
-      <v-skeleton-loader v-if="loadingDetail" type="article, list-item@4" />
+      <v-skeleton-loader v-if="loadingDetail" type="article" />
       <div v-else-if="runDetail" class="pa-5">
         <v-row dense class="mb-4">
           <v-col v-for="metric in detailMetrics" :key="metric.label" cols="6"><v-card rounded="lg" variant="tonal"><v-card-text><div class="text-caption text-medium-emphasis">{{ metric.label }}</div><div class="text-h6 font-weight-bold">{{ metric.value }}</div></v-card-text></v-card></v-col>
@@ -251,14 +268,17 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import api from '../../../plugins/api'
 import timetableApi from '../../../services/timetableApi'
 import { useUIStore } from '../../../stores/snackBar'
+import { useAppStore } from '../../../stores/app'
 
 const ui = useUIStore()
-const academicYears = ref([]), grades = ref([]), streams = ref([]), templates = ref([]), runs = ref([]), conflicts = ref([])
+const appStore = useAppStore()
+const selectedAcademicYearId = computed(() => appStore.selectedAcademicYearId)
+const grades = ref([]), streams = ref([]), templates = ref([]), runs = ref([]), conflicts = ref([])
 const loadingMasters = ref(false), loadingRuns = ref(false), queueingPreview = ref(false), queueingGeneration = ref(false), loadingDetail = ref(false), loadingConflicts = ref(false)
 const loadError = ref(''), busyRunId = ref(null), detailDrawer = ref(false), conflictDialog = ref(false), selectedRun = ref(null), runDetail = ref(null), historyCard = ref(null)
 const filters = reactive({ status: null, mode: 'batch' })
 const today = new Date().toISOString().slice(0, 10)
-const form = reactive({ academic_year_id: null, timetable_template_id: null, effective_from: today, working_days: 6, allow_partial: true, atomic: false, continue_on_error: true, classes: [] })
+const form = reactive({ timetable_template_id: null, effective_from: today, working_days: 6, allow_partial: true, atomic: false, continue_on_error: true, classes: [] })
 const workingDayOptions = [1,2,3,4,5,6,7].map(value => ({ title: `${value} day${value === 1 ? '' : 's'}`, value }))
 const statusOptions = ['queued','running','completed','partial','failed','cancelled'].map(value => ({ title: titleCase(value), value }))
 const modeOptions = [{ title: 'Batch', value: 'batch' }, { title: 'Single', value: 'single' }]
@@ -279,7 +299,7 @@ const extractList = (response) => {
   return []
 }
 const newClass = () => ({ uid: `${Date.now()}-${Math.random()}`, grade_id: null, section_id: null, stream_id: null, name: '', sections: [], loadingSections: false })
-const addClass = () => { if (form.classes.length < 50) form.classes.push(newClass()) }
+const addClass = () => { if (selectedAcademicYearId.value && form.classes.length < 50) form.classes.push(newClass()) }
 const removeClass = (index) => form.classes.splice(index, 1)
 const gradeName = (id) => grades.value.find(x => Number(x.id) === Number(id))?.name
 const streamName = (id) => streams.value.find(x => Number(x.id) === Number(id))?.name
@@ -290,7 +310,7 @@ const duplicateClassIndexes = computed(() => {
   form.classes.forEach((item, index) => { if (!item.grade_id) return; const key = classKey(item); if (seen.has(key)) { indexes.add(seen.get(key)); indexes.add(index) } else seen.set(key, index) })
   return indexes
 })
-const canSubmit = computed(() => Boolean(form.academic_year_id && form.timetable_template_id && form.classes.length && form.classes.every(x => x.grade_id) && !duplicateClassIndexes.value.size && !queueingPreview.value && !queueingGeneration.value))
+const canSubmit = computed(() => Boolean(selectedAcademicYearId.value && form.timetable_template_id && form.classes.length && form.classes.every(x => x.grade_id) && !duplicateClassIndexes.value.size && !queueingPreview.value && !queueingGeneration.value))
 const activeRuns = computed(() => runs.value.filter(x => ['queued','running'].includes(x.status)))
 const summaryCards = computed(() => [
   { label: 'Selected Classes', value: form.classes.length, icon: 'mdi-google-classroom', color: 'primary' },
@@ -310,16 +330,14 @@ const formatDate = (value) => value ? new Intl.DateTimeFormat('en-IN', { dateSty
 const loadMasters = async () => {
   loadingMasters.value = true; loadError.value = ''
   const results = await Promise.allSettled([
-    api.get('/academic-years'), api.get('/grades'), api.get('/streams'), timetableApi.templates.list({ is_active: true, per_page: 100 }),
+    api.get('/grades'), api.get('/streams'), timetableApi.templates.list({ is_active: true, per_page: 100 }),
   ])
-  academicYears.value = results[0].status === 'fulfilled' ? extractList(results[0].value) : []
-  grades.value = results[1].status === 'fulfilled' ? extractList(results[1].value) : []
-  streams.value = results[2].status === 'fulfilled' ? extractList(results[2].value) : []
-  const templatePayload = results[3].status === 'fulfilled' ? results[3].value : []
+  grades.value = results[0].status === 'fulfilled' ? extractList(results[0].value) : []
+  streams.value = results[1].status === 'fulfilled' ? extractList(results[1].value) : []
+  const templatePayload = results[2].status === 'fulfilled' ? results[2].value : []
   templates.value = templatePayload?.data || templatePayload || []
   const failures = results.filter(x => x.status === 'rejected').length
   if (failures) loadError.value = `${failures} setup source${failures === 1 ? '' : 's'} could not be loaded.`
-  form.academic_year_id = academicYears.value.find(x => x.is_active)?.id || academicYears.value[0]?.id || null
   form.timetable_template_id = templates.value.find(x => x.is_default)?.id || templates.value[0]?.id || null
   loadingMasters.value = false
 }
@@ -332,7 +350,7 @@ const onGradeChange = async (item) => {
   finally { item.loadingSections = false }
 }
 const payload = () => ({
-  academic_year_id: form.academic_year_id, timetable_template_id: form.timetable_template_id,
+  academic_year_id: selectedAcademicYearId.value, timetable_template_id: form.timetable_template_id,
   effective_from: form.effective_from || undefined, working_days: Number(form.working_days || 6),
   allow_partial: Boolean(form.allow_partial), atomic: Boolean(form.atomic), continue_on_error: Boolean(form.continue_on_error),
   classes: form.classes.map(({ grade_id, section_id, stream_id, name }) => ({ grade_id, section_id: section_id || null, stream_id: stream_id || null, name: name || undefined })),
@@ -348,8 +366,12 @@ const queueBatch = async (preview) => {
   finally { preview ? queueingPreview.value = false : queueingGeneration.value = false }
 }
 const loadRuns = async () => {
+  if (!selectedAcademicYearId.value) { runs.value = []; return }
   loadingRuns.value = true
-  try { const data = await timetableApi.generationRuns({ mode: filters.mode || undefined, status: filters.status || undefined, per_page: 100 }); runs.value = data?.data || data || [] }
+  try {
+    const data = await timetableApi.generationRuns({ academic_year_id: selectedAcademicYearId.value, mode: filters.mode || undefined, status: filters.status || undefined, per_page: 100 })
+    runs.value = data?.data || data || []
+  }
   catch (error) { ui.showSnackbar(error.response?.data?.message || 'Unable to load generation history.', 'error') }
   finally { loadingRuns.value = false }
 }
@@ -358,9 +380,25 @@ const retryRun = async (run) => { busyRunId.value = run.id; try { const result =
 const openDetails = async (run) => { selectedRun.value = run; detailDrawer.value = true; loadingDetail.value = true; try { runDetail.value = await timetableApi.generationRun(run.id) } catch (e) { ui.showSnackbar('Unable to load run details.', 'error') } finally { loadingDetail.value = false } }
 const openConflicts = async (run) => { selectedRun.value = run; conflictDialog.value = true; loadingConflicts.value = true; try { const data = await timetableApi.generationRunConflicts(run.id, { per_page: 200 }); conflicts.value = data?.data || data || [] } catch (e) { ui.showSnackbar('Unable to load conflicts.', 'error') } finally { loadingConflicts.value = false } }
 const scrollToHistory = async () => { await nextTick(); historyCard.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+const resetForSession = async () => {
+  form.classes = []
+  selectedRun.value = null
+  runDetail.value = null
+  conflicts.value = []
+  detailDrawer.value = false
+  conflictDialog.value = false
+  if (selectedAcademicYearId.value) addClass()
+  await loadRuns()
+}
 watch(() => [filters.status, filters.mode], loadRuns)
+watch(selectedAcademicYearId, resetForSession)
+watch(() => appStore.refreshKey, async () => { await Promise.all([loadMasters(), loadRuns()]) })
 
-onMounted(async () => { addClass(); await Promise.all([loadMasters(), loadRuns()]); pollTimer = window.setInterval(() => { if (activeRuns.value.length) loadRuns() }, 5000) })
+onMounted(async () => {
+  if (selectedAcademicYearId.value) addClass()
+  await Promise.all([loadMasters(), loadRuns()])
+  pollTimer = window.setInterval(() => { if (activeRuns.value.length) loadRuns() }, 5000)
+})
 onBeforeUnmount(() => { if (pollTimer) window.clearInterval(pollTimer) })
 </script>
 
