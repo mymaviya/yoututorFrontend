@@ -10,12 +10,22 @@
 
       <v-card class="year-card" variant="outlined">
         <v-card-text class="py-2 px-4 d-flex align-center ga-2">
-          <span class="text-body-2">Academic Year:</span>
+          <span class="text-body-2">Academic Session:</span>
           <strong>{{ academicYearLabel }}</strong>
           <v-icon size="18">mdi-calendar</v-icon>
         </v-card-text>
       </v-card>
     </div>
+
+    <v-alert
+      v-if="!selectedAcademicYearId"
+      type="warning"
+      variant="tonal"
+      class="mb-4"
+      title="Select an academic session"
+    >
+      Choose the active academic session from the app bar before managing teacher availability.
+    </v-alert>
 
     <v-alert
       v-if="store.error"
@@ -42,6 +52,7 @@
         v-model:view-mode="viewMode"
         :week-label="weekLabel"
         :loading="store.loading"
+        :disabled="!selectedAcademicYearId"
         @today="goToday"
         @previous="moveWeek(-1)"
         @next="moveWeek(1)"
@@ -58,18 +69,10 @@
           {{ selectedCells.length }} period{{ selectedCells.length === 1 ? '' : 's' }} selected
         </span>
         <v-spacer />
-        <v-btn
-          size="small"
-          variant="text"
-          color="primary"
-          :disabled="isBusy"
-          @click="openBulkDialog"
-        >
+        <v-btn size="small" variant="text" color="primary" :disabled="isBusy || !selectedAcademicYearId" @click="openBulkDialog">
           Apply Exception
         </v-btn>
-        <v-btn size="small" variant="text" :disabled="isBusy" @click="clearSelectedCells">
-          Clear
-        </v-btn>
+        <v-btn size="small" variant="text" :disabled="isBusy" @click="clearSelectedCells">Clear</v-btn>
       </div>
 
       <v-divider v-if="selectedCells.length" />
@@ -80,17 +83,13 @@
         <p class="text-body-2 text-medium-emphasis mb-4">
           Add active teachers before configuring availability exceptions.
         </p>
-        <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" @click="loadDashboard">
+        <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" :disabled="!selectedAcademicYearId" @click="loadDashboard">
           Refresh
         </v-btn>
       </div>
 
-      <div v-else class="planner-main" :class="{ 'planner-disabled': isBusy }">
-        <TeacherList
-          v-model:selected-teacher="selectedTeacher"
-          :teachers="filteredTeachers"
-          :exceptions="store.exceptions"
-        />
+      <div v-else class="planner-main" :class="{ 'planner-disabled': isBusy || !selectedAcademicYearId }">
+        <TeacherList v-model:selected-teacher="selectedTeacher" :teachers="filteredTeachers" :exceptions="store.exceptions" />
 
         <WeeklyPlanner
           :selected-teacher="selectedTeacher"
@@ -117,9 +116,7 @@
 
     <v-row class="mt-4">
       <v-col cols="12" md="6"><StatusLegend /></v-col>
-      <v-col cols="12" md="6">
-        <UpcomingLeaves :leaves="upcomingLeaves" @view-all="statusFilter = 'leave'" />
-      </v-col>
+      <v-col cols="12" md="6"><UpcomingLeaves :leaves="upcomingLeaves" @view-all="statusFilter = 'leave'" /></v-col>
     </v-row>
 
     <v-fab
@@ -128,7 +125,7 @@
       icon="mdi-pencil-multiple"
       location="bottom end"
       app
-      :disabled="isBusy"
+      :disabled="isBusy || !selectedAcademicYearId"
       @click="openBulkDialog"
     />
 
@@ -141,10 +138,7 @@
         <v-divider />
 
         <v-card-text>
-          <v-alert v-if="bulkError" type="error" variant="tonal" class="mb-4">
-            {{ bulkError }}
-          </v-alert>
-
+          <v-alert v-if="bulkError" type="error" variant="tonal" class="mb-4">{{ bulkError }}</v-alert>
           <v-alert type="info" variant="tonal" class="mb-4">
             {{ bulkForm.is_full_day
               ? 'One full-day exception will be created per teacher and date.'
@@ -161,74 +155,32 @@
               :closable="!bulkSaving"
               @click:close="removeSelectedCell(cell)"
             >
-              {{ cell.teacher.name }} · {{ cell.day.label }} ·
-              {{ bulkForm.is_full_day ? 'Full day' : `P${cell.bell.period_number}` }}
+              {{ cell.teacher.name }} · {{ cell.day.label }} · {{ bulkForm.is_full_day ? 'Full day' : `P${cell.bell.period_number}` }}
             </v-chip>
           </div>
 
           <v-row>
             <v-col cols="12" md="6">
-              <v-select
-                v-model="bulkForm.status"
-                :items="statusOptions"
-                item-title="label"
-                item-value="value"
-                label="Status"
-                variant="outlined"
-                density="compact"
-                :disabled="bulkSaving"
-              />
+              <v-select v-model="bulkForm.status" :items="statusOptions" item-title="label" item-value="value" label="Status" variant="outlined" density="compact" :disabled="bulkSaving" />
             </v-col>
             <v-col cols="12" md="6">
-              <v-checkbox
-                v-model="bulkForm.is_full_day"
-                label="Full day exception"
-                density="compact"
-                hide-details
-                :disabled="bulkSaving"
-              />
+              <v-checkbox v-model="bulkForm.is_full_day" label="Full day exception" density="compact" hide-details :disabled="bulkSaving" />
             </v-col>
             <v-col cols="12">
-              <v-text-field
-                v-model.trim="bulkForm.reason"
-                label="Reason"
-                variant="outlined"
-                density="compact"
-                maxlength="255"
-                counter
-                :disabled="bulkSaving"
-              />
+              <v-text-field v-model.trim="bulkForm.reason" label="Reason" variant="outlined" density="compact" maxlength="255" counter :disabled="bulkSaving" />
             </v-col>
             <v-col cols="12">
-              <v-textarea
-                v-model.trim="bulkForm.remarks"
-                label="Remarks"
-                variant="outlined"
-                rows="3"
-                maxlength="1000"
-                counter
-                :disabled="bulkSaving"
-              />
+              <v-textarea v-model.trim="bulkForm.remarks" label="Remarks" variant="outlined" rows="3" maxlength="1000" counter :disabled="bulkSaving" />
             </v-col>
           </v-row>
         </v-card-text>
 
         <v-divider />
         <v-card-actions class="pa-4">
-          <v-btn variant="tonal" :disabled="bulkSaving" @click="clearSelectedCells">
-            Clear Selection
-          </v-btn>
+          <v-btn variant="tonal" :disabled="bulkSaving" @click="clearSelectedCells">Clear Selection</v-btn>
           <v-spacer />
           <v-btn variant="text" :disabled="bulkSaving" @click="closeBulkDialog">Cancel</v-btn>
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-content-save"
-            :loading="bulkSaving"
-            :disabled="!canSaveBulk"
-            @click="saveBulkExceptions"
-          >
-            Apply
-          </v-btn>
+          <v-btn color="primary" prepend-icon="mdi-content-save" :loading="bulkSaving" :disabled="!canSaveBulk" @click="saveBulkExceptions">Apply</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -243,12 +195,7 @@
       @delete="deleteException"
     />
 
-    <div
-      v-if="contextMenu.show"
-      class="context-menu-backdrop"
-      @click="closeContextMenu"
-      @contextmenu.prevent="closeContextMenu"
-    />
+    <div v-if="contextMenu.show" class="context-menu-backdrop" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu" />
 
     <div
       v-if="contextMenu.show"
@@ -259,12 +206,8 @@
       @contextmenu.prevent.stop
     >
       <div class="context-menu-header">
-        <div class="font-weight-bold">
-          {{ contextMenu.exception?.teacher?.name || selectedTeacher?.name || 'Teacher' }}
-        </div>
-        <div class="text-caption text-medium-emphasis">
-          {{ formatDate(contextMenu.exception?.exception_date) || '-' }}
-        </div>
+        <div class="font-weight-bold">{{ contextMenu.exception?.teacher?.name || selectedTeacher?.name || 'Teacher' }}</div>
+        <div class="text-caption text-medium-emphasis">{{ formatDate(contextMenu.exception?.exception_date) || '-' }}</div>
       </div>
 
       <v-list density="compact" class="context-list" :disabled="isBusy">
@@ -286,9 +229,10 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useTeacherAvailabilityExceptionStore } from '../../../stores/teacherAvailabilityException'
 import { useUIStore } from '../../../stores/snackBar'
+import { useAppStore } from '../../../stores/app'
 import { formatDate } from '../../../utils/date'
 
 import StatsCards from './components/StatsCards.vue'
@@ -301,6 +245,10 @@ import ExceptionDialog from './components/ExceptionDialog.vue'
 
 const store = useTeacherAvailabilityExceptionStore()
 const ui = useUIStore()
+const appStore = useAppStore()
+
+const selectedAcademicYearId = computed(() => appStore.selectedAcademicYearId)
+const academicYearLabel = computed(() => appStore.selectedAcademicYear?.name || 'No session selected')
 
 const toDateKey = (value = new Date()) => {
   const date = value instanceof Date ? value : new Date(value)
@@ -321,6 +269,7 @@ const selectedCells = ref([])
 
 const form = reactive({
   id: null,
+  academic_year_id: null,
   teacher_id: null,
   exception_date: null,
   weekday: null,
@@ -346,13 +295,6 @@ const statusOptions = [
 ]
 
 const isBusy = computed(() => store.loading || store.saving || store.deleting || store.moving || bulkSaving.value)
-
-const academicYearLabel = computed(() => {
-  const date = new Date(selectedDate.value)
-  const year = date.getFullYear()
-  const startYear = date.getMonth() >= 3 ? year : year - 1
-  return `${startYear}-${String(startYear + 1).slice(-2)}`
-})
 
 const selectedDateObj = computed(() => {
   const date = new Date(`${selectedDate.value}T12:00:00`)
@@ -419,10 +361,11 @@ const uniqueBulkCells = computed(() => {
   return [...cells.values()]
 })
 
-const canSaveBulk = computed(() => uniqueBulkCells.value.length > 0 && Boolean(bulkForm.status) && !bulkSaving.value)
+const canSaveBulk = computed(() => uniqueBulkCells.value.length > 0 && Boolean(bulkForm.status) && !bulkSaving.value && Boolean(selectedAcademicYearId.value))
 
 const resetForm = () => Object.assign(form, {
   id: null,
+  academic_year_id: selectedAcademicYearId.value,
   teacher_id: selectedTeacher.value?.id || null,
   exception_date: selectedDate.value,
   weekday: null,
@@ -434,18 +377,16 @@ const resetForm = () => Object.assign(form, {
   is_active: true,
 })
 
-const resetBulkForm = () => Object.assign(bulkForm, {
-  status: 'busy', reason: '', remarks: '', is_full_day: false,
-})
+const resetBulkForm = () => Object.assign(bulkForm, { status: 'busy', reason: '', remarks: '', is_full_day: false })
 
 const openCreateDialog = () => {
-  if (isBusy.value) return
+  if (isBusy.value || !selectedAcademicYearId.value) return
   resetForm()
   dialog.value = true
 }
 
 const openCellDialog = ({ day, bell, teacher }) => {
-  if (isBusy.value) return
+  if (isBusy.value || !selectedAcademicYearId.value) return
   resetForm()
   Object.assign(form, {
     teacher_id: teacher?.id || selectedTeacher.value?.id || null,
@@ -457,9 +398,10 @@ const openCellDialog = ({ day, bell, teacher }) => {
 }
 
 const openEditDialog = (item) => {
-  if (!item || isBusy.value) return
+  if (!item || isBusy.value || !selectedAcademicYearId.value) return
   Object.assign(form, {
     id: item.id,
+    academic_year_id: selectedAcademicYearId.value,
     teacher_id: item.teacher_id,
     exception_date: toDateKey(item.exception_date),
     weekday: item.weekday,
@@ -474,7 +416,7 @@ const openEditDialog = (item) => {
 }
 
 const openBulkDialog = () => {
-  if (!selectedCells.value.length || isBusy.value) return
+  if (!selectedCells.value.length || isBusy.value || !selectedAcademicYearId.value) return
   bulkError.value = ''
   bulkDialog.value = true
 }
@@ -496,7 +438,7 @@ const clearSelectedCells = () => {
 
 const saveBulkExceptions = async () => {
   const cells = uniqueBulkCells.value
-  if (!cells.length || bulkSaving.value) return
+  if (!cells.length || bulkSaving.value || !selectedAcademicYearId.value) return
 
   bulkSaving.value = true
   bulkError.value = ''
@@ -506,6 +448,7 @@ const saveBulkExceptions = async () => {
   for (const cell of cells) {
     try {
       await store.save({
+        academic_year_id: selectedAcademicYearId.value,
         teacher_id: cell.teacher.id,
         exception_date: cell.day.date,
         weekday: cell.day.value,
@@ -543,10 +486,11 @@ const saveBulkExceptions = async () => {
 }
 
 const saveException = async () => {
-  if (store.saving) return
+  if (store.saving || !selectedAcademicYearId.value) return
   try {
     await store.save({
       ...form,
+      academic_year_id: selectedAcademicYearId.value,
       school_bell_id: form.is_full_day ? null : form.school_bell_id,
       reason: form.reason || null,
       remarks: form.remarks || null,
@@ -559,11 +503,11 @@ const saveException = async () => {
 }
 
 const deleteException = async (id) => {
-  if (!id || store.deleting) return
+  if (!id || store.deleting || !selectedAcademicYearId.value) return
   const confirmed = await ui.confirmDialog('Delete Exception', 'Are you sure you want to delete this exception?')
   if (!confirmed) return
   try {
-    await store.delete(id, selectedDate.value)
+    await store.delete(id, selectedDate.value, selectedAcademicYearId.value)
     dialog.value = false
     closeContextMenu()
   } catch {
@@ -572,17 +516,22 @@ const deleteException = async (id) => {
 }
 
 const loadDashboard = async ({ silent = false } = {}) => {
+  if (!selectedAcademicYearId.value) {
+    store.reset()
+    selectedTeacher.value = null
+    selectedCells.value = []
+    return
+  }
+
   const selectedTeacherId = selectedTeacher.value?.id
   try {
-    await store.fetchDashboard(selectedDate.value)
+    await store.fetchDashboard(selectedDate.value, selectedAcademicYearId.value)
     selectedTeacher.value = store.teachers.find((teacher) => Number(teacher.id) === Number(selectedTeacherId))
       || store.teachers[0]
       || null
     selectedCells.value = []
   } catch (error) {
-    if (!silent) {
-      ui.showSnackbar(error?.response?.data?.message || 'Failed to load teacher availability.', 'error')
-    }
+    if (!silent) ui.showSnackbar(error?.response?.data?.message || 'Failed to load teacher availability.', 'error')
   }
 }
 
@@ -613,7 +562,7 @@ const finishCellSelection = () => {
 }
 
 const moveException = async ({ id, mode, payload }) => {
-  if (isBusy.value) return
+  if (isBusy.value || !selectedAcademicYearId.value) return
   try {
     if (mode === 'copy') {
       const item = store.exceptions.find((exception) => Number(exception.id) === Number(id))
@@ -621,6 +570,7 @@ const moveException = async ({ id, mode, payload }) => {
       await store.save({
         ...item,
         id: undefined,
+        academic_year_id: selectedAcademicYearId.value,
         exception_date: payload.exception_date,
         weekday: payload.weekday,
         school_bell_id: payload.school_bell_id,
@@ -635,7 +585,7 @@ const moveException = async ({ id, mode, payload }) => {
 }
 
 const moveWeek = async (direction) => {
-  if (store.loading) return
+  if (store.loading || !selectedAcademicYearId.value) return
   const date = new Date(`${selectedDate.value}T12:00:00`)
   date.setDate(date.getDate() + direction * 7)
   selectedDate.value = toDateKey(date)
@@ -643,7 +593,7 @@ const moveWeek = async (direction) => {
 }
 
 const goToday = async () => {
-  if (store.loading) return
+  if (store.loading || !selectedAcademicYearId.value) return
   selectedDate.value = toDateKey()
   await loadDashboard()
 }
@@ -651,7 +601,7 @@ const goToday = async () => {
 const contextMenu = reactive({ show: false, x: 0, y: 0, exception: null })
 
 const openContextMenu = ({ event, exception }) => {
-  if (!exception || isBusy.value) return
+  if (!exception || isBusy.value || !selectedAcademicYearId.value) return
   event.preventDefault()
   event.stopPropagation()
   contextMenu.exception = exception
@@ -678,10 +628,10 @@ const duplicateContextException = () => {
 
 const quickStatus = async (status) => {
   const item = contextMenu.exception
-  if (!item) return
+  if (!item || !selectedAcademicYearId.value) return
   closeContextMenu()
   try {
-    await store.save({ ...item, status }, item.id)
+    await store.save({ ...item, academic_year_id: selectedAcademicYearId.value, status }, item.id)
     await loadDashboard({ silent: true })
   } catch {
     // Store already exposes and displays the API error.
@@ -690,12 +640,17 @@ const quickStatus = async (status) => {
 
 const copyContextToNextWeek = async () => {
   const item = contextMenu.exception
-  if (!item) return
+  if (!item || !selectedAcademicYearId.value) return
   const nextDate = new Date(`${toDateKey(item.exception_date)}T12:00:00`)
   nextDate.setDate(nextDate.getDate() + 7)
   closeContextMenu()
   try {
-    await store.save({ ...item, id: undefined, exception_date: toDateKey(nextDate) })
+    await store.save({
+      ...item,
+      id: undefined,
+      academic_year_id: selectedAcademicYearId.value,
+      exception_date: toDateKey(nextDate),
+    })
     await loadDashboard({ silent: true })
   } catch {
     // Store already exposes and displays the API error.
@@ -714,6 +669,20 @@ const handleKeyDown = (event) => {
   if (!store.saving && !store.deleting) dialog.value = false
   selectedCells.value = []
 }
+
+watch(selectedAcademicYearId, async () => {
+  dialog.value = false
+  bulkDialog.value = false
+  selectedCells.value = []
+  selectedTeacher.value = null
+  search.value = ''
+  statusFilter.value = 'all'
+  await loadDashboard({ silent: true })
+})
+
+watch(() => appStore.refreshKey, async () => {
+  await loadDashboard({ silent: true })
+})
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
