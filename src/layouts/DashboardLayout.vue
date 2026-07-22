@@ -8,8 +8,6 @@ import { useAppStore } from "../stores/app";
 import AppSidebar from "../components/AppSidebar.vue";
 import SubscriptionWarning from '../components/subscription/SubscriptionWarning.vue'
 import { useUIStore } from "../stores/snackBar";
-
-
 import LoginTimeCountdown from "../components/LoginTimeCountdown.vue";
 
 const router = useRouter();
@@ -17,31 +15,31 @@ const route = useRoute();
 const theme = useTheme();
 const auth = useAuthStore();
 const appStore = useAppStore();
+const ui = useUIStore();
 
 const notificationMenu = ref(false);
 const notifications = ref([]);
 const unreadCount = ref(0);
-
 const drawer = ref(true);
-const ui = useUIStore();
+const refreshing = ref(false);
 
 const user = computed(() => auth.user || {});
-
-const refreshing = ref(false);
+const academicYears = computed(() => appStore.academicYears);
+const academicYearsLoading = computed(() => appStore.academicYearsLoading);
+const selectedAcademicYearId = computed({
+  get: () => appStore.selectedAcademicYearId,
+  set: (value) => appStore.setSelectedAcademicYear(value),
+});
 
 const refreshPage = () => {
   refreshing.value = true;
-
   appStore.triggerRefresh();
-
   setTimeout(() => {
     refreshing.value = false;
   }, 800);
 };
 
-const pageTitle = computed(() => {
-  return route.meta?.title || "Dashboard";
-});
+const pageTitle = computed(() => route.meta?.title || "Dashboard");
 
 const initials = computed(() => {
   return user.value?.name
@@ -54,13 +52,27 @@ const initials = computed(() => {
     : "U";
 });
 
-const isDark = computed(() => {
-  return theme.global.current.value.dark;
-});
+const isDark = computed(() => theme.global.current.value.dark);
 
 const toggleTheme = () => {
   theme.global.name.value = isDark.value ? "light" : "dark";
   localStorage.setItem("theme", theme.global.name.value);
+};
+
+const fetchAcademicYears = async () => {
+  if (!auth.token) return;
+
+  appStore.academicYearsLoading = true;
+  try {
+    const response = await api.get('/academic-years', { params: { per_page: 100 } });
+    const payload = response.data?.data || response.data;
+    appStore.setAcademicYears(payload?.data || payload || []);
+  } catch (error) {
+    console.error(error);
+    ui.showSnackbar('Unable to load academic sessions.', 'error');
+  } finally {
+    appStore.academicYearsLoading = false;
+  }
 };
 
 const fetchNotifications = async () => {
@@ -68,10 +80,7 @@ const fetchNotifications = async () => {
 
   try {
     const res = await api.get("/notifications");
-
-    notifications.value = Array.isArray(res.data)
-      ? res.data
-      : res.data.data || [];
+    notifications.value = Array.isArray(res.data) ? res.data : res.data.data || [];
   } catch (error) {
     if (error.response?.status === 401) return;
     console.error(error);
@@ -83,9 +92,7 @@ const fetchUnreadCount = async () => {
 
   try {
     const res = await api.get("/notifications/unread-count");
-
     unreadCount.value = Number(res.data.count || 0);
-
   } catch (err) {
     if (err.response?.status === 401) return;
     console.log(err);
@@ -96,20 +103,15 @@ const openNotification = async (notification) => {
   try {
     if (!notification.is_read) {
       if (notification.ids?.length) {
-        await api.post("/notifications/mark-group-read", {
-          ids: notification.ids,
-        });
+        await api.post("/notifications/mark-group-read", { ids: notification.ids });
       } else {
         await api.post(`/notifications/${notification.id}/read`);
       }
-
       notification.is_read = true;
       unreadCount.value = Math.max(0, unreadCount.value - Number(notification.count || 1));
     }
 
-    if (notification.url) {
-      router.push(notification.url);
-    }
+    if (notification.url) router.push(notification.url);
   } catch (err) {
     console.log(err);
   }
@@ -118,16 +120,9 @@ const openNotification = async (notification) => {
 const markAllAsRead = async () => {
   try {
     await api.post("/notifications/read-all");
-
-    notifications.value = notifications.value.map((n) => ({
-      ...n,
-      is_read: true,
-    }));
-
+    notifications.value = notifications.value.map((n) => ({ ...n, is_read: true }));
     unreadCount.value = 0;
-
     notificationMenu.value = false;
-
     ui.showSnackbar("All notifications marked as read");
   } catch (err) {
     ui.showSnackbar("Failed to mark notifications", "error");
@@ -135,17 +130,13 @@ const markAllAsRead = async () => {
 };
 
 const logout = async () => {
+  appStore.clearAcademicSession();
   await auth.logout();
   router.replace({ name: "login" });
 };
 
-const goProfile = () => {
-  router.push({ name: "profile" });
-};
-
-const goSettings = () => {
-  router.push({ name: "profile" });
-};
+const goProfile = () => router.push({ name: "profile" });
+const goSettings = () => router.push({ name: "profile" });
 
 watch(notificationMenu, async (val) => {
   if (val) {
@@ -154,42 +145,29 @@ watch(notificationMenu, async (val) => {
   }
 });
 
-
 let notificationTimer = null;
 let heartbeatTimer = null;
 
-onMounted(() => {
+onMounted(async () => {
   fetchUnreadCount();
   fetchNotifications();
+  await fetchAcademicYears();
 
-  heartbeatTimer = setInterval(() => {
-    auth.heartbeat();
-  }, 60000);
-
-
+  heartbeatTimer = setInterval(() => auth.heartbeat(), 60000);
   notificationTimer = setInterval(() => {
     fetchUnreadCount();
-    fetchNotifications();    
+    fetchNotifications();
   }, 30000);
-});
 
-onMounted(async () => {
   if (auth.user && localStorage.getItem("token")) {
     await auth.fetchUser();
   }
 });
 
 onBeforeUnmount(() => {
-  if (notificationTimer) {
-    clearInterval(notificationTimer);
-  }
-
-  if (heartbeatTimer) {
-    clearInterval(heartbeatTimer);
-  }
+  if (notificationTimer) clearInterval(notificationTimer);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
 });
-
-
 </script>
 
 <template>
@@ -198,35 +176,43 @@ onBeforeUnmount(() => {
   <v-app-bar app elevation="0" class="app-bar">
     <v-app-bar-nav-icon @click="drawer = !drawer" />
 
-    <div>
-      <div class="text-h6 font-weight-bold">
-        {{ pageTitle }}
-      </div>
-
+    <div class="page-heading d-none d-sm-block">
+      <div class="text-h6 font-weight-bold">{{ pageTitle }}</div>
       <div class="text-caption text-grey">School ERP Management System</div>
     </div>
 
     <v-spacer />
 
-    <!-- THEME -->
+    <div class="session-selector me-3">
+      <v-select
+        v-model="selectedAcademicYearId"
+        :items="academicYears"
+        :loading="academicYearsLoading"
+        item-title="name"
+        item-value="id"
+        label="Academic Session"
+        prepend-inner-icon="mdi-calendar-range"
+        variant="outlined"
+        density="compact"
+        hide-details
+        :disabled="academicYearsLoading || !academicYears.length"
+      />
+    </div>
 
-    <LoginTimeCountdown class="me-4" :end-time="auth.user?.daily_login_end_time || null" />
+    <LoginTimeCountdown class="me-4 d-none d-lg-flex" :end-time="auth.user?.daily_login_end_time || null" />
+
     <v-tooltip text="Refresh Page">
       <template #activator="{ props }">
-        <v-btn icon variant="tonal" color="primary mr-2" @click="refreshPage">
-          <v-icon :class="{ 'spin-icon': refreshing }">
-            mdi-refresh
-          </v-icon>
+        <v-btn v-bind="props" icon variant="tonal" color="primary" class="mr-2" @click="refreshPage">
+          <v-icon :class="{ 'spin-icon': refreshing }">mdi-refresh</v-icon>
         </v-btn>
       </template>
     </v-tooltip>
-    <v-btn icon variant="tonal" color="primary" class="mr-2" @click="toggleTheme">
-      <v-icon>
-        {{ isDark ? "mdi-weather-sunny" : "mdi-weather-night" }}
-      </v-icon>
+
+    <v-btn icon variant="tonal" color="primary" class="mr-2 d-none d-sm-flex" @click="toggleTheme">
+      <v-icon>{{ isDark ? "mdi-weather-sunny" : "mdi-weather-night" }}</v-icon>
     </v-btn>
 
-    <!-- NOTIFICATION -->
     <v-menu v-model="notificationMenu" location="bottom end" offset="10" :close-on-content-click="false">
       <template #activator="{ props }">
         <v-btn v-bind="props" icon variant="tonal" color="primary" class="mr-2" @click="fetchNotifications">
@@ -239,63 +225,37 @@ onBeforeUnmount(() => {
       <v-card width="420" class="rounded-xl">
         <v-card-title class="d-flex justify-space-between align-center">
           Notifications
-
-          <v-btn size="small" variant="text" color="primary" @click="markAllAsRead">
-            Mark all read
-          </v-btn>
+          <v-btn size="small" variant="text" color="primary" @click="markAllAsRead">Mark all read</v-btn>
         </v-card-title>
-
         <v-divider />
-
         <v-list v-if="notifications.length">
           <v-list-item v-for="item in notifications" :key="item.id" @click="openNotification(item)">
             <template #prepend>
               <v-badge v-if="item.count > 1" :content="item.count" color="error">
                 <v-icon color="primary">mdi-bell</v-icon>
               </v-badge>
-
               <v-icon v-else color="primary">mdi-bell</v-icon>
             </template>
-
-            <v-list-item-title>
-              {{ item.title }}
-              <span v-if="item.count > 1"> </span>
-            </v-list-item-title>
-
-            <v-list-item-subtitle>
-              {{ item.message }}
-            </v-list-item-subtitle>
+            <v-list-item-title>{{ item.title }}</v-list-item-title>
+            <v-list-item-subtitle>{{ item.message }}</v-list-item-subtitle>
           </v-list-item>
         </v-list>
-
-        <div v-else class="pa-6 text-center text-grey">
-          No notifications found
-        </div>
+        <div v-else class="pa-6 text-center text-grey">No notifications found</div>
       </v-card>
     </v-menu>
-    <!-- PROFILE MENU -->
+
     <v-menu location="bottom end" offset="10">
       <template #activator="{ props }">
         <v-btn v-bind="props" variant="text" class="profile-btn">
           <v-avatar size="38" color="primary">
             <v-img v-if="user.profile" :src="user.profile" cover />
-
-            <span v-else class="text-white font-weight-bold">
-              {{ initials }}
-            </span>
+            <span v-else class="text-white font-weight-bold">{{ initials }}</span>
           </v-avatar>
-
           <div class="d-none d-md-block text-left ml-2">
-            <div class="text-body-2 font-weight-bold">
-              {{ user.name || "User" }}
-            </div>
-
-            <div class="text-caption text-grey">
-              {{ user.role || "Role" }}
-            </div>
+            <div class="text-body-2 font-weight-bold">{{ user.name || "User" }}</div>
+            <div class="text-caption text-grey">{{ user.role || "Role" }}</div>
           </div>
-
-          <v-icon class="ml-1"> mdi-chevron-down </v-icon>
+          <v-icon class="ml-1">mdi-chevron-down</v-icon>
         </v-btn>
       </template>
 
@@ -304,41 +264,22 @@ onBeforeUnmount(() => {
           <div class="d-flex align-center ga-3">
             <v-avatar size="50" color="primary">
               <v-img v-if="user.profile" :src="user.profile" cover />
-
-              <span v-else class="text-white font-weight-bold">
-                {{ initials }}
-              </span>
+              <span v-else class="text-white font-weight-bold">{{ initials }}</span>
             </v-avatar>
-
             <div>
-              <div class="font-weight-bold">
-                {{ user.name || "User" }}
-              </div>
-
-              <div class="text-caption text-grey">
-                {{ user.email }}
-              </div>
-
-              <v-chip size="x-small" color="primary" variant="tonal" class="mt-1">
-                {{ user.role }}
-              </v-chip>
+              <div class="font-weight-bold">{{ user.name || "User" }}</div>
+              <div class="text-caption text-grey">{{ user.email }}</div>
+              <v-chip size="x-small" color="primary" variant="tonal" class="mt-1">{{ user.role }}</v-chip>
             </div>
           </div>
         </v-card-text>
-
         <v-divider />
-
         <v-list density="comfortable">
           <v-list-item prepend-icon="mdi-account-circle" title="My Profile" @click="goProfile" />
-
           <v-list-item prepend-icon="mdi-cog-outline" title="Settings" @click="goSettings" />
-
-          <v-list-item prepend-icon="mdi-theme-light-dark" :title="isDark ? 'Light Mode' : 'Dark Mode'"
-            @click="toggleTheme" />
+          <v-list-item prepend-icon="mdi-theme-light-dark" :title="isDark ? 'Light Mode' : 'Dark Mode'" @click="toggleTheme" />
         </v-list>
-
         <v-divider />
-
         <v-list density="comfortable">
           <v-list-item prepend-icon="mdi-logout" title="Logout" class="text-error" @click="logout" />
         </v-list>
@@ -349,7 +290,6 @@ onBeforeUnmount(() => {
   <v-main class="main-bg">
     <v-container fluid class="pa-6">
       <SubscriptionWarning />
-
       <router-view />
     </v-container>
   </v-main>
@@ -361,12 +301,19 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(14px);
 }
 
+.page-heading {
+  min-width: 220px;
+}
+
+.session-selector {
+  width: 230px;
+  min-width: 180px;
+}
+
 .main-bg {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left,
-      rgba(var(--v-theme-primary), 0.08),
-      transparent 28%),
+    radial-gradient(circle at top left, rgba(var(--v-theme-primary), 0.08), transparent 28%),
     rgb(var(--v-theme-background));
 }
 
@@ -375,30 +322,19 @@ onBeforeUnmount(() => {
   border-radius: 14px;
 }
 
-.notification-item {
-  transition: 0.2s;
-  cursor: pointer;
-}
-
-.notification-item:hover {
-  background: rgba(var(--v-theme-primary), 0.08);
-}
-
-.notification-unread {
-  background: rgba(var(--v-theme-primary), 0.06);
-}
-
 .spin-icon {
   animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
-  to {
-    transform: rotate(360deg);
+@media (max-width: 720px) {
+  .session-selector {
+    width: 155px;
+    min-width: 140px;
   }
 }
 </style>
