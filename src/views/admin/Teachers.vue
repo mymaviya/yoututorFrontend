@@ -2,13 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import api from '../../plugins/api'
 import { useUIStore } from '../../stores/snackBar'
+import { useAppStore } from '../../stores/app'
 
 const ui = useUIStore()
+const appStore = useAppStore()
 
 const teachers = ref([])
 const grades = ref([])
-const academicYears = ref([])
-const selectedAcademicYearId = ref(null)
 const search = ref('')
 const statusFilter = ref('all')
 const dialog = ref(false)
@@ -18,16 +18,15 @@ const saving = ref(false)
 const errors = ref({})
 const subscriptionStatus = ref(null)
 
+const selectedAcademicYearId = computed(() => appStore.selectedAcademicYearId)
+const selectedAcademicYear = computed(() => appStore.selectedAcademicYear)
+
 const usedUsers = computed(() => Number(subscriptionStatus.value?.used_users ?? 0))
 const maxUsers = computed(() => Number(subscriptionStatus.value?.max_users ?? 0))
 const remainingUsers = computed(() => Number(subscriptionStatus.value?.remaining_users ?? 0))
 const canCreateUsers = computed(() => Boolean(subscriptionStatus.value?.can_create_users ?? true))
 const hasUserLimit = computed(() => maxUsers.value > 0)
 const userLimitReached = computed(() => hasUserLimit.value && !canCreateUsers.value)
-
-const selectedAcademicYear = computed(() =>
-  academicYears.value.find(item => Number(item.id) === Number(selectedAcademicYearId.value)) || null
-)
 
 const teacherAssignments = teacher => {
   const assignments = teacher.teacher_assignments || []
@@ -41,7 +40,6 @@ const filteredTeachers = computed(() => {
   return teachers.value.filter(teacher => {
     if (statusFilter.value === 'active' && !teacher.is_active) return false
     if (statusFilter.value === 'inactive' && teacher.is_active) return false
-
     if (!needle) return true
 
     const assignmentText = teacherAssignments(teacher)
@@ -128,13 +126,6 @@ const fetchGrades = async () => {
   grades.value = res.data?.data || res.data || []
 }
 
-const fetchAcademicYears = async () => {
-  const res = await api.get('/academic-years', { params: { per_page: 100 } })
-  const payload = res.data?.data || res.data
-  academicYears.value = payload?.data || payload || []
-  selectedAcademicYearId.value = academicYears.value.find(item => item.is_active)?.id || academicYears.value[0]?.id || null
-}
-
 const fetchSectionsByGrade = async index => {
   const assignment = form.value.assignments[index]
   assignment.section_id = null
@@ -174,6 +165,11 @@ const onGradeChange = async index => {
 }
 
 const openAdd = () => {
+  if (!selectedAcademicYearId.value) {
+    ui.showSnackbar('Please select an academic session from the app bar first.', 'warning')
+    return
+  }
+
   if (userLimitReached.value) {
     ui.showSnackbar('User limit reached for this subscription plan. Please upgrade your plan to add more teachers.', 'warning')
     return
@@ -195,9 +191,13 @@ const openAdd = () => {
 }
 
 const openEdit = async teacher => {
+  if (!selectedAcademicYearId.value) {
+    ui.showSnackbar('Please select an academic session from the app bar first.', 'warning')
+    return
+  }
+
   editMode.value = true
   errors.value = {}
-
   const assignmentsForSession = teacherAssignments(teacher)
 
   form.value = {
@@ -246,7 +246,7 @@ const removeAssignment = index => {
 
 const saveTeacher = async () => {
   if (!selectedAcademicYearId.value) {
-    ui.showSnackbar('Please select an academic session first.', 'warning')
+    ui.showSnackbar('Please select an academic session from the app bar first.', 'warning')
     return
   }
 
@@ -307,14 +307,16 @@ const deleteTeacher = async teacher => {
 
 watch(selectedAcademicYearId, () => {
   search.value = ''
+  if (dialog.value) dialog.value = false
 })
+
+watch(() => appStore.refreshKey, fetchTeachers)
 
 onMounted(async () => {
   await Promise.all([
     fetchSubscriptionStatus(),
     fetchTeachers(),
     fetchGrades(),
-    fetchAcademicYears(),
   ])
 })
 </script>
@@ -330,7 +332,9 @@ onMounted(async () => {
             </v-avatar>
             <div>
               <h1 class="text-h4 font-weight-bold mb-1">Teacher Management</h1>
-              <div class="text-body-2 text-medium-emphasis">Manage teacher profiles and academic subject allocations.</div>
+              <div class="text-body-2 text-medium-emphasis">
+                Manage teacher profiles and subject allocations for {{ selectedAcademicYear?.name || 'the selected session' }}.
+              </div>
             </div>
           </div>
 
@@ -347,29 +351,10 @@ onMounted(async () => {
       </v-card-text>
     </v-card>
 
-    <v-card rounded="xl" elevation="0" border class="mb-5 session-card">
+    <v-card rounded="xl" elevation="0" border class="mb-5 filter-card">
       <v-card-text class="pa-4 pa-md-5">
         <v-row align="center">
-          <v-col cols="12" md="5">
-            <div class="d-flex align-center ga-3">
-              <v-avatar color="deep-purple" variant="tonal"><v-icon>mdi-calendar-range</v-icon></v-avatar>
-              <div class="flex-grow-1">
-                <div class="text-caption text-medium-emphasis mb-1">Academic Session</div>
-                <v-select
-                  v-model="selectedAcademicYearId"
-                  :items="academicYears"
-                  item-title="name"
-                  item-value="id"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details
-                  placeholder="Select academic session"
-                />
-              </div>
-            </div>
-          </v-col>
-
-          <v-col cols="12" md="4">
+          <v-col cols="12" md="8">
             <v-text-field
               v-model="search"
               prepend-inner-icon="mdi-magnify"
@@ -381,7 +366,7 @@ onMounted(async () => {
             />
           </v-col>
 
-          <v-col cols="12" md="3">
+          <v-col cols="12" md="4">
             <v-btn-toggle v-model="statusFilter" mandatory divided color="primary" class="w-100">
               <v-btn value="all" class="flex-grow-1">All</v-btn>
               <v-btn value="active" class="flex-grow-1">Active</v-btn>
@@ -553,7 +538,7 @@ onMounted(async () => {
 <style scoped>
 .teacher-page { padding-bottom: 24px; }
 .hero-card { background: linear-gradient(135deg, rgba(var(--v-theme-primary), .12), rgba(103, 58, 183, .08)); border: 1px solid rgba(var(--v-theme-primary), .12); }
-.session-card { background: rgba(var(--v-theme-surface), .98); }
+.filter-card { background: rgba(var(--v-theme-surface), .98); }
 .section-label { font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: rgb(var(--v-theme-primary)); }
 .assignment-card { background: rgba(var(--v-theme-primary), .025); }
 .min-width-0 { min-width: 0; }
