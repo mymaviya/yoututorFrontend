@@ -14,6 +14,7 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
     exceptions: [],
     stats: {},
     week: null,
+    academicYearId: null,
     loading: false,
     saving: false,
     deleting: false,
@@ -31,16 +32,19 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
   },
 
   actions: {
-    async fetchDashboard(date = null) {
+    async fetchDashboard(date = null, academicYearId = null) {
       const requestId = ++this.activeRequestId
 
       this.loading = true
       this.error = null
+      this.academicYearId = academicYearId || null
 
       try {
-        const response = await api.get('/teacher-availability-exceptions/dashboard', {
-          params: date ? { date } : {},
-        })
+        const params = {}
+        if (date) params.date = date
+        if (academicYearId) params.academic_year_id = academicYearId
+
+        const response = await api.get('/teacher-availability-exceptions/dashboard', { params })
 
         if (requestId !== this.activeRequestId) return null
 
@@ -51,6 +55,7 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
         this.exceptions = Array.isArray(payload.exceptions) ? payload.exceptions : []
         this.stats = payload.stats && typeof payload.stats === 'object' ? payload.stats : {}
         this.week = payload.week || null
+        this.academicYearId = payload.academic_year_id || academicYearId || null
 
         return payload
       } catch (error) {
@@ -104,7 +109,7 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
       }
     },
 
-    async delete(id, date = null) {
+    async delete(id, date = null, academicYearId = null) {
       const ui = useUIStore()
 
       this.deleting = true
@@ -113,7 +118,7 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
       try {
         await api.delete(`/teacher-availability-exceptions/${id}`)
         ui.showSnackbar('Exception deleted successfully.')
-        await this.fetchDashboard(date)
+        await this.fetchDashboard(date, academicYearId)
       } catch (error) {
         const message = extractErrorMessage(error, 'Failed to delete exception.')
         this.error = message
@@ -155,6 +160,7 @@ export const useTeacherAvailabilityExceptionStore = defineStore('teacherAvailabi
       this.exceptions = []
       this.stats = {}
       this.week = null
+      this.academicYearId = null
       this.loading = false
       this.saving = false
       this.deleting = false
