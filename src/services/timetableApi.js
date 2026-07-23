@@ -71,8 +71,8 @@ const roomResource = resource('/timetable-rooms')
 const parallelGroupResource = resource('/parallel-groups')
 
 const timetableApi = {
-  async dashboard() {
-    const response = await api.get('/academic-planning/dashboard')
+  async dashboard(params = {}) {
+    const response = await api.get('/academic-planning/dashboard', { params })
     return unwrap(response)
   },
 
@@ -181,7 +181,7 @@ const timetableApi = {
   },
 
   async updateEntry(timetableId, entryId, payload) {
-    const response = await api.put(`${'/weekly-timetables'}/${timetableId}/entries/${entryId}`, payload)
+    const response = await api.put(`/weekly-timetables/${timetableId}/entries/${entryId}`, payload)
     return unwrap(response)
   },
 
