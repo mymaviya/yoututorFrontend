@@ -781,7 +781,7 @@ const routes = [
           title: 'Bell Schedule',
           permission: 'bell_schedule_management',
           featureKey: 'bell_schedule_management'
-        },
+        }
       },
       {
         path: '/school-notices',
@@ -791,7 +791,7 @@ const routes = [
           title: 'School Notices',
           requiresAuth: true,
           permission: 'bell_schedule_management',
-        },
+        }
       },
       {
         path: '/academic-planning',
@@ -849,9 +849,17 @@ const routes = [
           featureKey: 'academic_planning',
         },
       },
-
-
-
+      {
+        path: '/academic-planning/reports',
+        name: 'timetable.reports',
+        component: () => import('../pages/AcademicPlanning/TimetableReports/ReportsPage.vue'),
+        meta: {
+          title: 'Timetable Reports & Analytics',
+          requiresAuth: true,
+          permission: 'academic.planning.dashboard',
+          featureKey: 'academic_planning',
+        },
+      },
     ],
   },
   {
