@@ -15,6 +15,52 @@ const selectedAcademicYear = computed(() => appStore.selectedAcademicYear)
 const hasAcademicYear = computed(() => Boolean(selectedAcademicYearId.value))
 const checks = computed(() => store.readiness?.checks || {})
 
+const workloadSummary = computed(() => {
+  const report = store.workloadReport || {}
+  const teachers = Array.isArray(report.teachers)
+    ? report.teachers
+    : Array.isArray(report.data)
+      ? report.data
+      : Array.isArray(report.teacher_load)
+        ? report.teacher_load
+        : []
+
+  const overloaded = Number(
+    report.overloaded_teachers ??
+    report.overloaded_count ??
+    teachers.filter((item) => Boolean(item.is_overloaded) || Number(item.utilization_percentage) > 100).length
+  )
+
+  const underloaded = Number(
+    report.underloaded_teachers ??
+    report.underloaded_count ??
+    teachers.filter((item) => Boolean(item.is_underloaded)).length
+  )
+
+  const averageLoad = Number(
+    report.average_load ??
+    report.average_weekly_periods ??
+    report.average_periods ??
+    0
+  )
+
+  return {
+    total: Number(report.teacher_count ?? teachers.length ?? 0),
+    overloaded,
+    underloaded,
+    averageLoad: Number.isFinite(averageLoad) ? averageLoad : 0,
+  }
+})
+
+const conflictSummary = computed(() => {
+  const report = store.conflictReport || {}
+  return {
+    total: store.conflictCount,
+    teachers: Array.isArray(report.teacher_conflicts) ? report.teacher_conflicts.length : Number(report.teacher_conflict_count || 0),
+    rooms: Array.isArray(report.room_conflicts) ? report.room_conflicts.length : Number(report.room_conflict_count || 0),
+  }
+})
+
 const summaryCards = computed(() => [
   {
     label: 'Setup Readiness',
@@ -439,6 +485,82 @@ onMounted(loadDashboard)
       </v-col>
     </v-row>
 
+    <v-row class="mt-2">
+      <v-col cols="12" lg="6">
+        <v-card class="h-100 rounded-xl" variant="outlined">
+          <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-2">
+            <span>Teacher Workload</span>
+            <v-chip size="small" variant="tonal" prepend-icon="mdi-calendar-range">
+              {{ selectedAcademicYear?.name || 'No session' }}
+            </v-chip>
+          </v-card-title>
+          <v-divider />
+          <v-card-text>
+            <v-row dense>
+              <v-col cols="6" sm="3">
+                <div class="metric-box">
+                  <div class="text-caption text-medium-emphasis">Teachers</div>
+                  <div class="text-h6 font-weight-bold">{{ workloadSummary.total }}</div>
+                </div>
+              </v-col>
+              <v-col cols="6" sm="3">
+                <div class="metric-box">
+                  <div class="text-caption text-medium-emphasis">Average Load</div>
+                  <div class="text-h6 font-weight-bold">{{ workloadSummary.averageLoad }}</div>
+                </div>
+              </v-col>
+              <v-col cols="6" sm="3">
+                <div class="metric-box">
+                  <div class="text-caption text-medium-emphasis">Overloaded</div>
+                  <div class="text-h6 font-weight-bold text-error">{{ workloadSummary.overloaded }}</div>
+                </div>
+              </v-col>
+              <v-col cols="6" sm="3">
+                <div class="metric-box">
+                  <div class="text-caption text-medium-emphasis">Underloaded</div>
+                  <div class="text-h6 font-weight-bold text-warning">{{ workloadSummary.underloaded }}</div>
+                </div>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+      </v-col>
+
+      <v-col cols="12" lg="6">
+        <v-card class="h-100 rounded-xl" variant="outlined">
+          <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-2">
+            <span>Conflict Overview</span>
+            <v-chip :color="conflictSummary.total ? 'error' : 'success'" size="small" variant="tonal">
+              {{ conflictSummary.total }} total
+            </v-chip>
+          </v-card-title>
+          <v-divider />
+          <v-card-text>
+            <v-row dense>
+              <v-col cols="12" sm="4">
+                <div class="metric-box">
+                  <div class="text-caption text-medium-emphasis">All Conflicts</div>
+                  <div class="text-h6 font-weight-bold">{{ conflictSummary.total }}</div>
+                </div>
+              </v-col>
+              <v-col cols="12" sm="4">
+                <div class="metric-box">
+                  <div class="text-caption text-medium-emphasis">Teacher Conflicts</div>
+                  <div class="text-h6 font-weight-bold">{{ conflictSummary.teachers }}</div>
+                </div>
+              </v-col>
+              <v-col cols="12" sm="4">
+                <div class="metric-box">
+                  <div class="text-caption text-medium-emphasis">Room Conflicts</div>
+                  <div class="text-h6 font-weight-bold">{{ conflictSummary.rooms }}</div>
+                </div>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
     <v-row v-if="store.warnings.length" class="mt-2">
       <v-col cols="12">
         <v-alert type="warning" variant="tonal" title="Planning Warnings">
@@ -464,5 +586,13 @@ onMounted(loadDashboard)
 
 .setup-card-disabled {
   opacity: .55;
+}
+
+.metric-box {
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid rgba(var(--v-border-color), .14);
+  border-radius: 14px;
+  background: rgba(var(--v-theme-on-surface), .025);
 }
 </style>
