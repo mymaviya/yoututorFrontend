@@ -1,13 +1,18 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAcademicPlanningStore } from '../../stores/academicPlanning'
+import { useAppStore } from '../../stores/app'
 import { useUIStore } from '../../stores/snackBar'
 
 const router = useRouter()
 const store = useAcademicPlanningStore()
+const appStore = useAppStore()
 const ui = useUIStore()
 
+const selectedAcademicYearId = computed(() => appStore.selectedAcademicYearId)
+const selectedAcademicYear = computed(() => appStore.selectedAcademicYear)
+const hasAcademicYear = computed(() => Boolean(selectedAcademicYearId.value))
 const checks = computed(() => store.readiness?.checks || {})
 
 const summaryCards = computed(() => [
@@ -56,6 +61,7 @@ const setupActions = [
     icon: 'mdi-book-clock-outline',
     color: 'primary',
     route: 'subject.allocation',
+    requiresSession: true,
   },
   {
     title: 'Teacher Availability',
@@ -63,6 +69,7 @@ const setupActions = [
     icon: 'mdi-calendar-account-outline',
     color: 'info',
     route: 'teacher.availability',
+    requiresSession: true,
   },
   {
     title: 'Teacher Timetable',
@@ -70,6 +77,7 @@ const setupActions = [
     icon: 'mdi-account-clock-outline',
     color: 'success',
     route: 'teacher.timetable',
+    requiresSession: true,
   },
   {
     title: 'Teacher Substitution',
@@ -77,6 +85,7 @@ const setupActions = [
     icon: 'mdi-account-switch-outline',
     color: 'warning',
     route: 'teacher.substitution',
+    requiresSession: true,
   },
   {
     title: 'Bell Schedule',
@@ -84,6 +93,7 @@ const setupActions = [
     icon: 'mdi-bell-ring-outline',
     color: 'secondary',
     route: 'bell.schedules',
+    requiresSession: false,
   },
 ]
 
@@ -108,21 +118,44 @@ const formatDate = (value) => {
 }
 
 const timetableClass = (item) => {
-  const parts = [item.grade?.name, item.section?.name, item.stream?.name].filter(Boolean)
+  const parts = [
+    item.grade?.name,
+    item.section?.display_name || item.section?.name,
+    item.stream?.name,
+  ].filter(Boolean)
+
   return parts.join(' · ') || item.name || 'Timetable'
 }
 
-const go = (routeName) => {
-  if (!router.hasRoute(routeName)) {
+const loadDashboard = async ({ silent = false } = {}) => {
+  await store.fetchDashboard({
+    silent,
+    academicYearId: selectedAcademicYearId.value,
+  })
+}
+
+const go = (action) => {
+  if (action.requiresSession && !hasAcademicYear.value) {
+    ui.showSnackbar('Select an academic session from the app bar first.', 'warning')
+    return
+  }
+
+  if (!router.hasRoute(action.route)) {
     ui.showSnackbar('This screen is not available yet.', 'warning')
     return
   }
-  router.push({ name: routeName })
+
+  router.push({ name: action.route })
 }
 
 const refresh = async () => {
-  await store.fetchDashboard({ silent: true })
-  ui.showSnackbar('Timetable dashboard refreshed.')
+  if (!hasAcademicYear.value) {
+    ui.showSnackbar('Select an academic session from the app bar first.', 'warning')
+    return
+  }
+
+  await loadDashboard({ silent: true })
+  ui.showSnackbar('Academic Planning dashboard refreshed.')
 }
 
 const cancelRun = async (run) => {
@@ -143,21 +176,37 @@ const retryRun = async (run) => {
   }
 }
 
-onMounted(() => store.fetchDashboard())
+watch(selectedAcademicYearId, async () => {
+  await loadDashboard()
+})
+
+watch(() => appStore.refreshKey, async () => {
+  if (hasAcademicYear.value) await loadDashboard({ silent: true })
+})
+
+onMounted(loadDashboard)
 </script>
 
 <template>
   <div>
     <div class="d-flex align-center justify-space-between flex-wrap ga-3 mb-6">
       <div>
-        <div class="d-flex align-center ga-2 mb-1">
+        <div class="d-flex align-center ga-2 mb-1 flex-wrap">
           <v-avatar color="primary" variant="tonal" size="42">
             <v-icon>mdi-calendar-school</v-icon>
           </v-avatar>
           <h1 class="text-h5 font-weight-bold">Academic Planning & Timetable</h1>
+          <v-chip
+            :color="hasAcademicYear ? 'primary' : 'warning'"
+            variant="tonal"
+            size="small"
+            prepend-icon="mdi-calendar-range"
+          >
+            {{ selectedAcademicYear?.name || 'No session selected' }}
+          </v-chip>
         </div>
         <p class="text-body-2 text-medium-emphasis mb-0">
-          Monitor setup readiness, timetable lifecycle, generation progress and conflicts.
+          Monitor setup readiness, timetable lifecycle, generation progress and conflicts for the selected session.
         </p>
       </div>
 
@@ -166,13 +215,18 @@ onMounted(() => store.fetchDashboard())
         variant="tonal"
         prepend-icon="mdi-refresh"
         :loading="store.loading || store.refreshing"
+        :disabled="!hasAcademicYear"
         @click="refresh"
       >
         Refresh
       </v-btn>
     </div>
 
-    <v-alert v-if="store.error" type="error" variant="tonal" class="mb-5">
+    <v-alert v-if="!hasAcademicYear" type="warning" variant="tonal" class="mb-5">
+      Select an academic session from the app bar to load Academic Planning statistics and timetable activity.
+    </v-alert>
+
+    <v-alert v-else-if="store.error" type="error" variant="tonal" class="mb-5">
       {{ store.error }}
     </v-alert>
 
@@ -251,9 +305,10 @@ onMounted(() => store.fetchDashboard())
               <v-col v-for="action in setupActions" :key="action.title" cols="12" sm="6">
                 <v-card
                   class="setup-card h-100 rounded-lg"
+                  :class="{ 'setup-card-disabled': action.requiresSession && !hasAcademicYear }"
                   variant="tonal"
                   :color="action.color"
-                  @click="go(action.route)"
+                  @click="go(action)"
                 >
                   <v-card-text class="d-flex align-start ga-3">
                     <v-avatar :color="action.color" variant="flat" size="42">
@@ -308,7 +363,7 @@ onMounted(() => store.fetchDashboard())
               </tr>
               <tr v-if="!store.recentTimetables.length">
                 <td colspan="5" class="text-center text-medium-emphasis py-8">
-                  No timetable records found.
+                  No timetable records found for {{ selectedAcademicYear?.name || 'the selected session' }}.
                 </td>
               </tr>
             </tbody>
@@ -363,7 +418,7 @@ onMounted(() => store.fetchDashboard())
                       @click="cancelRun(run)"
                     />
                     <v-btn
-                      v-else-if="['failed', 'partial', 'cancelled'].includes(run.status)"
+                      v-if="['failed', 'partial', 'cancelled'].includes(run.status)"
                       icon="mdi-replay"
                       size="small"
                       variant="text"
@@ -376,30 +431,21 @@ onMounted(() => store.fetchDashboard())
               <v-divider v-if="index < store.recentRuns.length - 1" />
             </template>
           </v-list>
-          <div v-else class="text-center text-medium-emphasis py-10">
-            No generation activity found.
-          </div>
+
+          <v-card-text v-else class="text-center text-medium-emphasis py-8">
+            No generation activity found for {{ selectedAcademicYear?.name || 'the selected session' }}.
+          </v-card-text>
         </v-card>
       </v-col>
     </v-row>
 
-    <v-row class="mt-2">
+    <v-row v-if="store.warnings.length" class="mt-2">
       <v-col cols="12">
-        <v-card class="rounded-xl" variant="outlined">
-          <v-card-title>Readiness Warnings</v-card-title>
-          <v-card-text>
-            <v-alert v-if="!store.warnings.length" type="success" variant="tonal">
-              All available setup checks passed.
-            </v-alert>
-            <v-row v-else>
-              <v-col v-for="(warning, index) in store.warnings" :key="index" cols="12" md="6">
-                <v-alert type="warning" variant="tonal" density="compact">
-                  {{ warning }}
-                </v-alert>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
+        <v-alert type="warning" variant="tonal" title="Planning Warnings">
+          <div v-for="(warning, index) in store.warnings" :key="index" class="text-body-2">
+            • {{ warning }}
+          </div>
+        </v-alert>
       </v-col>
     </v-row>
   </div>
@@ -408,15 +454,15 @@ onMounted(() => store.fetchDashboard())
 <style scoped>
 .setup-card {
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform .18s ease, box-shadow .18s ease;
 }
 
 .setup-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 24px rgba(var(--v-theme-primary), .12);
 }
 
-th {
-  white-space: nowrap;
+.setup-card-disabled {
+  opacity: .55;
 }
 </style>
