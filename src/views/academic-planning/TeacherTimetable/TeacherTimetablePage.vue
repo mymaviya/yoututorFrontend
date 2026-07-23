@@ -2,9 +2,14 @@
   <v-container fluid class="teacher-timetable-page pa-4 pa-md-6">
     <div class="page-header mb-5">
       <div>
-        <div class="text-h5 text-md-h4 font-weight-bold">Teacher Timetable</div>
+        <div class="d-flex align-center ga-2 flex-wrap">
+          <div class="text-h5 text-md-h4 font-weight-bold">Teacher Timetable</div>
+          <v-chip color="primary" variant="tonal" prepend-icon="mdi-calendar-range">
+            {{ appStore.selectedAcademicYear?.name || 'No session selected' }}
+          </v-chip>
+        </div>
         <div class="text-body-2 text-medium-emphasis mt-1">
-          View teacher-wise and class-wise weekly schedules.
+          View teacher-wise and class-wise weekly schedules for the selected academic session.
         </div>
       </div>
 
@@ -13,6 +18,7 @@
           variant="tonal"
           prepend-icon="mdi-refresh"
           :loading="loading"
+          :disabled="!appStore.selectedAcademicYearId"
           @click="loadTimetable"
         >
           Refresh
@@ -29,13 +35,23 @@
           color="primary"
           prepend-icon="mdi-file-excel-outline"
           :loading="exporting"
-          :disabled="!hasSchedule"
+          :disabled="!hasSchedule || !appStore.selectedAcademicYearId"
           @click="exportTimetable"
         >
           Export
         </v-btn>
       </div>
     </div>
+
+    <v-alert
+      v-if="!appStore.selectedAcademicYearId"
+      type="warning"
+      variant="tonal"
+      class="mb-5"
+      title="Select an academic session"
+    >
+      Choose an academic session from the app bar before viewing teacher or class timetables.
+    </v-alert>
 
     <v-card rounded="xl" class="filter-card mb-5">
       <v-card-text class="pa-4 pa-md-5">
@@ -48,6 +64,7 @@
               divided
               density="comfortable"
               class="w-100"
+              :disabled="!appStore.selectedAcademicYearId"
             >
               <v-btn value="teacher" class="flex-grow-1">
                 <v-icon start>mdi-account-school-outline</v-icon>
@@ -58,20 +75,6 @@
                 Class
               </v-btn>
             </v-btn-toggle>
-          </v-col>
-
-          <v-col cols="12" sm="6" md="3">
-            <v-select
-              v-model="filters.academic_year_id"
-              :items="academicYears"
-              item-title="name"
-              item-value="id"
-              label="Academic Year"
-              variant="outlined"
-              density="comfortable"
-              hide-details
-              clearable
-            />
           </v-col>
 
           <v-col v-if="viewMode === 'teacher'" cols="12" sm="6" md="3">
@@ -85,6 +88,7 @@
               density="comfortable"
               hide-details
               clearable
+              :disabled="!appStore.selectedAcademicYearId"
             />
           </v-col>
 
@@ -100,19 +104,21 @@
                 density="comfortable"
                 hide-details
                 clearable
+                :disabled="!appStore.selectedAcademicYearId"
               />
             </v-col>
             <v-col cols="12" sm="6" md="2">
               <v-select
                 v-model="filters.section_id"
                 :items="sections"
-                item-title="name"
+                item-title="display_name"
                 item-value="id"
                 label="Section"
                 variant="outlined"
                 density="comfortable"
                 hide-details
                 clearable
+                :disabled="!appStore.selectedAcademicYearId || !filters.grade_id"
               />
             </v-col>
             <v-col cols="12" sm="6" md="2">
@@ -126,6 +132,7 @@
                 density="comfortable"
                 hide-details
                 clearable
+                :disabled="!appStore.selectedAcademicYearId || !filters.grade_id"
               />
             </v-col>
           </template>
@@ -139,6 +146,7 @@
               density="comfortable"
               hide-details
               clearable
+              :disabled="!appStore.selectedAcademicYearId"
             />
           </v-col>
         </v-row>
@@ -165,7 +173,9 @@
       <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-2 pa-4 pa-md-5">
         <div>
           <div class="text-subtitle-1 font-weight-bold">Weekly Schedule</div>
-          <div class="text-caption text-medium-emphasis">{{ activeEntityLabel }}</div>
+          <div class="text-caption text-medium-emphasis">
+            {{ activeEntityLabel }} · {{ appStore.selectedAcademicYear?.name || 'No session selected' }}
+          </div>
         </div>
         <div class="d-flex align-center ga-2">
           <v-chip color="primary" variant="tonal">{{ visibleEntries.length }} Periods</v-chip>
@@ -247,7 +257,9 @@
           </v-avatar>
           <div class="text-h6 font-weight-bold">No timetable data found</div>
           <div class="text-body-2 text-medium-emphasis mt-2">
-            Select the required filters and refresh the timetable.
+            {{ appStore.selectedAcademicYearId
+              ? 'Select the required filters to view the timetable.'
+              : 'Select an academic session from the app bar first.' }}
           </div>
         </div>
       </template>
@@ -258,8 +270,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import api from '../../../plugins/api'
+import { useAppStore } from '../../../stores/app'
 import { useUIStore } from '../../../stores/snackBar'
 
+const appStore = useAppStore()
 const ui = useUIStore()
 const loading = ref(false)
 const exporting = ref(false)
@@ -267,7 +281,6 @@ const viewMode = ref('teacher')
 const search = ref('')
 const requestSequence = ref(0)
 
-const academicYears = ref([])
 const teachers = ref([])
 const grades = ref([])
 const sections = ref([])
@@ -277,7 +290,6 @@ const entries = ref([])
 const summary = ref({})
 
 const filters = reactive({
-  academic_year_id: null,
   teacher_id: null,
   grade_id: null,
   section_id: null,
@@ -307,7 +319,7 @@ const visibleEntries = computed(() => {
     entry.teacher?.name,
     entry.substitute_teacher?.name,
     entry.grade?.name,
-    entry.section?.name,
+    entry.section?.display_name || entry.section?.name,
     entry.stream?.name,
     entry.room_no,
   ].some((value) => String(value || '').toLowerCase().includes(term)))
@@ -322,7 +334,7 @@ const entryIndex = computed(() => {
   return index
 })
 
-const hasSchedule = computed(() => bells.value.length > 0)
+const hasSchedule = computed(() => appStore.selectedAcademicYearId && bells.value.length > 0 && entries.value.length > 0)
 
 const activeEntityLabel = computed(() => {
   if (viewMode.value === 'teacher') {
@@ -333,7 +345,7 @@ const activeEntityLabel = computed(() => {
   const grade = grades.value.find((item) => Number(item.id) === Number(filters.grade_id))
   const section = sections.value.find((item) => Number(item.id) === Number(filters.section_id))
   const stream = streams.value.find((item) => Number(item.id) === Number(filters.stream_id))
-  return [grade?.name, section?.name, stream?.name].filter(Boolean).join(' • ') || 'Select a class'
+  return [grade?.name, section?.display_name || section?.name, stream?.name].filter(Boolean).join(' • ') || 'Select a class'
 })
 
 const calculateFreePeriods = () => Math.max((bells.value.length * weekdays.length) - entries.value.length, 0)
@@ -346,8 +358,8 @@ const summaryCards = computed(() => [
 ])
 
 const isToday = (weekday) => todayLabel.value === weekday
-const entryFor = (weekday, bellId) => entryIndex.value.get(`${String(weekday).toLowerCase()}-${Number(bellId)}`) || null
-const classLabel = (entry) => [entry?.grade?.name, entry?.section?.name, entry?.stream?.name].filter(Boolean).join(' • ') || '-'
+const entryFor = (weekday, bellId) => entryIndex.value.get(`${String(weekday).toLowerCase()}-${Number(bellId)}`)
+const classLabel = (entry) => [entry?.grade?.name, entry?.section?.display_name || entry?.section?.name, entry?.stream?.name].filter(Boolean).join(' • ') || '-'
 const teacherLabel = (entry) => entry?.substitute_teacher?.name || entry?.teacher?.name || '-'
 
 const formatTime = (value) => {
@@ -367,9 +379,15 @@ const extractList = (result) => {
   return []
 }
 
+const clearSchedule = () => {
+  requestSequence.value += 1
+  entries.value = []
+  summary.value = {}
+  search.value = ''
+}
+
 const loadDropdowns = async () => {
   const results = await Promise.allSettled([
-    api.get('/academic-years'),
     api.get('/teachers', { params: { per_page: 500 } }),
     api.get('/grades'),
     api.get('/sections'),
@@ -377,31 +395,28 @@ const loadDropdowns = async () => {
     api.get('/bell-schedules'),
   ])
 
-  academicYears.value = extractList(results[0])
-  teachers.value = extractList(results[1])
-  grades.value = extractList(results[2])
-  sections.value = extractList(results[3])
-  streams.value = extractList(results[4])
-  bells.value = extractList(results[5])
+  teachers.value = extractList(results[0])
+  grades.value = extractList(results[1])
+  sections.value = extractList(results[2])
+  streams.value = extractList(results[3])
+  bells.value = extractList(results[4])
     .filter((item) => item.is_teaching_period !== false)
     .sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')))
-
-  if (!filters.academic_year_id) {
-    const activeYear = academicYears.value.find((item) => item.is_active)
-    filters.academic_year_id = activeYear?.id || academicYears.value[0]?.id || null
-  }
 }
 
 const loadTimetable = async () => {
+  if (!appStore.selectedAcademicYearId) {
+    clearSchedule()
+    return
+  }
+
   if (viewMode.value === 'teacher' && !filters.teacher_id) {
-    entries.value = []
-    summary.value = {}
+    clearSchedule()
     return
   }
 
   if (viewMode.value === 'class' && !filters.grade_id) {
-    entries.value = []
-    summary.value = {}
+    clearSchedule()
     return
   }
 
@@ -415,7 +430,7 @@ const loadTimetable = async () => {
 
     const { data } = await api.get(endpoint, {
       params: {
-        academic_year_id: filters.academic_year_id,
+        academic_year_id: appStore.selectedAcademicYearId,
         grade_id: viewMode.value === 'class' ? filters.grade_id : undefined,
         section_id: viewMode.value === 'class' ? filters.section_id : undefined,
         stream_id: viewMode.value === 'class' ? filters.stream_id : undefined,
@@ -446,6 +461,8 @@ const loadTimetable = async () => {
 const printTimetable = () => window.print()
 
 const exportTimetable = async () => {
+  if (!appStore.selectedAcademicYearId) return
+
   exporting.value = true
   let objectUrl = null
 
@@ -453,7 +470,7 @@ const exportTimetable = async () => {
     const response = await api.get('/teacher-timetable/export', {
       params: {
         mode: viewMode.value,
-        academic_year_id: filters.academic_year_id,
+        academic_year_id: appStore.selectedAcademicYearId,
         teacher_id: viewMode.value === 'teacher' ? filters.teacher_id : undefined,
         grade_id: viewMode.value === 'class' ? filters.grade_id : undefined,
         section_id: viewMode.value === 'class' ? filters.section_id : undefined,
@@ -468,7 +485,7 @@ const exportTimetable = async () => {
     objectUrl = window.URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = objectUrl
-    anchor.download = `teacher-timetable-${new Date().toISOString().slice(0, 10)}.xlsx`
+    anchor.download = `teacher-timetable-${appStore.selectedAcademicYear?.name || 'session'}-${new Date().toISOString().slice(0, 10)}.xlsx`
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
@@ -481,10 +498,7 @@ const exportTimetable = async () => {
 }
 
 watch(viewMode, () => {
-  requestSequence.value += 1
-  entries.value = []
-  summary.value = {}
-  search.value = ''
+  clearSchedule()
 
   if (viewMode.value === 'teacher') {
     filters.grade_id = null
@@ -497,13 +511,31 @@ watch(viewMode, () => {
 
 watch(
   () => [
-    filters.academic_year_id,
     filters.teacher_id,
     filters.grade_id,
     filters.section_id,
     filters.stream_id,
   ],
   loadTimetable
+)
+
+watch(
+  () => appStore.selectedAcademicYearId,
+  () => {
+    filters.teacher_id = null
+    filters.grade_id = null
+    filters.section_id = null
+    filters.stream_id = null
+    clearSchedule()
+  }
+)
+
+watch(
+  () => appStore.refreshKey,
+  async () => {
+    await loadDropdowns()
+    await loadTimetable()
+  }
 )
 
 onMounted(async () => {
