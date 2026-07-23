@@ -14,11 +14,13 @@ export const useAcademicPlanningStore = defineStore('academicPlanning', {
     generationRuns: [],
     conflictReport: null,
     workloadReport: null,
+    academicYearId: null,
     loading: false,
     refreshing: false,
     error: null,
     partialErrors: [],
     lastFetchedAt: null,
+    activeRequestId: 0,
   }),
 
   getters: {
@@ -51,23 +53,54 @@ export const useAcademicPlanningStore = defineStore('academicPlanning', {
   },
 
   actions: {
-    async fetchDashboard({ silent = false } = {}) {
+    clearDashboard() {
+      this.activeRequestId += 1
+      this.dashboard = null
+      this.weeklyTimetables = []
+      this.generationRuns = []
+      this.conflictReport = null
+      this.workloadReport = null
+      this.academicYearId = null
+      this.loading = false
+      this.refreshing = false
+      this.error = null
+      this.partialErrors = []
+      this.lastFetchedAt = null
+    },
+
+    async fetchDashboard({ silent = false, academicYearId = null } = {}) {
+      const selectedYearId = Number(academicYearId) || null
+
+      if (!selectedYearId) {
+        this.clearDashboard()
+        this.error = 'Select an academic session from the app bar to load Academic Planning.'
+        return
+      }
+
+      const requestId = ++this.activeRequestId
+      this.academicYearId = selectedYearId
+
       if (silent) this.refreshing = true
       else this.loading = true
 
       this.error = null
       this.partialErrors = []
 
+      const params = { academic_year_id: selectedYearId }
       const requests = [
-        ['dashboard', () => timetableApi.dashboard()],
-        ['weeklyTimetables', () => timetableApi.weeklyTimetables({ per_page: 12 })],
-        ['generationRuns', () => timetableApi.generationRuns({ per_page: 12 })],
-        ['conflictReport', () => timetableApi.conflicts()],
-        ['workloadReport', () => timetableApi.workload()],
+        ['dashboard', () => timetableApi.dashboard(params)],
+        ['weeklyTimetables', () => timetableApi.weeklyTimetables({ ...params, per_page: 12 })],
+        ['generationRuns', () => timetableApi.generationRuns({ ...params, per_page: 12 })],
+        ['conflictReport', () => timetableApi.conflicts(params)],
+        ['workloadReport', () => timetableApi.workload(params)],
       ]
 
       try {
         const results = await Promise.allSettled(requests.map(([, request]) => request()))
+
+        if (requestId !== this.activeRequestId || Number(this.academicYearId) !== selectedYearId) {
+          return
+        }
 
         results.forEach((result, index) => {
           const key = requests[index][0]
@@ -94,19 +127,27 @@ export const useAcademicPlanningStore = defineStore('academicPlanning', {
 
         this.lastFetchedAt = new Date().toISOString()
       } finally {
-        this.loading = false
-        this.refreshing = false
+        if (requestId === this.activeRequestId) {
+          this.loading = false
+          this.refreshing = false
+        }
       }
     },
 
     async cancelGenerationRun(id) {
       await timetableApi.cancelRun(id)
-      await this.fetchDashboard({ silent: true })
+      await this.fetchDashboard({
+        silent: true,
+        academicYearId: this.academicYearId,
+      })
     },
 
     async retryGenerationRun(id) {
       await timetableApi.retryRun(id, true)
-      await this.fetchDashboard({ silent: true })
+      await this.fetchDashboard({
+        silent: true,
+        academicYearId: this.academicYearId,
+      })
     },
   },
 })
